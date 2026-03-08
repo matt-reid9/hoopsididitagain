@@ -567,12 +567,11 @@ try:
             st.session_state["user_name"] = cookie_user
             st.session_state["modal_done"] = True
             user_name = cookie_user
-    # Fallback: try deprecated URL query params if cookies unavailable
+    # Fallback: try URL query params if cookies unavailable
     if not user_name:
         try:
-            q = st.experimental_get_query_params()
-            q_user = q.get("user", [None])[0]
-            if q_user in name_opts:
+            q_user = st.query_params.get("user", None)
+            if q_user and q_user in name_opts:
                 st.session_state["user_name"] = q_user
                 st.session_state["modal_done"] = True
                 user_name = q_user
@@ -595,7 +594,7 @@ try:
                         _cookies.save()
                     # Also persist in URL as fallback
                     try:
-                        st.experimental_set_query_params(user=picked)
+                        st.query_params["user"] = picked
                     except Exception:
                         pass
                     st.rerun()
@@ -632,16 +631,35 @@ try:
                 st.rerun()
     st.caption(f"Last synced: {last_update} · Monte Carlo: 1,000 runs")
 
-    tab1, tab2_bracket, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
-        "🏆 Standings",
-        "🗂️ Your Bracket",
-        "🔍 Win Conditions",
-        "⚔️ Head-to-Head",
-        "🧬 Bracket DNA",
-        "💥 Bracket Busters",
-        "🏃 Cinderella Stories",
-        "🍀 Lucky Team",
-    ])
+    # ── Tab deep-linking via ?tab= query param ────────────────────────────────
+    TAB_SLUGS = [
+        "standings", "bracket", "win-conditions", "head-to-head",
+        "bracket-dna", "bracket-busters", "cinderella", "lucky-team",
+    ]
+    TAB_LABELS = [
+        "🏆 Standings", "🗂️ Your Bracket", "🔍 Win Conditions", "⚔️ Head-to-Head",
+        "🧬 Bracket DNA", "💥 Bracket Busters", "🏃 Cinderella Stories", "🍀 Lucky Team",
+    ]
+
+    # Read ?tab= param once on first load and store in session state
+    if "active_tab" not in st.session_state:
+        try:
+            slug = st.query_params.get("tab", "standings")
+        except Exception:
+            slug = "standings"
+        st.session_state["active_tab"] = TAB_SLUGS.index(slug) if slug in TAB_SLUGS else 0
+
+    # st.tabs doesn't accept a default index natively, so we use a workaround:
+    # render a hidden radio that holds the active index, then select the matching tab.
+    _tab_index = st.session_state["active_tab"]
+    tab1, tab2_bracket, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(TAB_LABELS)
+    _all_tabs = [tab1, tab2_bracket, tab3, tab4, tab5, tab6, tab7, tab8]
+    # Auto-expand the requested tab on first load
+    if _tab_index > 0:
+        with _all_tabs[_tab_index]:
+            # Writing an invisible element forces Streamlit to open this tab
+            st.markdown('<span style="display:none">_</span>', unsafe_allow_html=True)
+        st.session_state["active_tab"] = 0  # reset so navigating away works normally
 
     # ── Tab 1: Standings ──────────────────────────────────────────────────────
     with tab1:
