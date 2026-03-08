@@ -42,7 +42,6 @@ if "modal_done" not in st.session_state:
 # ─── 1. CONFIGURATION ─────────────────────────────────────────────────────────
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1M3nBX0a2qwPyMdWqzEztN4eKY1wS5FU3OGgxUeNWamI/edit"
 
-
 def get_csv_url(base_url: str, sheet_name: str) -> str | None:
     try:
         sheet_id = base_url.split("/d/")[1].split("/")[0]
@@ -546,7 +545,19 @@ try:
     )
     final_df["Current Rank"] = range(1, len(final_df) + 1)
     name_opts = sorted(final_df["Name"].tolist())
+
+    # Try to restore user from URL query params (persists across sessions)
     user_name = st.session_state.get("user_name")
+    if not user_name:
+        try:
+            q = st.experimental_get_query_params()
+            q_user = q.get("user", [None])[0]
+            if q_user in name_opts:
+                st.session_state["user_name"] = q_user
+                st.session_state["modal_done"] = True
+                user_name = q_user
+        except Exception:
+            pass
 
     # ── Welcome modal — shown once until user picks a name ────────────────────
     if not st.session_state["modal_done"]:
@@ -558,6 +569,11 @@ try:
                 if picked != "— select —":
                     st.session_state["user_name"] = picked
                     st.session_state["modal_done"] = True
+                    # Persist selection into the URL so it's remembered on reloads
+                    try:
+                        st.experimental_set_query_params(user=picked)
+                    except Exception:
+                        pass
                     st.rerun()
                 else:
                     st.warning("Please select your name first.")
@@ -578,30 +594,8 @@ try:
     # UI
     # ─────────────────────────────────────────────────────────────────────────
     st.title("🏀 March Madness Pool")
-
-    # ── Inline name selector ──────────────────────────────────────────────────
-    col_greet, col_select = st.columns([3, 2])
-    with col_greet:
-        if user_name:
-            st.markdown(f"Welcome back, **{user_name}** 👋")
-        else:
-            st.markdown("Select your name to personalise your experience.")
-    with col_select:
-        current_idx = (name_opts.index(user_name) + 1) if user_name in name_opts else 0
-        selected = st.selectbox(
-            "You are:",
-            ["— View as different player —"] + name_opts,
-            index=current_idx,
-            key="global_name_select",
-            label_visibility="collapsed",
-        )
-        if selected != "— View as different player —" and selected != user_name:
-            st.session_state["user_name"]  = selected
-            st.session_state["modal_done"] = True
-            for key in ("path", "dna", "bracket_name", "h2h_p1"):
-                st.session_state.pop(key, None)
-            st.rerun()
-
+    if user_name:
+        st.markdown(f"Welcome back, **{user_name}** 👋")
     st.caption(f"Last synced: {last_update} · Monte Carlo: 1,000 runs")
 
     tab1, tab2_bracket, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
@@ -683,16 +677,17 @@ try:
                 m2.metric("Correct Picks", f"{correct} / {played_g}")
                 m3.metric("Accuracy", f"{correct/played_g*100:.0f}%" if played_g else "—")
 
-                # Column → region mapping (confirmed from CBS PDF / ESPN data)
+                # Column → region mapping tailored to the 2025
+                # PrintYourBrackets layout:
                 # South:   R1 3-10,  R2 35-38, S16 51-52, E8 59
-                # West:    R1 19-26, R2 43-46, S16 55-56, E8 61
-                # East:    R1 11-18, R2 39-42, S16 53-54, E8 60
+                # East:    R1 19-26, R2 43-46, S16 55-56, E8 61
+                # West:    R1 11-18, R2 39-42, S16 53-54, E8 60
                 # Midwest: R1 27-34, R2 47-50, S16 57-58, E8 62
                 # FF: 63 (South/West side), 64 (East/Midwest side)  Champ: 65
                 RCOLS = {
                     "South":   {"r1": list(range(3,11)),  "r2": list(range(35,39)), "s16":[51,52], "e8":[59]},
-                    "West":    {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
-                    "East":    {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
+                    "East":    {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
+                    "West":    {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
                     "Midwest": {"r1": list(range(27,35)), "r2": list(range(47,51)), "s16":[57,58], "e8":[62]},
                 }
 
@@ -701,91 +696,187 @@ try:
                     pk  = p_picks[c] if c < len(p_picks) else ""
                     return pk, act, not is_unplayed(act)
 
-                def trow(team, pick, actual, played, mirror=False):
+                def trow(team, pick, actual, played, mirror=False, neutral=False):
                     if not team or team in UNPLAYED:
                         return '<div class="tr tbd"><span class="sd"></span><span class="tn">TBD</span></div>'
                     sd  = seed_map.get(team, "")
                     bust = ""
-                    if played and pick == team and team != actual:
-                        bust = f'<span class="bust">&#8594;{actual}</span>'
-                    if played:
-                        if team == actual:
-                            cls = "tr won mypick" if pick == team else "tr won"
-                        elif pick == team:
-                            cls = "tr lost"
+                    if not neutral:
+                        if played and pick == team and team != actual:
+                            bust = f'<span class="bust">&#8594;{actual}</span>'
+                        if played:
+                            if team == actual:
+                                cls = "tr won mypick" if pick == team else "tr won"
+                            elif pick == team:
+                                cls = "tr lost"
+                            else:
+                                cls = "tr out"
                         else:
-                            cls = "tr out"
+                            cls = "tr live mypick" if pick == team else "tr live"
                     else:
-                        cls = "tr live mypick" if pick == team else "tr live"
+                        cls = "tr"
                     if mirror:
                         return f'<div class="{cls}">{bust}<span class="sd">{sd}</span><span class="tn">{team}</span></div>'
                     return f'<div class="{cls}"><span class="sd">{sd}</span><span class="tn">{team}</span>{bust}</div>'
 
                 def build_region(name, cols, mirror=False):
+                    """
+                    Grid-based layout that mirrors a spreadsheet-style bracket:
+                    - 8 first-round matchups per region
+                    - Each R1 game occupies 3 grid rows (top team, spacer, bottom team)
+                    - A spacer row sits between consecutive games
+                    - R2 winners sit in the middle row of each 3-row game block
+                    - Sweet 16 winners sit centered between pairs of R2 winners
+                    - Elite 8 winners sit centered between pairs of Sweet 16 winners
+                    This guarantees that every winner is vertically centered relative
+                    to the game(s) that produced them, eliminating drift.
+                    """
+
+                    r1_cols   = cols["r1"]      # 8 slots per region
+                    r2_cols   = cols["r2"]      # 4 columns (used to derive Sweet 16)
+                    s16_cols  = cols["s16"]     # 2 columns (used to derive Elite 8)
+                    # e8_cols not needed directly for grid; Elite 8 is derived from s16_cols
+
+                    cells: list[str] = []
+
+                    # Column indices within the region grid (1-based for CSS grid-column)
+                    if not mirror:
+                        col_r1, col_r2, col_s16, col_e8 = 1, 2, 3, 4
+                    else:
+                        col_r1, col_r2, col_s16, col_e8 = 4, 3, 2, 1
+
+                    # Helper: R1 matchup HTML (two teams stacked)
                     def mu(c, team_a, team_b):
-                        """R1 matchup: two known teams, c is the winner slot."""
                         pk, ac, pl = gs(c)
-                        # team_a = lower seed (top), team_b = higher seed (bottom)
                         return (f'<div class="matchup">'
-                                f'{trow(team_a, pk, ac, pl, mirror)}'
+                                f'{trow(team_a, pk, ac, pl, mirror, neutral=True)}'
                                 f'<div class="mdiv"></div>'
-                                f'{trow(team_b, pk, ac, pl, mirror)}'
+                                f'{trow(team_b, pk, ac, pl, mirror, neutral=True)}'
                                 f'</div>')
-                    def ws(c):
-                        pk,ac,pl = gs(c)
+
+                    # Helper: single-team slot (winner/placeholder)
+                    def single_from_col(c):
+                        pk, ac, pl = gs(c)
                         t = ac if pl else (pk if pk not in UNPLAYED else "TBD")
-                        return f'<div class="matchup single">{trow(t,pk,ac,pl,mirror)}</div>'
+                        return f'<div class="matchup single">{trow(t, pk, ac, pl, mirror)}</div>'
 
-                    # R1: one matchup per column — use r1_matchups for both teams
-                    r1_slots  = [mu(c, r1_matchups.get(c, ("TBD","TBD"))[0],
-                                       r1_matchups.get(c, ("TBD","TBD"))[1])
-                                 for c in cols["r1"]]
-                    r2_slots  = [ws(c) for c in cols["r2"]]
-                    s16_slots = [ws(c) for c in cols["s16"]]
-                    e8_slots  = [ws(c) for c in cols["e8"]]
+                    # ── 1) First Round & Round-of-32 column (R1 + "Second Round") ──
+                    # We model 8 games; each game uses 4 grid rows:
+                    # rows (1-based within the region):
+                    #   game g (0–7):
+                    #     R1 block spans rows [4g+1 .. 4g+3]   (3 rows tall)
+                    #     R2 winner sits in row 4g+2
+                    for g, c in enumerate(r1_cols):
+                        row_start = 4 * g + 1
+                        team_a, team_b = r1_matchups.get(c, ("TBD", "TBD"))
 
-                    rounds = [
-                        ("1st Round", "r1",  r1_slots,  ""),
-                        ("2nd Round", "r2",  r2_slots,  "conn-l" if not mirror else "conn-r"),
-                        ("Sweet 16",  "s16", s16_slots, "conn-l" if not mirror else "conn-r"),
-                        ("Elite 8",   "e8",  e8_slots,  "conn-l" if not mirror else "conn-r"),
-                    ]
-                    if mirror:
-                        rounds = list(reversed(rounds))
+                        # First Round matchup (3-row tall block)
+                        r1_html = mu(c, team_a, team_b)
+                        cells.append(
+                            f'<div class="cell r1" '
+                            f'style="grid-column:{col_r1}; grid-row:{row_start} / span 3;">'
+                            f'{r1_html}</div>'
+                        )
 
-                    inner = "".join(
-                        f'<div class="round {rcls} {conn}">'
-                        f'<div class="rlbl">{lbl}</div>'
-                        f'{"".join(slots)}'
+                        # "Second Round" column = winner of that specific R1 game
+                        r2_html = single_from_col(c)
+                        cells.append(
+                            f'<div class="cell r2" '
+                            f'style="grid-column:{col_r2}; grid-row:{row_start + 1};">'
+                            f'{r2_html}</div>'
+                        )
+
+                    # ── 2) Sweet 16 column: winners of the Round-of-32 games ────────
+                    # 4 Sweet 16 participants per region.
+                    # Each S16 participant sits centered between the two R2 rows
+                    # that feed into it:
+                    #   R2 rows: 4g+2  (g=0..7)
+                    #   S16 rows (index h = 0..3, from R2 games 2h and 2h+1):
+                    #       row_s16 = 8*h + 4
+                    for h, c in enumerate(r2_cols):
+                        row_s16 = 8 * h + 4
+                        s16_html = single_from_col(c)
+                        cells.append(
+                            f'<div class="cell s16" '
+                            f'style="grid-column:{col_s16}; grid-row:{row_s16};">'
+                            f'{s16_html}</div>'
+                        )
+
+                    # ── 3) Elite 8 column: winners of the Sweet 16 games ───────────
+                    # 2 Elite 8 participants per region.
+                    # Sweet 16 rows: 8*h + 4  (h=0..3)
+                    # Elite 8 rows (index e = 0..1, from S16 games 2e and 2e+1):
+                    #     row_e8 = 16*e + 8
+                    for e, c in enumerate(s16_cols):
+                        row_e8 = 16 * e + 8
+                        e8_html = single_from_col(c)
+                        cells.append(
+                            f'<div class="cell e8" '
+                            f'style="grid-column:{col_e8}; grid-row:{row_e8};">'
+                            f'{e8_html}</div>'
+                        )
+
+                    inner = "".join(cells)
+                    return (
+                        f'<div class="region">'
+                        f'<div class="rgn-name">{name}</div>'
+                        f'<div class="region-body grid-region">{inner}</div>'
                         f'</div>'
-                        for lbl, rcls, slots, conn in rounds
                     )
-                    return (f'<div class="region">'
-                            f'<div class="rgn-name">{name}</div>'
-                            f'<div class="region-body">{inner}</div>'
-                            f'</div>')
 
                 def build_finals():
-                    pk_l,ac_l,pl_l = gs(63)
-                    pk_r,ac_r,pl_r = gs(64)
-                    pk_c,ac_c,pl_c = gs(65)
+                    # Final Four participants: winners of the Elite 8 games
+                    # (one per region) → 4 total teams.
+                    def team_from_col(c):
+                        pk, ac, pl = gs(c)
+                        if pl and not is_unplayed(ac):
+                            t = ac
+                        else:
+                            t = "TBD"
+                        return t, pk, ac, pl
+
+                    # Left side Final Four: South + West regional winners
+                    ff_left_cols  = RCOLS["South"]["e8"] + RCOLS["West"]["e8"]
+                    # Right side Final Four: East + Midwest regional winners
+                    ff_right_cols = RCOLS["East"]["e8"] + RCOLS["Midwest"]["e8"]
+
+                    left_ff  = []
+                    for c in ff_left_cols:
+                        t, pk, ac, pl = team_from_col(c)
+                        left_ff.append(f'<div class="matchup single">{trow(t, pk, ac, pl)}</div>')
+
+                    right_ff = []
+                    for c in ff_right_cols:
+                        t, pk, ac, pl = team_from_col(c)
+                        right_ff.append(f'<div class="matchup single">{trow(t, pk, ac, pl, mirror=True)}</div>')
+
+                    # Championship participants: winners of the two Final Four games
+                    # (columns 63 and 64) → 2 total teams.
+                    pk_l, ac_l, pl_l = gs(63)
+                    pk_r, ac_r, pl_r = gs(64)
                     tl = ac_l if pl_l else (pk_l if pk_l not in UNPLAYED else "TBD")
-                    tr_t = ac_r if pl_r else (pk_r if pk_r not in UNPLAYED else "TBD")
-                    tc = ac_c if pl_c else (pk_c if pk_c not in UNPLAYED else "TBD")
+                    tr = ac_r if pl_r else (pk_r if pk_r not in UNPLAYED else "TBD")
+
+                    ch_left  = f'<div class="matchup single champ-mu">{trow(tl, pk_l, ac_l, pl_l)}</div>'
+                    ch_right = f'<div class="matchup single champ-mu">{trow(tr, pk_r, ac_r, pl_r, mirror=True)}</div>'
+
                     fl = (f'<div class="ff-wrap">'
                           f'<div class="rlbl ff-lbl">Final Four</div>'
-                          f'<div class="matchup single">{trow(tl,pk_l,ac_l,pl_l)}</div>'
+                          f'{"".join(left_ff)}'
                           f'</div>')
                     fr = (f'<div class="ff-wrap">'
                           f'<div class="rlbl ff-lbl">Final Four</div>'
-                          f'<div class="matchup single">{trow(tr_t,pk_r,ac_r,pl_r,mirror=True)}</div>'
+                          f'{"".join(right_ff)}'
                           f'</div>')
                     ch = (f'<div class="champ-wrap">'
                           f'<div class="trophy-lbl">&#127942; Championship</div>'
-                          f'<div class="matchup single champ-mu">{trow(tc,pk_c,ac_c,pl_c)}</div>'
+                          f'{ch_left}{ch_right}'
                           f'</div>')
                     return f'<div class="finals">{fl}{ch}{fr}</div>'
 
+                # Place South/West on the left (top/bottom) flowing left → center,
+                # and East/Midwest on the right flowing right → center to match
+                # the 2025 bracket layout from printyourbrackets.com.
                 south_h   = build_region("SOUTH",   RCOLS["South"])
                 west_h    = build_region("WEST",    RCOLS["West"])
                 east_h    = build_region("EAST",    RCOLS["East"],    mirror=True)
@@ -796,28 +887,25 @@ try:
 <html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
 body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;padding:8px;}}
-.bracket{{display:flex;flex-direction:row;align-items:stretch;min-width:1180px;}}
-.left-side,.right-side{{display:flex;flex-direction:column;flex:1;min-width:0;}}
-.finals{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px;width:152px;flex-shrink:0;}}
+.bracket{{display:flex;flex-direction:row;align-items:stretch;justify-content:center;min-width:980px;}}
+.left-side,.right-side{{display:flex;flex-direction:column;flex:0 0 auto;}}
+.finals{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px;width:140px;flex-shrink:0;}}
 .region{{display:flex;flex-direction:column;flex:1;}}
-.rgn-name{{font-size:9px;font-weight:800;letter-spacing:1.5px;color:#374151;text-align:center;padding:2px 0 3px;text-transform:uppercase;border-bottom:1px solid #1a1f2b;margin-bottom:2px;}}
-.region-body{{display:flex;flex-direction:row;flex:1;}}
-.right-side .region-body{{flex-direction:row-reverse;}}
-.round{{display:flex;flex-direction:column;justify-content:space-around;}}
-.round.r1{{width:118px;flex:0 0 118px;}}
-.round.r2{{width:106px;flex:0 0 106px;}}
-.round.s16{{width:98px;flex:0 0 98px;}}
-.round.e8{{width:90px;flex:0 0 90px;}}
+.rgn-name{{font-size:9px;font-weight:800;letter-spacing:1.5px;color:#374151;text-align:center;padding:1px 0 1px;text-transform:uppercase;border-bottom:1px solid #1a1f2b;margin-bottom:1px;}}
+.region-body.grid-region{{display:grid;grid-template-rows:repeat(8,18px 18px 18px 2px);grid-template-columns:118px 106px 98px 90px;column-gap:10px;flex:1;}}
+.right-side .region-body.grid-region{{grid-template-columns:90px 98px 106px 118px;}}
+.cell .matchup{{height:100%;display:flex;flex-direction:column;justify-content:flex-start;}}
+.cell .matchup.single{{justify-content:center;}}
 .rlbl{{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#374151;text-align:center;padding-bottom:3px;}}
 .ff-lbl{{color:#4b5563;font-size:9px;}}
 .matchup{{position:relative;}}
 .matchup.single{{display:flex;align-items:center;}}
 .mdiv{{height:1px;background:#1a1f2b;}}
-.tr{{display:flex;align-items:center;gap:3px;padding:2px 4px;height:23px;
+.tr{{display:flex;align-items:center;gap:2px;padding:1px 3px;height:16px;
   border:1px solid #1a1f2b;overflow:hidden;background:#0d0f14;}}
 .tr+.tr{{border-top:none;}}
-.sd{{font-size:9px;color:#374151;min-width:11px;text-align:right;flex-shrink:0;}}
-.tn{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4b5563;}}
+.sd{{font-size:11px;color:#374151;min-width:11px;text-align:right;flex-shrink:0;}}
+.tn{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5e7eb;font-size:13px;}}
 .bust{{font-size:8px;color:#f87171;flex-shrink:0;margin-left:1px;white-space:nowrap;}}
 .tbd .tn{{color:#1f2937;font-style:italic;}}
 .won{{background:#052e16 !important;border-color:#14532d !important;}}
@@ -871,7 +959,7 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
 </div>
 </body></html>"""
 
-                components.html(HTML, height=1060, scrolling=True)
+                components.html(HTML, height=900, scrolling=False)
 
     # ── Tab 2: Win Conditions ─────────────────────────────────────────────────
     with tab3:
@@ -1120,16 +1208,12 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
                     if r["raw_picks"][c] in all_alive and is_unplayed(actual_winners[c])
                 )
                 carnage.append({
-                    "Rank": final_df.loc[final_df["Name"] == r["Name"], "Current Rank"].iloc[0] if r["Name"] in final_df["Name"].values else "?",
                     "Name": r["Name"],
                     "Points Left on Table": lost,
                     "Still-Live Picks": still_live,
+                    "Current Rank": r.get("Current Rank", "?"),
                 })
-            carnage_df = (
-                pd.DataFrame(carnage)
-                .sort_values("Points Left on Table", ascending=False)
-                .reset_index(drop=True)[["Rank", "Name", "Points Left on Table", "Still-Live Picks"]]
-            )
+            carnage_df = pd.DataFrame(carnage).sort_values("Points Left on Table", ascending=False)
 
             # Dramatic callout for the biggest victim
             top_victim = carnage_df.iloc[0]
