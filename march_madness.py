@@ -5,6 +5,12 @@ import plotly.graph_objects as go
 from datetime import datetime
 import random
 
+try:
+    from streamlit_cookies_manager import EncryptedCookieManager
+    _cookies_available = True
+except ImportError:
+    _cookies_available = False
+
 st.set_page_config(
     page_title="March Madness Pool",
     layout="wide",
@@ -33,11 +39,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ─── 0. SESSION STATE ─────────────────────────────────────────────────────────
+# ─── 0. SESSION STATE & COOKIE MANAGER ───────────────────────────────────────
 if "user_name" not in st.session_state:
     st.session_state["user_name"] = None
 if "modal_done" not in st.session_state:
     st.session_state["modal_done"] = False
+
+# Initialise cookie manager (requires: pip install streamlit-cookies-manager)
+_cookies = None
+if _cookies_available:
+    _cookies = EncryptedCookieManager(prefix="march_madness_", password="mm_pool_2025")
+    if not _cookies.ready():
+        st.stop()   # waits for the browser to return cookie values
 
 # ─── 1. CONFIGURATION ─────────────────────────────────────────────────────────
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1M3nBX0a2qwPyMdWqzEztN4eKY1wS5FU3OGgxUeNWamI/edit"
@@ -546,8 +559,15 @@ try:
     final_df["Current Rank"] = range(1, len(final_df) + 1)
     name_opts = sorted(final_df["Name"].tolist())
 
-    # Try to restore user from URL query params (persists across sessions)
+    # Try to restore user from cookie (persists across sessions)
     user_name = st.session_state.get("user_name")
+    if not user_name and _cookies is not None:
+        cookie_user = _cookies.get("user_name", "")
+        if cookie_user and cookie_user in name_opts:
+            st.session_state["user_name"] = cookie_user
+            st.session_state["modal_done"] = True
+            user_name = cookie_user
+    # Fallback: try deprecated URL query params if cookies unavailable
     if not user_name:
         try:
             q = st.experimental_get_query_params()
@@ -569,7 +589,11 @@ try:
                 if picked != "— select —":
                     st.session_state["user_name"] = picked
                     st.session_state["modal_done"] = True
-                    # Persist selection into the URL so it's remembered on reloads
+                    # Save to cookie so it's remembered on future visits
+                    if _cookies is not None:
+                        _cookies["user_name"] = picked
+                        _cookies.save()
+                    # Also persist in URL as fallback
                     try:
                         st.experimental_set_query_params(user=picked)
                     except Exception:
@@ -595,7 +619,17 @@ try:
     # ─────────────────────────────────────────────────────────────────────────
     st.title("🏀 March Madness Pool")
     if user_name:
-        st.markdown(f"Welcome back, **{user_name}** 👋")
+        col_greet, col_switch = st.columns([6, 1])
+        with col_greet:
+            st.markdown(f"Welcome back, **{user_name}** 👋")
+        with col_switch:
+            if st.button("Switch name", key="switch_name_btn", help="Change your selected name"):
+                st.session_state["user_name"] = None
+                st.session_state["modal_done"] = False
+                if _cookies is not None:
+                    _cookies["user_name"] = ""
+                    _cookies.save()
+                st.rerun()
     st.caption(f"Last synced: {last_update} · Monte Carlo: 1,000 runs")
 
     tab1, tab2_bracket, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
