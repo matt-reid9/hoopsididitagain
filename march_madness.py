@@ -92,6 +92,13 @@ st.markdown("""
   /* ── Selectboxes full width ── */
   div[data-testid="stSelectbox"] { width: 100% !important; }
 
+  /* ── Prevent on-screen keyboard from appearing on selectbox tap ── */
+  div[data-testid="stSelectbox"] input,
+  div[data-baseweb="select"] input {
+    caret-color: transparent !important;
+    pointer-events: none !important;
+  }
+
   /* ── Expanders ── */
   details summary { font-size: 14px; }
 </style>
@@ -211,29 +218,64 @@ def load_all_data():
 
     all_alive = (all_starting - eliminated) | {w for w in winners_row if w in all_starting}
 
-    # Build r1_matchups from the Picks sheet: for each R1 col (3-34), collect all
-    # unique team names picked by participants + the actual winner. Each R1 slot
-    # has exactly 2 valid teams. Order them lower-seed first (stronger team on top).
+    # Build r1_matchups from MasterBracket (authoritative team pairs), with
+    # participant picks as fallback for any missing slots.
+    # MasterBracket teams appear in adjacent rows; each pair = one R1 game.
+    # RCOLS mapping (verified): West=cols3-10, East=cols11-18, South=cols19-26, Midwest=cols27-34
+    # MasterBracket layout: West rows3-33 colB(1)/A(0), East rows35-65 colB(1)/A(0),
+    #                        South rows3-33 colN(13)/O(14), Midwest rows35-65 colN(13)/O(14)
     r1_matchups: dict[int, tuple] = {}
-    for col in range(3, 35):
-        candidates: set[str] = set()
-        # Actual winner (if played)
-        if col < len(winners_row) and not is_unplayed(winners_row[col]):
-            t = winners_row[col].strip()
-            if t in all_starting:
-                candidates.add(t)
-        # All participant picks for this column
-        for row_idx in range(3, len(df_p)):
-            t = str(df_p.iloc[row_idx, col]).strip()
-            if t and t not in ("nan", "") and t in all_starting:
-                candidates.add(t)
-        teams_list = sorted(candidates, key=lambda t: seed_map.get(t, 99))
-        if len(teams_list) >= 2:
-            r1_matchups[col] = (teams_list[0], teams_list[1])
-        elif len(teams_list) == 1:
-            r1_matchups[col] = (teams_list[0], "TBD")
-        else:
+
+    def extract_r1_games(row_start, row_end, team_col, seed_col):
+        """Read adjacent-row team pairs from MasterBracket, return list of (team_a, team_b)."""
+        teams = []
+        for row_idx in range(row_start, min(row_end + 1, len(df_seeds))):
+            row = df_seeds.iloc[row_idx]
+            tm = str(row.iloc[team_col]).strip() if team_col < len(row) else ""
+            sd = safe_int(row.iloc[seed_col]) if seed_col < len(row) else 0
+            if tm and tm not in skip and sd > 0:
+                teams.append((tm, sd))
+        games = []
+        for i in range(0, len(teams) - 1, 2):
+            a, sa = teams[i]
+            b, sb = teams[i + 1]
+            games.append((a, b) if sa <= sb else (b, a))
+        return games
+
+    # (pick_cols, team_col, seed_col, row_start, row_end) — order matches verified RCOLS
+    master_r1_map = [
+        (list(range(3,  11)), 1,  0,  3, 33),   # West
+        (list(range(11, 19)), 1,  0, 35, 65),   # East
+        (list(range(19, 27)), 13, 14,  3, 33),  # South
+        (list(range(27, 35)), 13, 14, 35, 65),  # Midwest
+    ]
+    for pick_cols, team_col, seed_col, row_start, row_end in master_r1_map:
+        games = extract_r1_games(row_start, row_end, team_col, seed_col)
+        for col, (ta, tb) in zip(pick_cols, games):
+            r1_matchups[col] = (ta, tb)
+        for col in pick_cols[len(games):]:
             r1_matchups[col] = ("TBD", "TBD")
+
+    # Fill any still-missing slots from participant picks (fallback)
+    r1_picks_block = df_p.iloc[3:, 3:35].astype(str)
+    for col in range(3, 35):
+        if r1_matchups.get(col) in (None, ("TBD", "TBD")):
+            candidates: set[str] = set()
+            if col < len(winners_row) and not is_unplayed(winners_row[col]):
+                t = winners_row[col].strip()
+                if t in all_starting:
+                    candidates.add(t)
+            for t in r1_picks_block.iloc[:, col - 3].unique():
+                t = t.strip()
+                if t and t not in ("nan", "") and t in all_starting:
+                    candidates.add(t)
+            teams_list = sorted(candidates, key=lambda t: seed_map.get(t, 99))
+            if len(teams_list) >= 2:
+                r1_matchups[col] = (teams_list[0], teams_list[1])
+            elif len(teams_list) == 1:
+                r1_matchups[col] = (teams_list[0], "TBD")
+            else:
+                r1_matchups[col] = ("TBD", "TBD")
 
     # truly_alive: a team is alive iff, for every round that has been fully or partially
     # played, they either WON a game in that round or haven't reached it yet.
@@ -854,6 +896,52 @@ try:
 
     df_p, actual_winners, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, last_update = data
 
+    # ── ESPN logo lookup (shared across tabs) ────────────────────────────────
+    ESPN_IDS = {
+        "Alabama": 333, "Alabama St": 2010, "American": 44,
+        "Arizona": 12, "Arkansas": 8, "Auburn": 2,
+        "Baylor": 239, "Bryant": 2870, "BYU": 252,
+        "Clemson": 228, "Colorado St": 36, "Creighton": 156,
+        "Drake": 2181, "Duke": 150, "Florida": 57,
+        "Georgia": 61, "Gonzaga": 2250, "High Point": 2272,
+        "Houston": 248, "Illinois": 356, "Iowa St": 66,
+        "Kansas": 2305, "Kentucky": 96, "Liberty": 2335,
+        "Lipscomb": 2344, "Louisville": 97, "Marquette": 269,
+        "Maryland": 120, "McNeese": 2440, "Michigan": 130,
+        "Michigan St": 127, "Mississippi St": 344,
+        "Missouri": 142, "Mount St. Mary's": 2426,
+        "Nebraska": 158, "New Mexico": 167,
+        "Norfolk St": 2450, "North Carolina": 153,
+        "Oklahoma": 201, "Ole Miss": 145, "Oregon": 2483,
+        "Purdue": 2509, "Saint Mary's": 2608,
+        "SIUE": 2565, "St. John's": 2599,
+        "St. Francis PA": 2620, "Tennessee": 2633,
+        "Texas": 251, "Texas A&M": 245, "Texas Tech": 2641,
+        "Troy": 2653, "UC San Diego": 2604, "UCLA": 26,
+        "UConn": 41, "Utah St": 328, "Vanderbilt": 238,
+        "VCU": 2670, "West Virginia": 277, "Wisconsin": 275,
+        "Wofford": 2747, "Xavier": 2752, "Yale": 43,
+    }
+    def espn_logo_url(team_name):
+        tid = ESPN_IDS.get(team_name)
+        return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{tid}.png" if tid else None
+
+    def pill(label, alive, detail=""):
+        if alive:
+            bg, border, color = "#14532d", "#16a34a", "#4ade80"
+            icon = "✅"
+        else:
+            bg, border, color = "#2d0a0a", "#7f1d1d", "#ef4444"
+            icon = "❌"
+        tip = f' title="{detail}"' if detail else ""
+        return (
+            f'<span{tip} style="display:inline-flex;align-items:center;gap:4px;'
+            f'background:{bg};border:1px solid {border};border-radius:20px;'
+            f'padding:3px 10px;font-size:clamp(11px,2vw,13px);'
+            f'font-weight:600;color:{color};white-space:nowrap;">'
+            f'{icon} {label}</span>'
+        )
+
     # ── Build slot_to_region ──────────────────────────────────────────────────
     # R1 is split into 4 equal groups of 8 games (cols 3-34):
     #   West:    cols 3-10
@@ -1255,22 +1343,301 @@ try:
                     cur_score, _ = score_picks(p_picks, actual_winners, points_per_game, seed_map, all_alive)
                     correct  = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and p_picks[c] == actual_winners[c])
                     played_g = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]))
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Current Score", cur_score)
-                    m2.metric("Correct Picks", f"{correct} / {played_g}")
-                    m3.metric("Accuracy", f"{correct/played_g*100:.0f}%" if played_g else "—")
+                    champ_pick = p_picks[65] if len(p_picks) > 65 else ""
+                    champ_pick = champ_pick if champ_pick and not is_unplayed(champ_pick) else "TBD"
 
-                    # Column → region mapping tailored to the 2025
-                    # PrintYourBrackets layout:
-                    # South:   R1 3-10,  R2 35-38, S16 51-52, E8 59
-                    # East:    R1 19-26, R2 43-46, S16 55-56, E8 61
-                    # West:    R1 11-18, R2 39-42, S16 53-54, E8 60
-                    # Midwest: R1 27-34, R2 47-50, S16 57-58, E8 62
-                    # FF: 63 (South/West side), 64 (East/Midwest side)  Champ: 65
+                    # 2x2 stat card grid matching Lucky Team / H2H card style
+                    logo_url = espn_logo_url(champ_pick)
+                    champ_eliminated = champ_pick != "TBD" and champ_pick not in truly_alive
+                    champ_color = "#ef4444" if champ_eliminated else "#f5c518"
+                    champ_name_style = "text-decoration:line-through;" if champ_eliminated else ""
+                    champ_suffix = " ❌" if champ_eliminated else ""
+                    if champ_pick != "TBD" and logo_url:
+                        champ_val_html = (
+                            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+                            f'<img src="{logo_url}" width="36" height="36" style="object-fit:contain;margin-bottom:4px;{"opacity:0.5;" if champ_eliminated else ""}">'
+                            f'<div style="font-size:clamp(13px,3vw,16px);font-weight:700;color:{champ_color};line-height:1.1;">'
+                            f'<span style="{champ_name_style}">{champ_pick}</span>{champ_suffix}</div>'
+                            f'</div>'
+                        )
+                    elif champ_pick != "TBD":
+                        champ_val_html = (
+                            f'<div style="font-size:clamp(16px,3vw,20px);font-weight:700;color:{champ_color};line-height:1.1;">'
+                            f'<span style="{champ_name_style}">{champ_pick}</span>{champ_suffix}</div>'
+                        )
+                    else:
+                        champ_val_html = '<div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#9ca3af;line-height:1.1;">—</div>'
+
+                    # Rank and Potential Status from final_df
+                    p_df_row = final_df[final_df["Name"] == bracket_name]
+                    if not p_df_row.empty:
+                        p_rank          = int(p_df_row.iloc[0]["Current Rank"])
+                        p_potential     = p_df_row.iloc[0]["Potential Status"]
+                        total_players   = len(final_df)
+                        rank_str        = f"#{p_rank} / {total_players}"
+                    else:
+                        rank_str    = "—"
+                        p_potential = "—"
+                    potential_color = (
+                        "#f5c518" if "Champion"  in str(p_potential) else
+                        "#60a5fa" if "Top 3"     in str(p_potential) else
+                        "#ef4444" if "Out"       in str(p_potential) else
+                        "#9ca3af"
+                    )
+
+                    accuracy_str = f"{correct/played_g*100:.0f}%" if played_g else "—"
+                    st.markdown(
+                        f'''<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:6px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🏆 Current Score</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#4ade80;line-height:1.1;">{cur_score}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🥇 Champion Pick</div>
+    {champ_val_html}
+  </div>
+</div>
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:6px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">📊 Current Rank</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#ffffff;line-height:1.1;">{rank_str}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🔮 Potential Status</div>
+    <div style="font-size:clamp(20px,5vw,28px);font-weight:700;color:{potential_color};line-height:1.1;">{p_potential}</div>
+  </div>
+</div>
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:12px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">✅ Correct Picks</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#60a5fa;line-height:1.1;">{correct} / {played_g}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🎯 Accuracy</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#c084fc;line-height:1.1;">{accuracy_str}</div>
+  </div>
+</div>''',
+                        unsafe_allow_html=True
+                    )
+
+                    # ── Bonus Chances card ────────────────────────────────────
+                    # Compute per-player data for every bonus game category.
+                    p_df_me = final_df[final_df["Name"] == bracket_name].iloc[0]
+
+                    # Helper: score over a column range for a single picks list
+                    def score_range(picks, col_start, col_end):
+                        return sum(
+                            points_per_game[c] + seed_map.get(picks[c], 0)
+                            for c in range(col_start, col_end)
+                            if not is_unplayed(actual_winners[c]) and picks[c] == actual_winners[c]
+                        )
+
+                    # Helper: potential score over a col range (played + unplayed alive)
+                    def potential_range(picks, col_start, col_end):
+                        return sum(
+                            points_per_game[c] + seed_map.get(picks[c], 0)
+                            for c in range(col_start, col_end)
+                            if picks[c] == actual_winners[c] or
+                               (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
+                        )
+
+                    # Helper: correct upset picks (winner seed - loser seed >= 4)
+                    def count_upsets(picks):
+                        total = 0
+                        for c in range(3, 66):
+                            winner = actual_winners[c]
+                            if is_unplayed(winner) or picks[c] != winner:
+                                continue
+                            loser = defeated_map.get(winner, "")
+                            w_seed = seed_map.get(winner, 0)
+                            l_seed = seed_map.get(loser, 0)
+                            if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 4:
+                                total += 1
+                        return total
+
+                    # Helper: potential upsets (current + future picks of alive lower-seeds)
+                    def potential_upsets(picks):
+                        # Played upsets already earned
+                        earned = count_upsets(picks)
+                        # Unplayed slots: if they picked an alive lower-seed that could upset
+                        future = 0
+                        for c in range(3, 66):
+                            if not is_unplayed(actual_winners[c]):
+                                continue
+                            team = picks[c]
+                            if team not in all_alive:
+                                continue
+                            # Check if any already-eliminated opponent in this slot
+                            # was a higher seed (lower number) — conservative: count it
+                            # We don't know the opponent for sure for future rounds,
+                            # so count it if the team is seeded >= 5 (could upset someone)
+                            if seed_map.get(team, 0) >= 5:
+                                future += 1
+                        return earned + future
+
+                    # Gather all participants' data for comparisons
+                    all_rows = []
+                    for idx in range(3, len(df_p)):
+                        row = df_p.iloc[idx]
+                        nm = str(row[0]).strip()
+                        if not nm or nm in {"Winner", ""} or nm.lower() == "nan":
+                            continue
+                        pk = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
+                        all_rows.append((nm, pk))
+
+                    me_picks = p_picks  # already built above
+
+                    # ── 1) Leader After First Weekend (R1+R2, cols 3-50) ─────
+                    # First weekend = R1 (3-34) + R2 (35-50)
+                    r1r2_end = 51
+                    all_r1r2_complete = all(
+                        not is_unplayed(actual_winners[c]) for c in range(3, r1r2_end)
+                    )
+                    my_r1r2 = score_range(me_picks, 3, r1r2_end)
+                    my_r1r2_pot = potential_range(me_picks, 3, r1r2_end)
+                    others_r1r2_max = max(
+                        score_range(pk, 3, r1r2_end) if all_r1r2_complete
+                        else score_range(pk, 3, r1r2_end)
+                        for nm, pk in all_rows if nm != bracket_name
+                    ) if len(all_rows) > 1 else 0
+                    others_r1r2_cur_max = max(
+                        score_range(pk, 3, r1r2_end) for nm, pk in all_rows if nm != bracket_name
+                    ) if len(all_rows) > 1 else 0
+                    if all_r1r2_complete:
+                        can_first_weekend = my_r1r2 >= others_r1r2_cur_max
+                    else:
+                        can_first_weekend = my_r1r2_pot >= others_r1r2_cur_max
+
+                    # ── 2) Leader After Second Weekend (R1-E8, cols 3-62) ────
+                    e8_end = 63
+                    all_e8_complete = all(
+                        not is_unplayed(actual_winners[c]) for c in range(3, e8_end)
+                    )
+                    my_e8 = score_range(me_picks, 3, e8_end)
+                    my_e8_pot = potential_range(me_picks, 3, e8_end)
+                    others_e8_cur_max = max(
+                        score_range(pk, 3, e8_end) for nm, pk in all_rows if nm != bracket_name
+                    ) if len(all_rows) > 1 else 0
+                    if all_e8_complete:
+                        can_second_weekend = my_e8 >= others_e8_cur_max
+                    else:
+                        can_second_weekend = my_e8_pot >= others_e8_cur_max
+
+                    # ── 3) Total Correct Picks ───────────────────────────────
+                    # Can win if my potential correct >= every other player's potential correct
+                    def correct_potential(picks):
+                        return sum(
+                            1 for c in range(3, 66)
+                            if (not is_unplayed(actual_winners[c]) and picks[c] == actual_winners[c])
+                            or (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
+                        )
+                    my_correct_pot = correct_potential(me_picks)
+                    others_correct_pot_max = max(
+                        correct_potential(pk) for nm, pk in all_rows if nm != bracket_name
+                    ) if len(all_rows) > 1 else 0
+                    can_most_correct = my_correct_pot >= others_correct_pot_max
+
+                    # ── 4) Most Correct Upset Picks ──────────────────────────
+                    # Upsets are decided only on played games — no future upsets possible
+                    # once all games are played. Compare final counts directly.
+                    my_upsets = count_upsets(me_picks)
+                    others_upset_max = max(
+                        count_upsets(pk) for nm, pk in all_rows if nm != bracket_name
+                    ) if len(all_rows) > 1 else 0
+                    # If there are still unplayed games, check if future upsets are possible
+                    any_unplayed = any(is_unplayed(actual_winners[c]) for c in range(3, 66))
+                    if any_unplayed:
+                        my_upset_pot = potential_upsets(me_picks)
+                        can_most_upsets = my_upset_pot >= others_upset_max
+                    else:
+                        can_most_upsets = my_upsets >= others_upset_max
+
+                    # ── 5) Tiebreaker ─────────────────────────────────────────
+                    champ_played = not is_unplayed(actual_winners[65])
+                    can_tiebreaker = not champ_played  # everyone has a chance until champ is decided
+
+                    # ── 6) Lucky Team ─────────────────────────────────────────
+                    my_lucky_teams = [t for t, ps in lucky_map.items() if bracket_name in ps]
+                    can_lucky = any(t in truly_alive for t in my_lucky_teams)
+
+                    # ── 7) Last Place ─────────────────────────────────────────
+                    # I can finish last if my current score (my floor — can't lose points)
+                    # is <= every other player's maximum possible score (their ceiling).
+                    # The only way I CANNOT finish last is if my current score is already
+                    # strictly greater than at least one other player's ceiling — meaning
+                    # that player will definitely finish below me no matter what.
+                    my_score = int(p_df_me["Current Score"])
+                    all_games_done = all(not is_unplayed(actual_winners[c]) for c in range(3, 66))
+                    others_ceilings = [
+                        potential_range(pk, 3, 66)
+                        for nm, pk in all_rows if nm != bracket_name
+                    ]
+                    if all_games_done:
+                        others_final = [
+                            int(final_df[final_df["Name"] == nm].iloc[0]["Current Score"])
+                            for nm, _ in all_rows if nm != bracket_name
+                            and not final_df[final_df["Name"] == nm].empty
+                        ]
+                        can_last_place = my_score <= min(others_final) if others_final else True
+                    else:
+                        # Can finish last unless someone else's ceiling is below my floor
+                        can_last_place = my_score <= min(others_ceilings) if others_ceilings else True
+
+                    # ── 8) Regional Winner ────────────────────────────────────
+                    regions_can_win = []
+                    for reg in ["West", "East", "South", "Midwest"]:
+                        my_reg_score = int(p_df_me.get(f"{reg} Score", 0))
+                        my_reg_pot = my_reg_score + sum(
+                            points_per_game[c] + seed_map.get(me_picks[c], 0)
+                            for c in range(3, 63)
+                            if is_unplayed(actual_winners[c])
+                            and me_picks[c] in all_alive
+                            and slot_to_region.get(c) == reg
+                        )
+                        others_reg_cur_max = max(
+                            (int(final_df[final_df["Name"] == nm].iloc[0].get(f"{reg} Score", 0))
+                             if not final_df[final_df["Name"] == nm].empty else 0)
+                            for nm, _ in all_rows if nm != bracket_name
+                        ) if len(all_rows) > 1 else 0
+                        if my_reg_pot >= others_reg_cur_max:
+                            regions_can_win.append(reg)
+
+                    # ── Build pill HTML ───────────────────────────────────────
+                    pills_html = "".join([
+                        pill("1st Place",             p_potential == "🏆 Champion"),
+                        pill("Top 3",                 p_potential in ("🏆 Champion", "🥉 Top 3")),
+                        pill("1st Weekend Leader",    can_first_weekend),
+                        pill("2nd Weekend Leader",    can_second_weekend),
+                        pill("Most Correct Picks",    can_most_correct),
+                        pill("Most Upset Picks",      can_most_upsets),
+                        *[pill(f"{r} Region",         True) for r in regions_can_win],
+                        *[pill(f"{r} Region",         False)
+                          for r in ["West","East","South","Midwest"] if r not in regions_can_win],
+                        pill("Lucky Team",            can_lucky),
+                        pill("Tiebreaker",            can_tiebreaker),
+                        pill("Last Place",            can_last_place),
+                    ])
+
+                    st.markdown(
+                        f'''<div style="background:#1e1e2e;border:1px solid #313244;border-radius:10px;
+padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12px;">
+  <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:10px;text-align:center;">
+    🎯 Still in the Hunt
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+    {pills_html}
+  </div>
+</div>''',
+                        unsafe_allow_html=True
+                    )
+
+                    # Column → region mapping for the 2025 bracket picks sheet.
+                    # Cols 3-10=West, 11-18=East, 19-26=South, 27-34=Midwest.
+                    # FF: 63 (West/East side), 64 (South/Midwest side)  Champ: 65
                     RCOLS = {
-                        "South":   {"r1": list(range(3,11)),  "r2": list(range(35,39)), "s16":[51,52], "e8":[59]},
-                        "East":    {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
-                        "West":    {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
+                        "West":    {"r1": list(range(3,11)),  "r2": list(range(35,39)), "s16":[51,52], "e8":[59]},
+                        "East":    {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
+                        "South":   {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
                         "Midwest": {"r1": list(range(27,35)), "r2": list(range(47,51)), "s16":[57,58], "e8":[62]},
                     }
 
@@ -1357,7 +1724,9 @@ try:
                             t = pk if pk and pk not in UNPLAYED else "TBD"
                             return f'<div class="matchup single">{trow(t, pk, ac, pl, mirror)}</div>'
 
-                        # ── 1) First Round ──────────────────────────────────────────────
+                        # ── 1) First Round & Round-of-32 column ─────────────────────────
+                        # Each R1 game occupies 3 grid rows (span 3).
+                        # The R2 winner sits in the middle row of that same 3-row block.
                         for g, c in enumerate(r1_cols):
                             row_start = 4 * g + 1
                             team_a, team_b = r1_matchups.get(c, ("TBD", "TBD"))
@@ -1368,41 +1737,38 @@ try:
                                 f'{r1_html}</div>'
                             )
 
-                        # ── 2) Round of 32 (R2): one pick per pair of R1 games ──────────
-                        # R2 cols[k] sits centered between R1 games 2k and 2k+1.
-                        # R1 game 2k starts at row 8k+1, game 2k+1 starts at row 8k+5.
-                        # Centered span: rows 8k+1 to 8k+7 = span 7.
-                        for k, r2c in enumerate(r2_cols):
-                            row_r2 = 8 * k + 1
-                            r2_html = single_from_col(r2c)
+                            # R2 winner sits in the middle row of this R1 block
+                            r2_html = single_from_col(c)
                             cells.append(
                                 f'<div class="cell r2" '
-                                f'style="grid-column:{col_r2}; grid-row:{row_r2} / span 7;">'
+                                f'style="grid-column:{col_r2}; grid-row:{row_start + 1};">'
                                 f'{r2_html}</div>'
                             )
 
-                        # ── 3) Sweet 16: one pick per pair of R2 slots ──────────────────
-                        # S16 slot j covers R2 slots 2j and 2j+1.
-                        # R2 slot 2j starts at row 16j+1, slot 2j+1 starts at row 16j+9.
-                        # Centered span: rows 16j+1 to 16j+15 = span 15.
-                        for j, s16c in enumerate(s16_cols):
-                            row_s16 = 16 * j + 1
-                            s16_html = single_from_col(s16c)
+                        # ── 2) Sweet 16 column ──────────────────────────────────────────
+                        # 4 S16 slots per region; each centered between two R2 rows.
+                        # R2 rows are at positions 4g+2 (g=0..7).
+                        # S16 slot h (0..3) sits between R2 rows of games 2h and 2h+1:
+                        #   row_s16 = 8*h + 1  (span 7 covers both R2 rows)
+                        for h, c in enumerate(r2_cols):
+                            row_s16 = 8 * h + 1
+                            s16_html = single_from_col(c)
                             cells.append(
                                 f'<div class="cell s16" '
-                                f'style="grid-column:{col_s16}; grid-row:{row_s16} / span 15;">'
+                                f'style="grid-column:{col_s16}; grid-row:{row_s16} / span 7;">'
                                 f'{s16_html}</div>'
                             )
 
-                        # ── 4) Elite 8: one pick centered across both S16 slots ──────────
-                        # The 2 E8 slots each cover 2 S16 slots. But each region has only
-                        # 1 E8 game winner. Use e8_cols from RCOLS.
-                        for e, e8c in enumerate(cols["e8"]):
-                            row_e8 = 16 * (2 * e) + 1
-                            e8_html = single_from_col(e8c)
+                        # ── 3) Elite 8 column ───────────────────────────────────────────
+                        # 2 E8 slots per region; each centered between two S16 rows.
+                        # E8 slot e sits between S16 rows 2e and 2e+1:
+                        #   row_e8 = 16*e + 1  (span 15 covers both S16 rows)
+                        for e, c in enumerate(s16_cols):
+                            row_e8 = 16 * e + 1
+                            e8_html = single_from_col(c)
                             cells.append(
                                 f'<div class="cell e8" '
-                                f'style="grid-column:{col_e8}; grid-row:{row_e8} / span 31;">'
+                                f'style="grid-column:{col_e8}; grid-row:{row_e8} / span 15;">'
                                 f'{e8_html}</div>'
                             )
 
@@ -1476,7 +1842,7 @@ try:
     <html><head><meta charset="utf-8"><style>
     *{{box-sizing:border-box;margin:0;padding:0;}}
     body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;padding:8px;}}
-    .bracket{{display:flex;flex-direction:row;align-items:stretch;justify-content:center;min-width:980px;}}
+    .bracket{{display:flex;flex-direction:row;align-items:stretch;justify-content:flex-start;min-width:980px;}}
     .left-side,.right-side{{display:flex;flex-direction:column;flex:0 0 auto;}}
     .finals{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px;width:140px;flex-shrink:0;}}
     .region{{display:flex;flex-direction:column;flex:1;}}
@@ -1548,7 +1914,7 @@ try:
 
                     import streamlit.components.v1 as components
                     st.caption("💡 Scroll horizontally to view the full bracket")
-                    components.html(HTML, height=900, scrolling=True)
+                    components.html(HTML, height=985, scrolling=False)
 
         elif _sub_yb == "win-conditions":
             st.subheader("Your Path to the Money")
@@ -1849,12 +2215,234 @@ try:
             if dna_select != "— select —":
                 u = final_df[final_df["Name"] == dna_select].iloc[0]
 
-                pr1, pr2, pr3, pr4, pr5 = st.columns([1,1,1,1,1])
-                pr1.metric("Rank",          f"#{u['Current Rank']}")
-                pr2.metric("Win %",         f"{u['Win %']:.1f}%")
-                pr3.metric("Top 3 %",       f"{u['Top 3 %']:.1f}%")
-                pr4.metric("Potential",     u["Potential Status"])
-                pr5.metric("Upsets ✓",      u["Upsets"])
+                # ── Build p_picks for this participant ────────────────────────
+                dna_p_row = None
+                for _i in range(3, len(df_p)):
+                    if str(df_p.iloc[_i][0]).strip() == dna_select:
+                        dna_p_row = df_p.iloc[_i]
+                        break
+                dna_picks = [str(dna_p_row[c]).strip() if dna_p_row is not None and c < len(dna_p_row) else "" for c in range(67)]
+
+                # ── Stat values ───────────────────────────────────────────────
+                dna_rank        = int(u["Current Rank"])
+                dna_total       = len(final_df)
+                dna_rank_str    = f"#{dna_rank} / {dna_total}"
+                dna_champ_pick  = dna_picks[65] if len(dna_picks) > 65 else ""
+                dna_champ_pick  = dna_champ_pick if dna_champ_pick and not is_unplayed(dna_champ_pick) else "TBD"
+                dna_champ_elim  = dna_champ_pick != "TBD" and dna_champ_pick not in truly_alive
+                dna_champ_color = "#ef4444" if dna_champ_elim else "#f5c518"
+                dna_champ_style = "text-decoration:line-through;" if dna_champ_elim else ""
+                dna_champ_sfx   = " ❌" if dna_champ_elim else ""
+                dna_logo_url    = espn_logo_url(dna_champ_pick) if dna_champ_pick != "TBD" else None
+                if dna_champ_pick != "TBD" and dna_logo_url:
+                    dna_champ_html = (
+                        f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+                        f'<img src="{dna_logo_url}" width="36" height="36" style="object-fit:contain;margin-bottom:4px;{"opacity:0.5;" if dna_champ_elim else ""}">'
+                        f'<div style="font-size:clamp(13px,3vw,16px);font-weight:700;color:{dna_champ_color};line-height:1.1;">'
+                        f'<span style="{dna_champ_style}">{dna_champ_pick}</span>{dna_champ_sfx}</div>'
+                        f'</div>'
+                    )
+                elif dna_champ_pick != "TBD":
+                    dna_champ_html = (
+                        f'<div style="font-size:clamp(16px,3vw,20px);font-weight:700;color:{dna_champ_color};line-height:1.1;">'
+                        f'<span style="{dna_champ_style}">{dna_champ_pick}</span>{dna_champ_sfx}</div>'
+                    )
+                else:
+                    dna_champ_html = '<div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#9ca3af;line-height:1.1;">—</div>'
+
+                dna_potential       = u["Potential Status"]
+                dna_pot_color       = (
+                    "#f5c518" if "Champion" in str(dna_potential) else
+                    "#60a5fa" if "Top 3"    in str(dna_potential) else
+                    "#ef4444" if "Out"      in str(dna_potential) else "#9ca3af"
+                )
+                dna_win_pct         = f"{u['Win %']:.1f}%"
+                dna_top3_pct        = f"{u['Top 3 %']:.1f}%"
+                dna_upsets          = int(u["Upsets"])
+                dna_correct         = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and dna_picks[c] == actual_winners[c])
+                dna_played_g        = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]))
+                dna_accuracy_str    = f"{dna_correct/dna_played_g*100:.0f}%" if dna_played_g else "—"
+
+                st.markdown(f'''
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:6px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">📊 Current Rank</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#ffffff;line-height:1.1;">{dna_rank_str}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🥇 Champion Pick</div>
+    {dna_champ_html}
+  </div>
+</div>
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:6px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🏆 Win %</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#f5c518;line-height:1.1;">{dna_win_pct}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🥉 Top 3 %</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#60a5fa;line-height:1.1;">{dna_top3_pct}</div>
+  </div>
+</div>
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:6px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🔮 Potential</div>
+    <div style="font-size:clamp(20px,5vw,28px);font-weight:700;color:{dna_pot_color};line-height:1.1;">{dna_potential}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">😤 Upset Picks ✓</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#fb923c;line-height:1.1;">{dna_upsets}</div>
+  </div>
+</div>
+<div style="display:flex;gap:6px;width:100%;box-sizing:border-box;margin-bottom:12px;">
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">✅ Correct Picks</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#60a5fa;line-height:1.1;">{dna_correct} / {dna_played_g}</div>
+  </div>
+  <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+    <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:4px;">🎯 Accuracy</div>
+    <div style="font-size:clamp(28px,7vw,38px);font-weight:700;color:#c084fc;line-height:1.1;">{dna_accuracy_str}</div>
+  </div>
+</div>''', unsafe_allow_html=True)
+
+                # ── Still in the Hunt (reuse same logic, scoped to dna_select) ─
+                dna_all_rows = []
+                for _idx in range(3, len(df_p)):
+                    _row = df_p.iloc[_idx]
+                    _nm  = str(_row[0]).strip()
+                    if not _nm or _nm in {"Winner", ""} or _nm.lower() == "nan":
+                        continue
+                    _pk = [str(_row[c]).strip() if c < len(_row) else "" for c in range(67)]
+                    dna_all_rows.append((_nm, _pk))
+
+                def _score_range(picks, cs, ce):
+                    return sum(
+                        points_per_game[c] + seed_map.get(picks[c], 0)
+                        for c in range(cs, ce)
+                        if not is_unplayed(actual_winners[c]) and picks[c] == actual_winners[c]
+                    )
+                def _pot_range(picks, cs, ce):
+                    return sum(
+                        points_per_game[c] + seed_map.get(picks[c], 0)
+                        for c in range(cs, ce)
+                        if picks[c] == actual_winners[c] or
+                           (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
+                    )
+                def _count_upsets(picks):
+                    total = 0
+                    for c in range(3, 66):
+                        winner = actual_winners[c]
+                        if is_unplayed(winner) or picks[c] != winner:
+                            continue
+                        loser  = defeated_map.get(winner, "")
+                        w_seed = seed_map.get(winner, 0)
+                        l_seed = seed_map.get(loser, 0)
+                        if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 4:
+                            total += 1
+                    return total
+                def _pot_upsets(picks):
+                    earned = _count_upsets(picks)
+                    future = sum(
+                        1 for c in range(3, 66)
+                        if is_unplayed(actual_winners[c])
+                        and picks[c] in all_alive
+                        and seed_map.get(picks[c], 0) >= 5
+                    )
+                    return earned + future
+                def _correct_pot(picks):
+                    return sum(
+                        1 for c in range(3, 66)
+                        if (not is_unplayed(actual_winners[c]) and picks[c] == actual_winners[c])
+                        or (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
+                    )
+
+                _me = dna_picks
+                _others = [(nm, pk) for nm, pk in dna_all_rows if nm != dna_select]
+
+                # 1st Weekend
+                _r1r2_done = all(not is_unplayed(actual_winners[c]) for c in range(3, 51))
+                _my_r1r2   = _score_range(_me, 3, 51)
+                _my_r1r2p  = _pot_range(_me, 3, 51)
+                _oth_r1r2  = max((_score_range(pk, 3, 51) for _, pk in _others), default=0)
+                _can_fw    = _my_r1r2 >= _oth_r1r2 if _r1r2_done else _my_r1r2p >= _oth_r1r2
+
+                # 2nd Weekend
+                _e8_done  = all(not is_unplayed(actual_winners[c]) for c in range(3, 63))
+                _my_e8    = _score_range(_me, 3, 63)
+                _my_e8p   = _pot_range(_me, 3, 63)
+                _oth_e8   = max((_score_range(pk, 3, 63) for _, pk in _others), default=0)
+                _can_sw   = _my_e8 >= _oth_e8 if _e8_done else _my_e8p >= _oth_e8
+
+                # Most Correct
+                _my_cp    = _correct_pot(_me)
+                _oth_cp   = max((_correct_pot(pk) for _, pk in _others), default=0)
+                _can_mc   = _my_cp >= _oth_cp
+
+                # Most Upsets
+                _any_unpl = any(is_unplayed(actual_winners[c]) for c in range(3, 66))
+                _my_up    = _count_upsets(_me)
+                _oth_up   = max((_count_upsets(pk) for _, pk in _others), default=0)
+                _can_mu   = (_pot_upsets(_me) >= _oth_up) if _any_unpl else (_my_up >= _oth_up)
+
+                # Tiebreaker
+                _can_tb   = is_unplayed(actual_winners[65])
+
+                # Lucky Team
+                _my_lucky = [t for t, ps in lucky_map.items() if dna_select in ps]
+                _can_lt   = any(t in truly_alive for t in _my_lucky)
+
+                # Last Place
+                _my_sc    = int(u["Current Score"])
+                _all_done = all(not is_unplayed(actual_winners[c]) for c in range(3, 66))
+                _oth_ceil = [_pot_range(pk, 3, 66) for _, pk in _others]
+                if _all_done:
+                    _oth_fin  = [int(final_df[final_df["Name"] == nm].iloc[0]["Current Score"])
+                                 for nm, _ in _others if not final_df[final_df["Name"] == nm].empty]
+                    _can_lp   = _my_sc <= min(_oth_fin) if _oth_fin else True
+                else:
+                    _can_lp   = _my_sc <= min(_oth_ceil) if _oth_ceil else True
+
+                # Regional
+                _regions_win = []
+                for _reg in ["West", "East", "South", "Midwest"]:
+                    _my_reg   = int(u.get(f"{_reg} Score", 0))
+                    _my_regp  = _my_reg + sum(
+                        points_per_game[c] + seed_map.get(_me[c], 0)
+                        for c in range(3, 63)
+                        if is_unplayed(actual_winners[c])
+                        and _me[c] in all_alive
+                        and slot_to_region.get(c) == _reg
+                    )
+                    _oth_reg  = max(
+                        (int(final_df[final_df["Name"] == nm].iloc[0].get(f"{_reg} Score", 0))
+                         if not final_df[final_df["Name"] == nm].empty else 0)
+                        for nm, _ in _others
+                    ) if _others else 0
+                    if _my_regp >= _oth_reg:
+                        _regions_win.append(_reg)
+
+                _dna_pills = "".join([
+                    pill("1st Place",          dna_potential == "🏆 Champion"),
+                    pill("Top 3",              dna_potential in ("🏆 Champion", "🥉 Top 3")),
+                    pill("1st Weekend Leader", _can_fw),
+                    pill("2nd Weekend Leader", _can_sw),
+                    pill("Most Correct Picks", _can_mc),
+                    pill("Most Upset Picks",   _can_mu),
+                    *[pill(f"{r} Region", True)  for r in _regions_win],
+                    *[pill(f"{r} Region", False) for r in ["West","East","South","Midwest"] if r not in _regions_win],
+                    pill("Lucky Team",         _can_lt),
+                    pill("Tiebreaker",         _can_tb),
+                    pill("Last Place",         _can_lp),
+                ])
+                st.markdown(f'''<div style="background:#1e1e2e;border:1px solid #313244;border-radius:10px;
+padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12px;">
+  <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:10px;text-align:center;">
+    🎯 Still in the Hunt
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">
+    {_dna_pills}
+  </div>
+</div>''', unsafe_allow_html=True)
 
                 st.markdown("---")
                 c1, c2, c3 = st.columns(3)
