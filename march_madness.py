@@ -13,35 +13,81 @@ except ImportError:
 
 st.set_page_config(
     page_title="March Madness Pool",
-    layout="wide",
+    layout="centered",
     initial_sidebar_state="collapsed"
 )
 
 # ─── Mobile-friendly CSS ───────────────────────────────────────────────────────
 st.markdown("""
 <style>
-  /* Tight padding on mobile */
-  @media (max-width: 768px) {
-    .block-container { padding: 1rem !important; }
-    div[data-testid="column"] { min-width: 0 !important; }
+  /* ── Base container ── */
+  .block-container {
+    padding: 0.75rem 0.75rem 2rem !important;
+    max-width: 100% !important;
   }
-  /* Metric card polish */
+
+  /* ── Tabs: scrollable row, smaller text on mobile ── */
+  div[data-testid="stTabs"] > div:first-child {
+    overflow-x: auto !important;
+    flex-wrap: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  div[data-testid="stTabs"] > div:first-child::-webkit-scrollbar { display: none; }
+  button[data-baseweb="tab"] {
+    font-size: 13px !important;
+    white-space: nowrap !important;
+    padding: 6px 10px !important;
+  }
+
+  /* ── Metric cards ── */
   div[data-testid="metric-container"] {
     background: #1e1e2e;
     border: 1px solid #313244;
     border-radius: 10px;
-    padding: 10px 14px;
+    padding: 8px 10px;
   }
-  /* Tab styling */
-  button[data-baseweb="tab"] { font-size: 14px !important; }
-  /* Slightly larger dataframe text */
+  div[data-testid="metric-container"] label {
+    font-size: 11px !important;
+  }
+  div[data-testid="metric-container"] [data-testid="stMetricValue"] {
+    font-size: 18px !important;
+  }
+
+  /* ── Columns: stack on small screens ── */
+  @media (max-width: 640px) {
+    div[data-testid="column"] {
+      min-width: 100% !important;
+      width: 100% !important;
+    }
+    /* Plotly charts full width */
+    .js-plotly-plot { width: 100% !important; }
+    /* Smaller metric values on mobile */
+    div[data-testid="metric-container"] [data-testid="stMetricValue"] {
+      font-size: 15px !important;
+    }
+    div[data-testid="metric-container"] label {
+      font-size: 10px !important;
+    }
+  }
+
+  /* ── DataFrames ── */
   .stDataFrame { font-size: 13px; }
-  /* Row hover highlight — targets the inner glide-data-grid canvas rows */
-  [data-testid="stDataFrame"] tr:hover td,
-  [data-testid="stDataFrame"] [role="row"]:hover [role="gridcell"] {
-    background-color: #2a3550 !important;
-    cursor: default;
+
+  /* ── Bracket iframe: horizontal scroll ── */
+  iframe {
+    max-width: 100%;
   }
+  div[data-testid="stIFrame"] {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Selectboxes full width ── */
+  div[data-testid="stSelectbox"] { width: 100% !important; }
+
+  /* ── Expanders ── */
+  details summary { font-size: 14px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -723,11 +769,11 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
     custom_css = {
         ".ag-row-hover": {"background-color": "#2a3550 !important"},
         ".ag-row-hover .ag-cell": {"color": "#ffffff !important"},
-        ".ag-cell": {"text-align": "left !important", "color": "#ffffff !important"},
+        ".ag-cell": {"text-align": "left !important", "color": "#ffffff !important", "font-size": "13px !important", "padding-left": "8px !important", "padding-right": "8px !important"},
         ".ag-header": {"background-color": "#1e1e2e !important", "border-bottom": "1px solid #313244 !important"},
-        ".ag-header-cell": {"background-color": "#1e1e2e !important", "color": "#ffffff !important"},
+        ".ag-header-cell": {"background-color": "#1e1e2e !important", "color": "#ffffff !important", "padding-left": "8px !important", "padding-right": "8px !important"},
         ".ag-header-cell-label": {"justify-content": "flex-start !important", "color": "#ffffff !important"},
-        ".ag-header-cell-text": {"text-align": "left !important"},
+        ".ag-header-cell-text": {"text-align": "left !important", "font-size": "12px !important"},
         ".ag-right-aligned-header .ag-header-cell-label": {"flex-direction": "row !important", "justify-content": "flex-start !important"},
         ".ag-right-aligned-header .ag-header-cell-text": {"text-align": "left !important"},
         ".left-header": {"text-align": "left !important"},
@@ -736,7 +782,6 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
         ".ag-status-bar": {"display": "none !important", "height": "0 !important"},
         ".ag-floating-filter": {"display": "none !important", "height": "0 !important"},
         ".ag-popup": {"display": "none !important"},
-        # Hide filter icon on column headers
         ".ag-icon-filter": {"display": "none !important"},
         ".ag-header-icon": {"display": "none !important"},
         ".ag-body-viewport": {"background-color": "#13161f !important"},
@@ -1375,7 +1420,8 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
 </body></html>"""
 
                 import streamlit.components.v1 as components
-                components.html(HTML, height=900, scrolling=False)
+                st.caption("💡 Scroll horizontally to view the full bracket")
+                components.html(HTML, height=900, scrolling=True)
 
     # ── Tab 2: Win Conditions ─────────────────────────────────────────────────
     with tab3:
@@ -1456,12 +1502,12 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
             h2h = head_to_head(p1, p2, actual_winners, points_per_game, seed_map)
 
             # Score comparison + rankings
-            m1, m2, m3, m4, m5 = st.columns(5)
+            m1, m2, m3, m4, m5 = st.columns([1,1,1,1,1])
             m1.metric(f"🔵 {p1_name} Rank", f"#{int(p1['Current Rank'])}")
-            m2.metric(f"🔵 {p1_name} Score", p1["Current Score"],
+            m2.metric(f"🔵 Score", p1["Current Score"],
                       delta=f"{p1['Current Score'] - p2['Current Score']:+d} vs rival")
-            m3.metric("🤝 Shared Points (same pick, both correct)", h2h["shared_pts"])
-            m4.metric(f"🔴 {p2_name} Score", p2["Current Score"],
+            m3.metric("🤝 Shared Pts", h2h["shared_pts"])
+            m4.metric(f"🔴 Score", p2["Current Score"],
                       delta=f"{p2['Current Score'] - p1['Current Score']:+d} vs rival")
             m5.metric(f"🔴 {p2_name} Rank", f"#{int(p2['Current Rank'])}")
 
@@ -1480,62 +1526,34 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
             top3_p1_pct  = top3_probs.get(p1_name, 0.0)
             top3_p2_pct  = top3_probs.get(p2_name, 0.0)
 
-            chart_col1, chart_col2, chart_col3 = st.columns(3)
+            chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1])
 
-            with chart_col1:
-                fig1 = go.Figure(go.Bar(
-                    x=[p1_name, p2_name],
-                    y=[h2h_p1_pct, h2h_p2_pct],
-                    marker_color=["#4fc3f7", "#ff6b6b"],
-                    text=[f"{h2h_p1_pct:.1f}%", f"{h2h_p2_pct:.1f}%"],
-                    textposition="outside",
-                ))
-                fig1.update_layout(
-                    title="1v1 Win Probability",
-                    yaxis_title="Chance of finishing ahead of each other",
-                    yaxis_range=[0, 100],
-                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=0, r=0, t=40, b=0),
-                )
-                st.plotly_chart(fig1, use_container_width=True)
-                if h2h_tie_pct > 0:
-                    st.caption(f"Ties: {h2h_tie_pct:.1f}% of simulations")
-
-            with chart_col2:
-                fig2 = go.Figure(go.Bar(
-                    x=[p1_name, p2_name],
-                    y=[pool_p1_pct, pool_p2_pct],
-                    marker_color=["#4fc3f7", "#ff6b6b"],
-                    text=[f"{pool_p1_pct:.1f}%", f"{pool_p2_pct:.1f}%"],
-                    textposition="outside",
-                ))
-                fig2.update_layout(
-                    title="Pool Win Probability (1st Place)",
-                    yaxis_title="Chance of winning the entire pool",
-                    yaxis_range=[0, 100],
-                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=0, r=0, t=40, b=0),
-                )
-                st.plotly_chart(fig2, use_container_width=True)
-                st.caption("Based on 1,000 Monte Carlo simulations vs. the full pool")
-
-            with chart_col3:
-                fig3 = go.Figure(go.Bar(
-                    x=[p1_name, p2_name],
-                    y=[top3_p1_pct, top3_p2_pct],
-                    marker_color=["#4fc3f7", "#ff6b6b"],
-                    text=[f"{top3_p1_pct:.1f}%", f"{top3_p2_pct:.1f}%"],
-                    textposition="outside",
-                ))
-                fig3.update_layout(
-                    title="Top 3 Finish Probability",
-                    yaxis_title="Chance of finishing in the top 3",
-                    yaxis_range=[0, 100],
-                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=0, r=0, t=40, b=0),
-                )
-                st.plotly_chart(fig3, use_container_width=True)
-                st.caption("Based on 1,000 Monte Carlo simulations vs. the full pool")
+            for col, title, y1, y2, caption in [
+                (chart_col1, "1v1 Win Probability", h2h_p1_pct, h2h_p2_pct,
+                 f"Ties: {h2h_tie_pct:.1f}%" if h2h_tie_pct > 0 else None),
+                (chart_col2, "Pool Win Probability (1st Place)", pool_p1_pct, pool_p2_pct,
+                 "Based on 1,000 Monte Carlo simulations vs. the full pool"),
+                (chart_col3, "Top 3 Finish Probability", top3_p1_pct, top3_p2_pct,
+                 "Based on 1,000 Monte Carlo simulations vs. the full pool"),
+            ]:
+                with col:
+                    fig = go.Figure(go.Bar(
+                        x=[p1_name, p2_name],
+                        y=[y1, y2],
+                        marker_color=["#4fc3f7", "#ff6b6b"],
+                        text=[f"{y1:.1f}%", f"{y2:.1f}%"],
+                        textposition="outside",
+                    ))
+                    fig.update_layout(
+                        title=title,
+                        yaxis_range=[0, 100],
+                        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=0, r=0, t=40, b=0),
+                        xaxis=dict(tickfont=dict(size=11)),
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    if caption:
+                        st.caption(caption)
 
             st.markdown("#### 🔀 Where Your Brackets Split")
             diverge_df = pd.DataFrame(h2h["divergences"])
@@ -1581,12 +1599,12 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
         if dna_select != "— select —":
             u = final_df[final_df["Name"] == dna_select].iloc[0]
 
-            pr1, pr2, pr3, pr4, pr5 = st.columns(5)
-            pr1.metric("Current Rank",  f"#{u['Current Rank']}")
-            pr2.metric("Win Chance",    f"{u['Win %']:.1f}%")
-            pr3.metric("Top 3 Chance",  f"{u['Top 3 %']:.1f}%")
+            pr1, pr2, pr3, pr4, pr5 = st.columns([1,1,1,1,1])
+            pr1.metric("Rank",          f"#{u['Current Rank']}")
+            pr2.metric("Win %",         f"{u['Win %']:.1f}%")
+            pr3.metric("Top 3 %",       f"{u['Top 3 %']:.1f}%")
             pr4.metric("Potential",     u["Potential Status"])
-            pr5.metric("Upset Correct", u["Upsets"])
+            pr5.metric("Upsets ✓",      u["Upsets"])
 
             st.markdown("---")
             c1, c2, c3 = st.columns(3)
@@ -1963,32 +1981,33 @@ body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;f
 
 
         regions = ["South", "East", "Midwest", "West"]
-        reg_cols = st.columns(2)
 
-        for i, region in enumerate(regions):
-            score_col   = f"{region} Score"
-            correct_col = f"{region} Correct"
-            region_df = (
-                pd.DataFrame([{
-                    "Rank": 0,
-                    "Name": r["Name"],
-                    "Pts":  r.get(score_col, 0),
-                    "Correct": r.get(correct_col, 0),
-                } for r in results])
-                .sort_values(["Pts", "Correct"], ascending=[False, False])
-                .head(20)
-                .reset_index(drop=True)
-            )
-            region_df["Rank"] = region_df.index + 1
-
-            with reg_cols[i % 2]:
-                st.markdown(f"### {region}")
-                show_table(
-                    region_df[["Rank", "Name", "Pts", "Correct"]],
-                    user_highlight_col="Name",
-                    user_highlight_val=user_name,
-                    key=f"table_region_{region.lower()}",
+        for i in range(0, len(regions), 2):
+            reg_cols = st.columns(2)
+            for j, region in enumerate(regions[i:i+2]):
+                score_col   = f"{region} Score"
+                correct_col = f"{region} Correct"
+                region_df = (
+                    pd.DataFrame([{
+                        "Rank": 0,
+                        "Name": r["Name"],
+                        "Pts":  r.get(score_col, 0),
+                        "Correct": r.get(correct_col, 0),
+                    } for r in results])
+                    .sort_values(["Pts", "Correct"], ascending=[False, False])
+                    .head(20)
+                    .reset_index(drop=True)
                 )
+                region_df["Rank"] = region_df.index + 1
+
+                with reg_cols[j]:
+                    st.markdown(f"### {region}")
+                    show_table(
+                        region_df[["Rank", "Name", "Pts", "Correct"]],
+                        user_highlight_col="Name",
+                        user_highlight_val=user_name,
+                        key=f"table_region_{region.lower()}",
+                    )
 
     st.markdown("---")
     st.caption(f"🕒 Last sync: {last_update} · 🔄 Monte Carlo: 1,000 runs · Built with Streamlit")
