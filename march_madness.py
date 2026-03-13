@@ -81,12 +81,15 @@ st.markdown("""
   }
 
   /* ── Bracket iframe: horizontal scroll ── */
-  iframe {
-    max-width: 100%;
-  }
   div[data-testid="stIFrame"] {
     overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch !important;
+    width: 100% !important;
+  }
+  div[data-testid="stIFrame"] iframe {
+    min-width: 980px !important;
+    max-width: none !important;
+    width: 980px !important;
   }
 
   /* ── Selectboxes full width ── */
@@ -162,6 +165,7 @@ UNPLAYED = {"nan", "0", "", "None", "Winner", "TBD", "N/A", "-", "–"}
 def load_all_data():
     master_url = get_csv_url(SHEET_URL, "MasterBracket")
     picks_url  = get_csv_url(SHEET_URL, "Picks")
+    teams_url  = get_csv_url(SHEET_URL, "Teams")
     if not master_url or not picks_url:
         return None
 
@@ -176,13 +180,13 @@ def load_all_data():
     # MasterBracket layout (0-indexed rows/cols):
     # West:    rows 3-33,  team col B(1),  seed col A(0)
     # South:   rows 3-33,  team col N(13), seed col O(14)
-    # East:    rows 35-65, team col B(1),  seed col A(0)
-    # Midwest: rows 35-65, team col N(13), seed col O(14)
+    # East:    rows 36-65, team col B(1),  seed col A(0)   — row 35 is a label row
+    # Midwest: rows 36-65, team col N(13), seed col O(14)  — row 35 is a label row
     region_specs = [
         ("West",    3, 33,  1,  0),
         ("South",   3, 33,  13, 14),
-        ("East",    35, 65, 1,  0),
-        ("Midwest", 35, 65, 13, 14),
+        ("East",    36, 65, 1,  0),
+        ("Midwest", 36, 65, 13, 14),
     ]
     for region, row_start, row_end, team_col, seed_col in region_specs:
         for row_idx in range(row_start, min(row_end + 1, len(df_seeds))):
@@ -218,43 +222,54 @@ def load_all_data():
 
     all_alive = (all_starting - eliminated) | {w for w in winners_row if w in all_starting}
 
-    # Build r1_matchups from MasterBracket (authoritative team pairs), with
-    # participant picks as fallback for any missing slots.
-    # MasterBracket teams appear in adjacent rows; each pair = one R1 game.
-    # RCOLS mapping (verified): West=cols3-10, East=cols11-18, South=cols19-26, Midwest=cols27-34
-    # MasterBracket layout: West rows3-33 colB(1)/A(0), East rows35-65 colB(1)/A(0),
-    #                        South rows3-33 colN(13)/O(14), Midwest rows35-65 colN(13)/O(14)
+    # Build r1_matchups from TeamsKey sheet.
+    # Layout: col A=Seed, col B=Team, col D=Region, one team per row, blank rows between.
+    # Teams appear in bracket order: 1,16,8,9,5,12,4,13,6,11,3,14,7,10,2,15 per region.
+    # Each consecutive pair within a region = one R1 matchup.
+    # Regions appear in order: West, East, South, Midwest → pick cols 3-10, 11-18, 19-26, 27-34.
     r1_matchups: dict[int, tuple] = {}
-
-    def extract_r1_games(row_start, row_end, team_col, seed_col):
-        """Read adjacent-row team pairs from MasterBracket, return list of (team_a, team_b)."""
-        teams = []
-        for row_idx in range(row_start, min(row_end + 1, len(df_seeds))):
-            row = df_seeds.iloc[row_idx]
-            tm = str(row.iloc[team_col]).strip() if team_col < len(row) else ""
-            sd = safe_int(row.iloc[seed_col]) if seed_col < len(row) else 0
-            if tm and tm not in skip and sd > 0:
-                teams.append((tm, sd))
-        games = []
-        for i in range(0, len(teams) - 1, 2):
-            a, sa = teams[i]
-            b, sb = teams[i + 1]
-            games.append((a, b) if sa <= sb else (b, a))
-        return games
-
-    # (pick_cols, team_col, seed_col, row_start, row_end) — order matches verified RCOLS
-    master_r1_map = [
-        (list(range(3,  11)), 1,  0,  3, 33),   # West
-        (list(range(11, 19)), 1,  0, 35, 65),   # East
-        (list(range(19, 27)), 13, 14,  3, 33),  # South
-        (list(range(27, 35)), 13, 14, 35, 65),  # Midwest
-    ]
-    for pick_cols, team_col, seed_col, row_start, row_end in master_r1_map:
-        games = extract_r1_games(row_start, row_end, team_col, seed_col)
-        for col, (ta, tb) in zip(pick_cols, games):
-            r1_matchups[col] = (ta, tb)
-        for col in pick_cols[len(games):]:
-            r1_matchups[col] = ("TBD", "TBD")
+    try:
+        teams_key_url = get_csv_url(SHEET_URL, "TeamsKey")
+        df_tk = pd.read_csv(teams_key_url, header=None)
+        # Collect (seed, team, region) in sheet order, skipping blank rows
+        # Also register seeds into seed_map so bracket display works regardless of name spelling
+        tk_teams = []
+        for i in range(len(df_tk)):
+            seed_val   = str(df_tk.iloc[i, 0]).strip()
+            team_val   = str(df_tk.iloc[i, 1]).strip()
+            region_val = str(df_tk.iloc[i, 3]).strip() if df_tk.shape[1] > 3 else ""
+            if (seed_val not in ("", "nan", "Seed") and
+                team_val not in ("", "nan", "Team") and
+                region_val not in ("", "nan", "Region")):
+                try:
+                    sd = int(float(seed_val))
+                except ValueError:
+                    sd = 0
+                # Register this team/seed into seed_map and all_starting
+                # so the bracket can always look up the seed number
+                if sd > 0 and team_val not in seed_map:
+                    seed_map[team_val] = sd
+                    all_starting.add(team_val)
+                tk_teams.append((team_val, region_val))
+        # Group into regions in order of appearance
+        region_order = []
+        region_teams: dict[str, list] = {}
+        for team, region in tk_teams:
+            if region not in region_teams:
+                region_order.append(region)
+                region_teams[region] = []
+            region_teams[region].append(team)
+        # Map region order to pick col ranges
+        pick_col_ranges = [range(3,11), range(11,19), range(19,27), range(27,35)]
+        for reg, col_range in zip(region_order, pick_col_ranges):
+            teams_in_region = region_teams[reg]
+            # Pair consecutive teams: [0,1], [2,3], [4,5], ...
+            for game_idx, i in enumerate(range(0, len(teams_in_region) - 1, 2)):
+                if game_idx >= len(col_range):
+                    break
+                r1_matchups[col_range[game_idx]] = (teams_in_region[i], teams_in_region[i + 1])
+    except Exception:
+        pass  # fall through to picks-based fallback below
 
     # Fill any still-missing slots from participant picks (fallback)
     r1_picks_block = df_p.iloc[3:, 3:35].astype(str)
@@ -1114,8 +1129,8 @@ try:
         for key in ("path", "dna", "bracket_name"):
             if key not in st.session_state or st.session_state[key] == "— select —":
                 st.session_state[key] = user_name
-        if "h2h_p1" not in st.session_state or st.session_state["h2h_p1"] == "— select —":
-            st.session_state["h2h_p1"] = user_name
+        if st.session_state.get("_h2h_p1_val") not in name_opts:
+            st.session_state["_h2h_p1_val"] = user_name
 
     # Pre-fill Head-to-Head players from ?p1= and ?p2= query params.
     # Only applied once (on first load) so the user can still change them manually.
@@ -1124,16 +1139,15 @@ try:
         try:
             qp1 = st.query_params.get("p1", "")
             qp2 = st.query_params.get("p2", "")
-            # Case-insensitive lookup so ?p1=greg+murphy matches "Greg Murphy"
             name_lower = {n.lower(): n for n in name_opts}
             if qp1:
                 matched = name_lower.get(qp1.lower())
                 if matched:
-                    st.session_state["h2h_p1"] = matched
+                    st.session_state["_h2h_p1_val"] = matched
             if qp2:
                 matched = name_lower.get(qp2.lower())
                 if matched:
-                    st.session_state["h2h_p2"] = matched
+                    st.session_state["_h2h_p2_val"] = matched
         except Exception:
             pass
 
@@ -1186,11 +1200,17 @@ try:
     if "nav_sub_bonus" not in st.session_state:
         st.session_state["nav_sub_bonus"] = "lucky-team"
 
-    # If deep-linking, override session state
-    if slug and slug != "standings":
+    # Apply deep-link only once on initial page load — not on every rerun.
+    # After applying, clear the tab query param so it doesn't fight with navigation.
+    if slug and slug != "standings" and not st.session_state.get("_deeplink_applied"):
         st.session_state["nav_group"] = group
         if subpage:
             st.session_state[f"nav_sub_{group}"] = subpage
+        st.session_state["_deeplink_applied"] = True
+        try:
+            st.query_params.pop("tab", None)
+        except Exception:
+            pass
 
     GROUP_TAB_INDEX = {
         "standings":    0,
@@ -1206,26 +1226,24 @@ try:
 
     import streamlit.components.v1 as _components
 
-    # Fire JS to click the correct top-level tab — either from a deep-link slug
-    # on page load, or from a programmatic navigation (e.g. standings row click)
+    # One-shot JS tab click — only fires when jump_to_tab_index is freshly set.
     _jump_tab = st.session_state.pop("jump_to_tab_index", None)
-    _target_index = _jump_tab if _jump_tab is not None else GROUP_TAB_INDEX.get(group, 0)
-    if _target_index > 0:
+    if _jump_tab is not None:
         _components.html(
             f"""<script>
             (function() {{
                 function clickTab() {{
                     var tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
-                    if (tabs.length > {_target_index}) {{
-                        tabs[{_target_index}].click();
+                    if (tabs.length > {_jump_tab}) {{
+                        tabs[{_jump_tab}].click();
                     }} else {{
                         setTimeout(clickTab, 100);
                     }}
                 }}
-                setTimeout(clickTab, 150);
+                setTimeout(clickTab, 300);
             }})();
             </script>""",
-            height=0,
+            height=1,
         )
 
     # ── Tab 1: Standings ──────────────────────────────────────────────────────
@@ -1266,20 +1284,31 @@ try:
 
             if selected_row:
                 clicked_name = selected_row.get("Name", "")
-                is_new = st.session_state.get("h2h_last_clicked") != clicked_name
-                if clicked_name and clicked_name != user_name and is_new:
-                    st.session_state["h2h_last_clicked"] = clicked_name
-                    st.session_state["nav_group"] = "your-bracket"
-                    st.session_state["nav_sub_your-bracket"] = "head-to-head"
-                    st.session_state["jump_to_tab_index"] = 1
-                    st.query_params["p1"]  = user_name or clicked_name
-                    st.query_params["p2"]  = clicked_name
-                    st.session_state.pop("h2h_params_applied", None)
+                # Only act if it's a new selection — compare against last processed name
+                if (clicked_name and clicked_name != user_name
+                        and clicked_name != st.session_state.get("_h2h_last_processed")):
+                    st.session_state["_h2h_last_processed"] = clicked_name
+                    p1_val = user_name or clicked_name
+                    st.session_state["_h2h_p1_pending"] = p1_val
+                    st.session_state["_h2h_p2_pending"] = clicked_name
+                    st.session_state["_h2h_show_banner"] = True
                     st.rerun()
-            else:
-                st.session_state.pop("h2h_last_clicked", None)
 
-            st.caption("💡 Tap any row to open a Head-to-Head comparison")
+            # H2H banner — appears after a row click, button navigates to H2H tab
+            _h2h_name = st.session_state.get("_h2h_last_processed")
+            if st.session_state.get("_h2h_show_banner") and _h2h_name:
+                bcol1, bcol2 = st.columns([3, 1])
+                with bcol1:
+                    st.info(f"⚔️ Ready to compare vs **{_h2h_name}**")
+                with bcol2:
+                    if st.button("Go to Head-to-Head →", key="go_h2h_btn", use_container_width=True, type="primary"):
+                        st.session_state["_h2h_show_banner"] = False
+                        st.session_state["nav_group"] = "your-bracket"
+                        st.session_state["nav_sub_your-bracket"] = "head-to-head"
+                        st.session_state["jump_to_tab_index"] = 1
+                        st.rerun()
+            else:
+                st.caption("💡 Tap any row to open a Head-to-Head comparison")
 
         with col_right:
             top10 = final_df.head(10).sort_values("Current Score")
@@ -1841,7 +1870,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     HTML = f"""<!DOCTYPE html>
     <html><head><meta charset="utf-8"><style>
     *{{box-sizing:border-box;margin:0;padding:0;}}
-    body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;padding:8px;}}
+    body{{background:#0d0f14;color:#9ca3af;font-family:'Segoe UI',Arial,sans-serif;font-size:11px;padding:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;}}
     .bracket{{display:flex;flex-direction:row;align-items:stretch;justify-content:flex-start;min-width:980px;}}
     .left-side,.right-side{{display:flex;flex-direction:column;flex:0 0 auto;}}
     .finals{{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:0 8px;width:140px;flex-shrink:0;}}
@@ -1849,8 +1878,9 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     .rgn-name{{font-size:9px;font-weight:800;letter-spacing:1.5px;color:#374151;text-align:center;padding:1px 0 1px;text-transform:uppercase;border-bottom:1px solid #1a1f2b;margin-bottom:1px;}}
     .region-body.grid-region{{display:grid;grid-template-rows:repeat(8,18px 18px 18px 2px);grid-template-columns:118px 106px 98px 90px;column-gap:10px;flex:1;}}
     .right-side .region-body.grid-region{{grid-template-columns:90px 98px 106px 118px;}}
-    .cell .matchup{{height:100%;display:flex;flex-direction:column;justify-content:flex-start;}}
-    .cell .matchup.single{{justify-content:center;}}
+    .cell{{display:flex;align-items:center;}}
+    .cell .matchup{{height:100%;display:flex;flex-direction:column;justify-content:flex-start;width:100%;}}
+    .cell .matchup.single{{justify-content:center;margin-top:-16px;}}
     .rlbl{{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#374151;text-align:center;padding-bottom:3px;}}
     .ff-lbl{{color:#4b5563;font-size:9px;}}
     .matchup{{position:relative;}}
@@ -1859,20 +1889,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     .tr{{display:flex;align-items:center;gap:3px;padding:1px 4px 1px 5px;height:16px;
       border:1px solid #1a1f2b;overflow:hidden;background:#0d0f14;}}
     .tr+.tr{{border-top:none;}}
-    .sd{{font-size:11px;color:#374151;min-width:14px;text-align:right;flex-shrink:0;}}
-    .tn{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e5e7eb;font-size:13px;}}
+    .sd{{font-size:11px;color:#9ca3af;min-width:14px;text-align:right;flex-shrink:0;}}
+    .tn{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d1d5db;font-size:13px;}}
     .bust{{font-size:8px;color:#f87171;flex-shrink:0;margin-left:1px;white-space:nowrap;}}
-    .tbd .tn{{color:#1f2937;font-style:italic;}}
+    .tbd .tn{{color:#6b7280;font-style:italic;}}
     .won{{background:#052e16 !important;border-color:#14532d !important;}}
-    .won .tn{{color:#86efac;}}
+    .won .tn{{color:#d1d5db;}}
     .correct{{background:#14532d !important;border-color:#16a34a !important;}}
-    .correct .tn{{color:#4ade80 !important;font-weight:700;}}
+    .correct .tn{{color:#d1fae5 !important;font-weight:700;}}
     .wrong{{background:#2d0a0a !important;border-color:#7f1d1d !important;}}
-    .wrong .tn{{color:#ef4444 !important;font-weight:700;}}
+    .wrong .tn{{color:#fca5a5 !important;font-weight:700;}}
     .future{{background:#0d0d0d !important;border-color:#555 !important;}}
-    .future .tn{{color:#ffffff !important;font-weight:700;}}
-    .out .tn{{color:#1e2432;}}
-    .live .tn{{color:#4b5563;}}
+    .future .tn{{color:#e5e7eb !important;font-weight:700;}}
+    .out .tn{{color:#6b7280;}}
+    .live .tn{{color:#9ca3af;}}
 
     /* ── CONNECTOR LINES ──
        Right-border on each .tr acts as vertical spine.
@@ -1914,7 +1944,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                     import streamlit.components.v1 as components
                     st.caption("💡 Scroll horizontally to view the full bracket")
-                    components.html(HTML, height=985, scrolling=False)
+                    components.html(HTML, height=1005, scrolling=True)
 
         elif _sub_yb == "win-conditions":
             st.subheader("Your Path to the Money")
@@ -1970,21 +2000,38 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                 if swings:
                     swing_df = pd.DataFrame(swings).sort_values("Pts", ascending=False)
-                    show_table(swing_df, key="table_swing")
+                    st.dataframe(swing_df, use_container_width=True, hide_index=True)
                 else:
                     st.success("No divergent unplayed games vs. your closest rivals.")
 
         elif _sub_yb == "head-to-head":
             st.subheader("⚔️ Head-to-Head Comparison")
             col_a, col_b = st.columns(2)
+            h2h_opts = ["— select —"] + name_opts
+
+            # Apply pending values and clear widget keys so index= is always respected
+            if "_h2h_p1_pending" in st.session_state:
+                st.session_state["_h2h_p1_val"] = st.session_state.pop("_h2h_p1_pending")
+            if "_h2h_p2_pending" in st.session_state:
+                st.session_state["_h2h_p2_val"] = st.session_state.pop("_h2h_p2_pending")
+
+            # Default p1 to current user
+            if "_h2h_p1_val" not in st.session_state:
+                st.session_state["_h2h_p1_val"] = user_name if user_name in h2h_opts else "— select —"
+
+            p1_val = st.session_state["_h2h_p1_val"]
+            p2_val = st.session_state.get("_h2h_p2_val", "— select —")
+
+            # Always force widget keys to match val keys so display is never stale
+            st.session_state["_h2h_sel_p1"] = p1_val if p1_val in h2h_opts else "— select —"
+            st.session_state["_h2h_sel_p2"] = p2_val if p2_val in h2h_opts else "— select —"
+
             with col_a:
-                p1_name = st.selectbox(
-                    "Player 1",
-                    ["— select —"] + name_opts,
-                    key="h2h_p1",
-                )
+                p1_name = st.selectbox("Player 1", h2h_opts, key="_h2h_sel_p1")
+                st.session_state["_h2h_p1_val"] = p1_name
             with col_b:
-                p2_name = st.selectbox("Player 2", ["— select —"] + name_opts, key="h2h_p2")
+                p2_name = st.selectbox("Player 2", h2h_opts, key="_h2h_sel_p2")
+                st.session_state["_h2h_p2_val"] = p2_name
 
             if p1_name != "— select —" and p2_name != "— select —" and p1_name != p2_name:
                 p1 = final_df[final_df["Name"] == p1_name].iloc[0].to_dict()
@@ -2058,13 +2105,13 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                 chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1])
 
-                for col, title, y1, y2, caption in [
+                for col, title, y1, y2, caption, chart_height in [
                     (chart_col1, "1v1 Win Probability", h2h_p1_pct, h2h_p2_pct,
-                     f"Ties: {h2h_tie_pct:.1f}%" if h2h_tie_pct > 0 else None),
+                     f"Ties: {h2h_tie_pct:.1f}%" if h2h_tie_pct > 0 else None, 165),
                     (chart_col2, "Pool Win Probability (1st Place)", pool_p1_pct, pool_p2_pct,
-                     "Based on 1,000 Monte Carlo simulations vs. the full pool"),
+                     "Based on 1,000 Monte Carlo simulations vs. the full pool", 165),
                     (chart_col3, "Top 3 Finish Probability", top3_p1_pct, top3_p2_pct,
-                     "Based on 1,000 Monte Carlo simulations vs. the full pool"),
+                     "Based on 1,000 Monte Carlo simulations vs. the full pool", 165),
                 ]:
                     with col:
                         fig = go.Figure(go.Bar(
@@ -2078,9 +2125,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         dragmode=False,
                             title=title,
                             yaxis_range=[0, 100],
+                            height=chart_height,
                             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                            margin=dict(l=0, r=0, t=40, b=0),
-                            xaxis=dict(tickfont=dict(size=11)),
+                            margin=dict(l=0, r=0, t=36, b=0),
+                            xaxis=dict(tickfont=dict(size=10)),
+                            font=dict(size=10),
                         )
                         st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
                         if caption:
