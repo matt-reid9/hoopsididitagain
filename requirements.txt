@@ -4,3 +4,4 @@ plotly
 matplotlib
 streamlit-cookies-manager
 streamlit-aggrid
+requests
