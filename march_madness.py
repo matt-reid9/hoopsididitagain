@@ -97,9 +97,15 @@ st.markdown("""
 
   /* ── Prevent on-screen keyboard from appearing on selectbox tap ── */
   div[data-testid="stSelectbox"] input,
-  div[data-baseweb="select"] input {
+  div[data-baseweb="select"] input,
+  div[data-testid="stDialog"] input,
+  div[role="dialog"] input,
+  div[data-testid="stModal"] input {
     caret-color: transparent !important;
     pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    readonly: readonly;
   }
 
   /* ── Expanders ── */
@@ -806,7 +812,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, JsCode, ColumnsAutoSizeMode
 def show_table(df, user_highlight_col=None, user_highlight_val=None,
                user_highlight_contains=False, gradient_cols=None,
                pct_cols=None, height=None, key=None, col_config=None,
-               pinned_cols=None, return_selected=False):
+               pinned_cols=None, return_selected=False, nowrap_cols=None):
     """
     Render a DataFrame using AgGrid with:
     - Alternating row shading
@@ -845,6 +851,16 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
             if col_name in df.columns:
                 pinned = "left" if pinned_cols and col_name in pinned_cols else None
                 gb.configure_column(col_name, width=width, pinned=pinned)
+
+    # Apply no-wrap cell style to specified columns
+    if nowrap_cols:
+        for col_name in nowrap_cols:
+            if col_name in df.columns:
+                gb.configure_column(col_name, cellStyle={
+                    "textAlign": "left", "color": "#ffffff",
+                    "whiteSpace": "nowrap", "overflow": "hidden",
+                    "textOverflow": "ellipsis",
+                })
 
     # Apply pinning to any pinned cols not already handled by col_config
     if pinned_cols:
@@ -1174,6 +1190,23 @@ try:
         @st.dialog("👋 Welcome to the March Madness Pool!")
         def welcome_dialog():
             st.markdown("Select your name to personalise your experience across all tabs.")
+            # Inject JS to make all inputs in this dialog readonly so mobile keyboard never appears
+            _components.html("""<script>
+            (function() {
+                function lockInputs() {
+                    var inputs = window.parent.document.querySelectorAll(
+                        'div[data-testid="stDialog"] input, div[role="dialog"] input'
+                    );
+                    inputs.forEach(function(el) {
+                        el.setAttribute('readonly', 'readonly');
+                        el.setAttribute('inputmode', 'none');
+                        el.style.caretColor = 'transparent';
+                    });
+                    if (inputs.length === 0) { setTimeout(lockInputs, 100); }
+                }
+                setTimeout(lockInputs, 150);
+            })();
+            </script>""", height=0)
             picked = st.selectbox("Who are you?", ["— select —"] + name_opts, key="modal_pick")
             if st.button("Let's go →", use_container_width=True, type="primary"):
                 if picked != "— select —":
@@ -1201,8 +1234,8 @@ try:
         for key in ("path", "dna", "bracket_name"):
             if key not in st.session_state or st.session_state[key] == "— select —":
                 st.session_state[key] = user_name
-        if st.session_state.get("_h2h_p1_val") not in name_opts:
-            st.session_state["_h2h_p1_val"] = user_name
+        if st.session_state.get("_h2h_sel_p1", "— select —") in ("— select —", "") or st.session_state.get("_h2h_sel_p1") not in name_opts:
+            st.session_state["_h2h_sel_p1"] = user_name
 
     # Pre-fill Head-to-Head players from ?p1= and ?p2= query params.
     # Only applied once (on first load) so the user can still change them manually.
@@ -1215,11 +1248,11 @@ try:
             if qp1:
                 matched = name_lower.get(qp1.lower())
                 if matched:
-                    st.session_state["_h2h_p1_val"] = matched
+                    st.session_state["_h2h_sel_p1"] = matched
             if qp2:
                 matched = name_lower.get(qp2.lower())
                 if matched:
-                    st.session_state["_h2h_p2_val"] = matched
+                    st.session_state["_h2h_sel_p2"] = matched
         except Exception:
             pass
 
@@ -1361,6 +1394,10 @@ try:
             standings_df["Top 3 %"] = final_df["Top 3 %"].map("{:.1f}%".format)
             if _is_mobile:
                 standings_df["Name"] = standings_df["Name"].apply(lambda n: _short_name(n, _all_names))
+                # Strip text from Potential Status — show icon only
+                standings_df["Potential Status"] = standings_df["Potential Status"].apply(
+                    lambda s: s.split()[0] if isinstance(s, str) and s else s
+                )
 
             _user_display = _short_name(user_name, _all_names) if _is_mobile and user_name else user_name
             selected_row = show_table(
@@ -1375,10 +1412,11 @@ try:
                     "Potential Score":  85,
                     "Win %":            60,
                     "Top 3 %":         60,
-                    "Potential Status": 120,
+                    "Potential Status": 45 if _is_mobile else 120,
                 },
                 pinned_cols=["Rank", "Name"],
                 return_selected=True,
+                nowrap_cols=["Name"],
             )
 
             if selected_row:
@@ -2220,29 +2258,29 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             col_a, col_b = st.columns(2)
             h2h_opts = ["— select —"] + name_opts
 
-            # Apply pending values and clear widget keys so index= is always respected
+            # Apply pending values from standings row-click
             if "_h2h_p1_pending" in st.session_state:
-                st.session_state["_h2h_p1_val"] = st.session_state.pop("_h2h_p1_pending")
+                st.session_state["_h2h_p1_cur"] = st.session_state.pop("_h2h_p1_pending")
             if "_h2h_p2_pending" in st.session_state:
-                st.session_state["_h2h_p2_val"] = st.session_state.pop("_h2h_p2_pending")
+                st.session_state["_h2h_p2_cur"] = st.session_state.pop("_h2h_p2_pending")
 
-            # Default p1 to current user
-            if "_h2h_p1_val" not in st.session_state:
-                st.session_state["_h2h_p1_val"] = user_name if user_name in h2h_opts else "— select —"
+            # Determine current values — default p1 to user_name
+            _p1_cur = st.session_state.get("_h2h_p1_cur")
+            if not _p1_cur or _p1_cur not in h2h_opts:
+                _p1_cur = user_name if user_name in h2h_opts else "— select —"
+            _p2_cur = st.session_state.get("_h2h_p2_cur", "— select —")
+            if _p2_cur not in h2h_opts:
+                _p2_cur = "— select —"
 
-            p1_val = st.session_state["_h2h_p1_val"]
-            p2_val = st.session_state.get("_h2h_p2_val", "— select —")
-
-            # Always force widget keys to match val keys so display is never stale
-            st.session_state["_h2h_sel_p1"] = p1_val if p1_val in h2h_opts else "— select —"
-            st.session_state["_h2h_sel_p2"] = p2_val if p2_val in h2h_opts else "— select —"
+            _p1_idx = h2h_opts.index(_p1_cur)
+            _p2_idx = h2h_opts.index(_p2_cur)
 
             with col_a:
-                p1_name = st.selectbox("Player 1", h2h_opts, key="_h2h_sel_p1")
-                st.session_state["_h2h_p1_val"] = p1_name
+                p1_name = st.selectbox("Player 1", h2h_opts, index=_p1_idx, key="_h2h_sel_p1")
+                st.session_state["_h2h_p1_cur"] = p1_name
             with col_b:
-                p2_name = st.selectbox("Player 2", h2h_opts, key="_h2h_sel_p2")
-                st.session_state["_h2h_p2_val"] = p2_name
+                p2_name = st.selectbox("Player 2", h2h_opts, index=_p2_idx, key="_h2h_sel_p2")
+                st.session_state["_h2h_p2_cur"] = p2_name
 
             if p1_name != "— select —" and p2_name != "— select —" and p1_name != p2_name:
                 p1 = final_df[final_df["Name"] == p1_name].iloc[0].to_dict()
@@ -3167,7 +3205,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         elif _sub_bon == "regional":
             st.subheader("🗺️ Regional Breakdown — Top 20 by Region")
-            st.caption("Points accumulated from each region's games (R64 through E8)")
+            st.caption("Points accumulated from each region's games (First Round through Elite 8)")
 
             with st.expander("🔧 Debug: slot_to_region mapping", expanded=False):
                 debug_rows = []
@@ -3361,14 +3399,14 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             is_1st = _sub_bon == "1st-weekend"
             if is_1st:
                 st.subheader("♓ 1st Weekend Leader")
-                st.caption("Standings at the conclusion of the R32")
+                st.caption("Standings at the conclusion of the Second Round")
                 col_end = 51   # score cols 3..50 inclusive
-                round_label = "R32"
+                round_label = "Second Round"
             else:
                 st.subheader("♈ 2nd Weekend Leader")
-                st.caption("Standings at the conclusion of the E8")
+                st.caption("Standings at the conclusion of the Elite 8")
                 col_end = 63   # score cols 3..62 inclusive
-                round_label = "E8"
+                round_label = "Elite 8"
 
             # Check if the relevant rounds are complete
             relevant_played = [c for c in range(3, col_end) if not is_unplayed(actual_winners[c])]
