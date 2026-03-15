@@ -141,12 +141,12 @@ def safe_int(val) -> int:
 
 
 def get_round_name(col_idx: int) -> str:
-    if 3 <= col_idx <= 34:   return "First Round"
-    if 35 <= col_idx <= 50:  return "Second Round"
-    if 51 <= col_idx <= 58:  return "Sweet Sixteen"
-    if 59 <= col_idx <= 62:  return "Elite Eight"
-    if 63 <= col_idx <= 64:  return "Final Four"
-    if col_idx == 65:        return "Championship"
+    if 3 <= col_idx <= 34:   return "R64"
+    if 35 <= col_idx <= 50:  return "R32"
+    if 51 <= col_idx <= 58:  return "S16"
+    if 59 <= col_idx <= 62:  return "E8"
+    if 63 <= col_idx <= 64:  return "F4"
+    if col_idx == 65:        return "Champ"
     return "Unknown"
 
 
@@ -169,7 +169,8 @@ def load_all_data():
     if not master_url or not picks_url:
         return None
 
-    lucky_url  = get_csv_url(SHEET_URL, "LuckyTeam")
+    lucky_url       = get_csv_url(SHEET_URL, "LuckyTeam")
+    tiebreaker_url  = get_csv_url(SHEET_URL, "TiebreakerScores")
 
     df_seeds = pd.read_csv(master_url, header=None)
     seed_map: dict[str, int] = {}
@@ -384,7 +385,34 @@ def load_all_data():
             ))
             defeated_map[w] = loser
 
-    return df_p, winners_row, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, datetime.now().strftime("%I:%M %p")
+    # Load final score from MasterBracket H43 (row 42, col 7, 0-indexed)
+    # Only set if the cell contains a positive number — stays None if blank/invalid
+    final_score = None
+    try:
+        h43_val = str(df_seeds.iloc[40, 7]).strip() if len(df_seeds) > 40 and len(df_seeds.columns) > 7 else ""
+        if h43_val and h43_val.lower() not in ("nan", "", "none"):
+            parsed = safe_int(h43_val)
+            if parsed > 0:
+                final_score = parsed
+    except Exception:
+        pass
+
+    # Load tiebreaker guesses from "Tiebreaker Scores" sheet (col A=name, col B=guess)
+    tiebreaker_guesses: dict[str, int] = {}
+    try:
+        if tiebreaker_url:
+            df_tb = pd.read_csv(tiebreaker_url, header=None)
+            for _, row in df_tb.iterrows():
+                tb_name  = str(row[0]).strip() if len(row) > 0 else ""
+                tb_guess = str(row[1]).strip() if len(row) > 1 else ""
+                if tb_name and tb_name.lower() not in ("nan", "", "name") and tb_guess:
+                    g = safe_int(tb_guess)
+                    if g and g > 0:
+                        tiebreaker_guesses[tb_name] = g
+    except Exception:
+        pass
+
+    return df_p, winners_row, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, datetime.now().strftime("%I:%M %p"), final_score, tiebreaker_guesses
 
 
 # ─── 3. SCORING ───────────────────────────────────────────────────────────────
@@ -433,6 +461,7 @@ def run_monte_carlo(
     seed_items: tuple,
     r1_contestants: tuple,      # tuple of (col, team_a, team_b) for R1 slots
     runs: int = 1000,
+    top_n: int = 3,
 ) -> tuple[dict, dict]:
     """
     Bracket-aware simulation. For each unplayed slot, the two contestants are
@@ -487,12 +516,12 @@ def run_monte_carlo(
         for name in winners:
             win_c[name] += share
 
-        top3_score = scored[min(2, len(scored)-1)][1]
-        for name, s in scored[:3]:
+        topn_score = scored[min(top_n - 1, len(scored)-1)][1]
+        for name, s in scored[:top_n]:
             top3_c[name] += 1
-        # also include anyone tied with the 3rd place score
-        for name, s in scored[3:]:
-            if s == top3_score:
+        # also include anyone tied with the nth place score
+        for name, s in scored[top_n:]:
+            if s == topn_score:
                 top3_c[name] += 1
             else:
                 break
@@ -566,40 +595,62 @@ def run_h2h_monte_carlo(
 
 
 # ─── 5. BRACKET BUSTERS ───────────────────────────────────────────────────────
+# Bust threshold per round — decreases as tournament progresses
+BUST_THRESHOLDS = {
+    "R64":   0.50,
+    "R32":   0.40,
+    "S16":   0.30,
+    "E8":    0.20,
+    "F4":    0.10,
+    "Champ": 0.10,
+}
+
 def compute_bracket_busters(results: list[dict], winners_row: list[str],
                              pts: list[int], seeds: dict[str, int]) -> pd.DataFrame:
     """
-    For each played game, count how many participants had that team picked
-    and lost points because the upset happened.
+    For each played game, count games where enough of the pool had their
+    bracket busted. Threshold decreases each round since the field narrows
+    and upsets become rarer/more impactful:
+      R1: 50%, R2: 40%, S16: 30%, E8: 20%, FF/Champ: 10%
     """
+    pool_size = max(len(results), 1)
     busters = []
     for c in range(3, 66):
         winner = winners_row[c]
         if is_unplayed(winner):
             continue
+        round_name = get_round_name(c)
+        threshold = BUST_THRESHOLDS.get(round_name, 0.50)
         busted = [
             r["Name"] for r in results
             if r["raw_picks"][c] != winner and r["raw_picks"][c] not in {"nan", ""}
         ]
-        if busted:
-            loser_team = None
-            # Find the most-commonly-busted team in this slot
-            loser_counts: dict[str, int] = {}
-            for r in results:
-                pick = r["raw_picks"][c]
-                if pick != winner and pick not in {"nan", ""}:
-                    loser_counts[pick] = loser_counts.get(pick, 0) + 1
-            if loser_counts:
-                loser_team = max(loser_counts, key=loser_counts.__getitem__)
-            busters.append({
-                "Round":        get_round_name(c),
-                "Winner":       winner,
-                "Upset Seed":   f"#{seeds.get(winner, '?')}",
-                "Busted Team":  loser_team or "–",
-                "Busted Picks": len(busted),
-                "Pts Lost ea.": pts[c] + seeds.get(winner, 0),
-                "Total Pts Lost": (pts[c] + seeds.get(winner, 0)) * len(busted),
-            })
+        # Only count as a bracket buster if enough of the pool had the wrong pick
+        if len(busted) / pool_size < threshold:
+            continue
+        loser_team = None
+        loser_counts: dict[str, int] = {}
+        for r in results:
+            pick = r["raw_picks"][c]
+            if pick != winner and pick not in {"nan", ""}:
+                loser_counts[pick] = loser_counts.get(pick, 0) + 1
+        if loser_counts:
+            loser_team = max(loser_counts, key=loser_counts.__getitem__)
+        winner_seed = seeds.get(winner, 0)
+        loser_seed  = seeds.get(loser_team, 0) if loser_team else 0
+        winner_str  = f"({winner_seed}) {winner}"  if winner_seed  else winner
+        loser_str   = f"({loser_seed}) {loser_team}" if loser_team and loser_seed else (loser_team or "–")
+        matchup_str = f"{get_round_name(c)}: {loser_str} vs. {winner_str}"
+        busters.append({
+            "Round":          get_round_name(c),
+            "Busted Team":    loser_str,
+            "Winner":         winner_str,
+            "Matchup":        matchup_str,
+            "Busted Picks":   len(busted),
+            "% Busted":       f"{len(busted)/pool_size*100:.0f}%",
+            "Pts Lost ea.":   pts[c] + winner_seed,
+            "Total Pts Lost": (pts[c] + winner_seed) * len(busted),
+        })
 
     if not busters:
         return pd.DataFrame()
@@ -909,36 +960,45 @@ try:
         st.error("Could not load data. Check that the Google Sheet is publicly accessible.")
         st.stop()
 
-    df_p, actual_winners, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, last_update = data
+    df_p, actual_winners, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, last_update, final_score, tiebreaker_guesses = data
 
     # ── ESPN logo lookup (shared across tabs) ────────────────────────────────
     ESPN_IDS = {
-        "Alabama": 333, "Alabama St": 2010, "American": 44,
+        "Alabama": 333, "Alabama St": 2010, "Alabama St.": 2010, "American": 44,
         "Arizona": 12, "Arkansas": 8, "Auburn": 2,
         "Baylor": 239, "Bryant": 2870, "BYU": 252,
-        "Clemson": 228, "Colorado St": 36, "Creighton": 156,
+        "Clemson": 228, "Colorado St": 36, "Colorado St.": 36, "Creighton": 156,
         "Drake": 2181, "Duke": 150, "Florida": 57,
+        "GC": 2253, "Grand Canyon": 2253,
         "Georgia": 61, "Gonzaga": 2250, "High Point": 2272,
-        "Houston": 248, "Illinois": 356, "Iowa St": 66,
+        "Houston": 248, "Illinois": 356, "Iowa St": 66, "Iowa St.": 66,
         "Kansas": 2305, "Kentucky": 96, "Liberty": 2335,
         "Lipscomb": 2344, "Louisville": 97, "Marquette": 269,
-        "Maryland": 120, "McNeese": 2440, "Michigan": 130,
-        "Michigan St": 127, "Mississippi St": 344,
-        "Missouri": 142, "Mount St. Mary's": 2426,
+        "Maryland": 120, "McNeese": 2440, "McNeese St": 2440, "McNeese St.": 2440,
+        "Michigan": 130, "Michigan St": 127, "Michigan St.": 127, "Mich. St.": 127, "Mich. St": 127,
+        "Mississippi St": 344, "Mississippi St.": 344,
+        "Missouri": 142, "Mount St. Mary's": 2426, "Mt. St. Mary's": 2426,
         "Nebraska": 158, "New Mexico": 167,
-        "Norfolk St": 2450, "North Carolina": 153,
+        "Norfolk St": 2450, "Norfolk St.": 2450, "North Carolina": 153,
         "Oklahoma": 201, "Ole Miss": 145, "Oregon": 2483,
-        "Purdue": 2509, "Saint Mary's": 2608,
+        "Purdue": 2509, "Saint Mary's": 2608, "St. Mary's": 2608,
         "SIUE": 2565, "St. John's": 2599,
         "St. Francis PA": 2620, "Tennessee": 2633,
         "Texas": 251, "Texas A&M": 245, "Texas Tech": 2641,
         "Troy": 2653, "UC San Diego": 2604, "UCLA": 26,
-        "UConn": 41, "Utah St": 328, "Vanderbilt": 238,
+        "UConn": 41,
+        "Utah St": 328, "Utah St.": 328,
+        "Vanderbilt": 238,
         "VCU": 2670, "West Virginia": 277, "Wisconsin": 275,
         "Wofford": 2747, "Xavier": 2752, "Yale": 43,
     }
+    # Normalise lookup: try exact name first, then strip trailing periods
     def espn_logo_url(team_name):
         tid = ESPN_IDS.get(team_name)
+        if tid is None:
+            tid = ESPN_IDS.get(team_name.rstrip("."))
+        if tid is None:
+            tid = ESPN_IDS.get(team_name.replace(".", ""))
         return f"https://a.espncdn.com/i/teamlogos/ncaa/500/{tid}.png" if tid else None
 
     def pill(label, alive, detail=""):
@@ -999,13 +1059,14 @@ try:
     for i in range(3, len(df_p)):
         row = df_p.iloc[i]
         name = str(row[0]).strip()
-        if not name or name in {"Winner", ""}:
+        if not name or name in {"Winner", ""} or name.lower() == "nan":
             continue
         p_picks = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
 
         cur_score, pot_score = score_picks(p_picks, actual_winners, points_per_game, seed_map, all_alive)
 
         upsets, best_s, best_t = 0, 0, "None"
+        upset_correct = 0
         for c in range(3, 66):
             if p_picks[c] == actual_winners[c]:
                 s = seed_map.get(p_picks[c], 0)
@@ -1013,6 +1074,11 @@ try:
                     upsets += 1
                     if s > best_s:
                         best_s, best_t = s, p_picks[c]
+                # Correct upset pick: winner seed - loser seed >= 3
+                loser = defeated_map.get(p_picks[c], "")
+                l_seed = seed_map.get(loser, 0)
+                if l_seed > 0 and s > 0 and (s - l_seed) >= 3:
+                    upset_correct += 1
             if p_picks[c] not in {"nan", ""}:
                 global_pick_counts[p_picks[c]] = global_pick_counts.get(p_picks[c], 0) + 1
                 if c not in slot_pick_counts:
@@ -1032,12 +1098,18 @@ try:
                     region_scores[region]  += pts
                     region_correct[region] += 1
 
+        # Col 89 = "Bonus Pool" opt-in flag ("yes" = included)
+        bonus_pool_val = str(row[89]).strip().lower() if len(row) > 89 else ""
+        in_bonus_pool  = bonus_pool_val == "yes"
+
         results.append({
             "Name":          name,
             "Current Score": cur_score,
             "Potential Score": pot_score,
             "Upsets":        upsets,
             "Biggest Upset": f"#{best_s} {best_t}" if best_s else "None",
+            "Upset Correct": upset_correct,
+            "Bonus Pool":    in_bonus_pool,
             "raw_picks":     p_picks,
             **{f"{r} Score": region_scores[r] for r in region_scores},
             **{f"{r} Correct": region_correct[r] for r in region_correct},
@@ -1249,7 +1321,31 @@ try:
     # ── Tab 1: Standings ──────────────────────────────────────────────────────
     with tab_standings:
         st.subheader("Live Standings")
+
+
         col_left, col_right = st.columns([3, 2], gap="medium")
+
+        # Detect mobile via user agent header (no JS needed, works reliably)
+        try:
+            _ua = st.context.headers.get("User-Agent", "")
+        except Exception:
+            _ua = ""
+        _is_mobile = any(x in _ua.lower() for x in ("mobile", "android", "iphone", "ipad", "ipod"))
+
+        def _short_name(full_name, all_names):
+            """Return first name + last initial if another player shares the first name,
+            otherwise just the first name. Falls back to full name if parsing fails."""
+            parts = full_name.strip().split()
+            if len(parts) < 2:
+                return full_name
+            first = parts[0]
+            # Check if any other name shares the same first name
+            same_first = [n for n in all_names if n != full_name and n.strip().split()[0] == first]
+            if same_first:
+                return f"{first} {parts[-1][0]}."
+            return first
+
+        _all_names = final_df["Name"].tolist()
 
         display_cols = ["Current Rank", "Name", "Current Score",
                         "Potential Score", "Win %", "Top 3 %", "Potential Status"]
@@ -1263,27 +1359,36 @@ try:
             standings_df = standings_df.rename(columns={"Current Rank": "Rank"})
             standings_df["Win %"]   = final_df["Win %"].map("{:.1f}%".format)
             standings_df["Top 3 %"] = final_df["Top 3 %"].map("{:.1f}%".format)
+            if _is_mobile:
+                standings_df["Name"] = standings_df["Name"].apply(lambda n: _short_name(n, _all_names))
 
+            _user_display = _short_name(user_name, _all_names) if _is_mobile and user_name else user_name
             selected_row = show_table(
                 standings_df,
-                user_highlight_col="Name", user_highlight_val=user_name,
+                user_highlight_col="Name", user_highlight_val=_user_display,
                 key="table_standings",
                 height=500,
                 col_config={
                     "Rank":             50,
-                    "Name":             160,
-                    "Current Score":    90,
-                    "Potential Score":  95,
-                    "Win %":            65,
-                    "Top 3 %":         65,
-                    "Potential Status": 130,
+                    "Name":             90 if _is_mobile else 160,
+                    "Current Score":    80,
+                    "Potential Score":  85,
+                    "Win %":            60,
+                    "Top 3 %":         60,
+                    "Potential Status": 120,
                 },
                 pinned_cols=["Rank", "Name"],
                 return_selected=True,
             )
 
             if selected_row:
-                clicked_name = selected_row.get("Name", "")
+                clicked_name_raw = selected_row.get("Name", "")
+                # On mobile, names are shortened — map back to full name
+                if _is_mobile and clicked_name_raw:
+                    _short_to_full = {_short_name(n, _all_names): n for n in _all_names}
+                    clicked_name = _short_to_full.get(clicked_name_raw, clicked_name_raw)
+                else:
+                    clicked_name = clicked_name_raw
                 # Only act if it's a new selection — compare against last processed name
                 if (clicked_name and clicked_name != user_name
                         and clicked_name != st.session_state.get("_h2h_last_processed")):
@@ -1312,16 +1417,77 @@ try:
 
         with col_right:
             top10 = final_df.head(10).sort_values("Current Score")
+
+            # Build a name -> raw_picks lookup for FF logo overlays
+            _picks_lookup = {r["Name"]: r["raw_picks"] for r in results}
+            # E8 cols 59-62 = the 4 FF picks (West, East, South, Midwest)
+            _ff_cols = [59, 60, 61, 62]
+
             fig = px.bar(
                 top10, x="Current Score", y="Name", orientation="h",
                 color="Current Score", color_continuous_scale="YlOrRd",
                 title="Top 10 — Current Scores",
             )
             fig.update_layout(
-                    dragmode=False,
+                dragmode=False,
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                 coloraxis_showscale=False, margin=dict(l=0, r=0, t=40, b=0),
+                height=380,
             )
+
+            # Overlay 4 FF logos inside each horizontal bar
+            # Champion pick (col 65) is shown larger and full opacity; others are dimmed
+            _max_score = top10["Current Score"].max() or 1
+            _images = []
+            _shapes = []
+            for _yi, (_idx, _row) in enumerate(top10.iterrows()):
+                _picks = _picks_lookup.get(_row["Name"], [])
+                _ff_teams = [_picks[c] for c in _ff_cols if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}]
+                _champ = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else None
+                _bar_len = _row["Current Score"]
+                if _bar_len <= 0:
+                    continue
+                _n = len(_ff_teams)
+                for _li, _team in enumerate(_ff_teams):
+                    _logo = espn_logo_url(_team)
+                    if not _logo:
+                        continue
+                    _x = _bar_len * (_li + 0.5) / max(_n, 1)
+                    _is_champ = (_team == _champ)
+                    _sizex  = _max_score * 0.115 if _is_champ else _max_score * 0.09
+                    _sizey  = 0.75 if _is_champ else 0.55
+                    _opac   = 1.0  if _is_champ else 0.55
+                    _images.append(dict(
+                        source=_logo,
+                        xref="x", yref="y",
+                        x=_x,
+                        y=_yi,
+                        sizex=_sizex,
+                        sizey=_sizey,
+                        xanchor="center", yanchor="middle",
+                        layer="above",
+                        opacity=_opac,
+                    ))
+                    # Gold circle outline behind champion logo via shape
+                    if _is_champ:
+                        _r = _max_score * 0.065
+                        _shapes.append(dict(
+                            type="circle",
+                            xref="x", yref="y",
+                            x0=_x - _r, x1=_x + _r,
+                            y0=_yi - 0.4, y1=_yi + 0.4,
+                            line=dict(color="#f5c518", width=2),
+                            fillcolor="rgba(0,0,0,0)",
+                            layer="above",
+                        ))
+            _layout_extra = {}
+            if _images:
+                _layout_extra["images"] = _images
+            if _shapes:
+                _layout_extra["shapes"] = _shapes
+            if _layout_extra:
+                fig.update_layout(**_layout_extra)
+
             st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
     # ── Tab 2: Your Bracket (group) ───────────────────────────────────────────
@@ -1470,7 +1636,7 @@ try:
                                (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
                         )
 
-                    # Helper: correct upset picks (winner seed - loser seed >= 4)
+                    # Helper: correct upset picks (winner seed - loser seed >= 3)
                     def count_upsets(picks):
                         total = 0
                         for c in range(3, 66):
@@ -1480,27 +1646,52 @@ try:
                             loser = defeated_map.get(winner, "")
                             w_seed = seed_map.get(winner, 0)
                             l_seed = seed_map.get(loser, 0)
-                            if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 4:
+                            if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 3:
                                 total += 1
                         return total
 
-                    # Helper: potential upsets (current + future picks of alive lower-seeds)
+                    # Helper: could an unplayed slot still produce an upset?
+                    # A slot can produce an upset if at least one alive team seeded 4+
+                    # could face an alive team seeded 3+ lower than them.
+                    # Conservatively: if any alive team in the slot's pick is a lower seed
+                    # (seed >= 4) and there exists any alive higher-seed team (seed diff >= 3),
+                    # then an upset is still possible in that slot.
+                    def slot_can_produce_upset(c):
+                        if not is_unplayed(actual_winners[c]):
+                            return False
+                        # Check if there's any alive team with seed >= 4 still in contention
+                        # We check all alive teams — if any two alive teams could face each
+                        # other with a seed diff >= 3, a future upset is possible in this slot.
+                        alive_seeds = [seed_map.get(t, 0) for t in truly_alive if seed_map.get(t, 0) > 0]
+                        if not alive_seeds:
+                            return False
+                        min_seed = min(alive_seeds)
+                        max_seed = max(alive_seeds)
+                        return (max_seed - min_seed) >= 3
+
+                    # Helper: potential upsets (earned + future slots where pick is alive
+                    # and the slot could still produce an upset with seed diff >= 3)
                     def potential_upsets(picks):
-                        # Played upsets already earned
                         earned = count_upsets(picks)
-                        # Unplayed slots: if they picked an alive lower-seed that could upset
                         future = 0
                         for c in range(3, 66):
                             if not is_unplayed(actual_winners[c]):
                                 continue
-                            team = picks[c]
-                            if team not in all_alive:
+                            if not slot_can_produce_upset(c):
                                 continue
-                            # Check if any already-eliminated opponent in this slot
-                            # was a higher seed (lower number) — conservative: count it
-                            # We don't know the opponent for sure for future rounds,
-                            # so count it if the team is seeded >= 5 (could upset someone)
-                            if seed_map.get(team, 0) >= 5:
+                            team = picks[c]
+                            if team not in truly_alive:
+                                continue
+                            t_seed = seed_map.get(team, 0)
+                            if t_seed < 4:
+                                continue
+                            # Check if any alive team exists that this team could upset
+                            # (i.e. an alive team with seed <= t_seed - 3)
+                            can_upset = any(
+                                seed_map.get(opp, 0) > 0 and t_seed - seed_map.get(opp, 0) >= 3
+                                for opp in truly_alive if opp != team
+                            )
+                            if can_upset:
                                 future += 1
                         return earned + future
 
@@ -1567,23 +1758,40 @@ try:
                     can_most_correct = my_correct_pot >= others_correct_pot_max
 
                     # ── 4) Most Correct Upset Picks ──────────────────────────
-                    # Upsets are decided only on played games — no future upsets possible
-                    # once all games are played. Compare final counts directly.
-                    my_upsets = count_upsets(me_picks)
-                    others_upset_max = max(
-                        count_upsets(pk) for nm, pk in all_rows if nm != bracket_name
-                    ) if len(all_rows) > 1 else 0
-                    # If there are still unplayed games, check if future upsets are possible
-                    any_unplayed = any(is_unplayed(actual_winners[c]) for c in range(3, 66))
-                    if any_unplayed:
+                    # Green if my potential upsets >= the max potential of any other player.
+                    # Uses potential_upsets() which only counts future slots where an upset
+                    # is still physically possible (alive teams with seed diff >= 3 exist).
+                    any_upset_possible = any(slot_can_produce_upset(c) for c in range(3, 66))
+                    if any_upset_possible:
                         my_upset_pot = potential_upsets(me_picks)
-                        can_most_upsets = my_upset_pot >= others_upset_max
+                        others_upset_pot_max = max(
+                            potential_upsets(pk) for nm, pk in all_rows if nm != bracket_name
+                        ) if len(all_rows) > 1 else 0
+                        can_most_upsets = my_upset_pot >= others_upset_pot_max
                     else:
+                        # No more upsets possible — compare final tallies
+                        my_upsets = count_upsets(me_picks)
+                        others_upset_max = max(
+                            count_upsets(pk) for nm, pk in all_rows if nm != bracket_name
+                        ) if len(all_rows) > 1 else 0
                         can_most_upsets = my_upsets >= others_upset_max
 
                     # ── 5) Tiebreaker ─────────────────────────────────────────
                     champ_played = not is_unplayed(actual_winners[65])
-                    can_tiebreaker = not champ_played  # everyone has a chance until champ is decided
+                    if final_score is None:
+                        # Final score not yet entered — everyone still has a chance
+                        can_tiebreaker = True
+                    else:
+                        # Find the closest guess(es)
+                        my_guess = tiebreaker_guesses.get(bracket_name)
+                        if my_guess is None:
+                            can_tiebreaker = False
+                        else:
+                            my_diff = abs(my_guess - final_score)
+                            best_diff = min(
+                                abs(g - final_score) for g in tiebreaker_guesses.values()
+                            )
+                            can_tiebreaker = my_diff == best_diff
 
                     # ── 6) Lucky Team ─────────────────────────────────────────
                     my_lucky_teams = [t for t, ps in lucky_map.items() if bracket_name in ps]
@@ -1707,9 +1915,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                     cls = "tr live"
                         else:
                             cls = "tr"
+                        logo_url = espn_logo_url(team)
+                        logo_html = (f'<img src="{logo_url}" class="tlogo" onerror="this.style.display=&quot;none&quot;">' if logo_url else '')
                         if mirror:
-                            return f'<div class="{cls}">{bust}<span class="sd">{sd}</span><span class="tn">{team}</span></div>'
-                        return f'<div class="{cls}"><span class="sd">{sd}</span><span class="tn">{team}</span>{bust}</div>'
+                            return f'<div class="{cls}">{bust}<span class="sd">{sd}</span>{logo_html}<span class="tn">{team}</span></div>'
+                        return f'<div class="{cls}"><span class="sd">{sd}</span>{logo_html}<span class="tn">{team}</span>{bust}</div>'
 
                     def build_region(name, cols, mirror=False):
                         """
@@ -1890,6 +2100,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
       border:1px solid #1a1f2b;overflow:hidden;background:#0d0f14;}}
     .tr+.tr{{border-top:none;}}
     .sd{{font-size:11px;color:#9ca3af;min-width:14px;text-align:right;flex-shrink:0;}}
+    .tlogo{{width:12px;height:12px;object-fit:contain;flex-shrink:0;margin:0 2px;}}
     .tn{{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#d1d5db;font-size:13px;}}
     .bust{{font-size:8px;color:#f87171;flex-shrink:0;margin-left:1px;white-space:nowrap;}}
     .tbd .tn{{color:#6b7280;font-style:italic;}}
@@ -2139,12 +2350,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 diverge_df = pd.DataFrame(h2h["divergences"])
 
                 ROUND_SHORT = {
-                    "First Round":   "R1",
-                    "Second Round":  "R2",
-                    "Sweet Sixteen": "Sweet 16",
-                    "Elite Eight":   "Elite 8",
-                    "Final Four":    "Final 4",
-                    "Championship":  "Champ",
+                    "R64":   "R64",
+                    "R32":   "R32",
+                    "S16":   "S16",
+                    "E8":    "E8",
+                    "F4":    "F4",
+                    "Champ": "Champ",
                 }
 
                 TABLE_STYLE = """
@@ -2386,17 +2597,34 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         loser  = defeated_map.get(winner, "")
                         w_seed = seed_map.get(winner, 0)
                         l_seed = seed_map.get(loser, 0)
-                        if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 4:
+                        if l_seed > 0 and w_seed > 0 and (w_seed - l_seed) >= 3:
                             total += 1
                     return total
+                def _slot_can_upset(c):
+                    if not is_unplayed(actual_winners[c]):
+                        return False
+                    alive_seeds = [seed_map.get(t, 0) for t in truly_alive if seed_map.get(t, 0) > 0]
+                    if not alive_seeds:
+                        return False
+                    return (max(alive_seeds) - min(alive_seeds)) >= 3
                 def _pot_upsets(picks):
                     earned = _count_upsets(picks)
-                    future = sum(
-                        1 for c in range(3, 66)
-                        if is_unplayed(actual_winners[c])
-                        and picks[c] in all_alive
-                        and seed_map.get(picks[c], 0) >= 5
-                    )
+                    future = 0
+                    for c in range(3, 66):
+                        if not _slot_can_upset(c):
+                            continue
+                        team = picks[c]
+                        if team not in truly_alive:
+                            continue
+                        t_seed = seed_map.get(team, 0)
+                        if t_seed < 4:
+                            continue
+                        can_upset = any(
+                            seed_map.get(opp, 0) > 0 and t_seed - seed_map.get(opp, 0) >= 3
+                            for opp in truly_alive if opp != team
+                        )
+                        if can_upset:
+                            future += 1
                     return earned + future
                 def _correct_pot(picks):
                     return sum(
@@ -2427,14 +2655,29 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 _oth_cp   = max((_correct_pot(pk) for _, pk in _others), default=0)
                 _can_mc   = _my_cp >= _oth_cp
 
-                # Most Upsets
-                _any_unpl = any(is_unplayed(actual_winners[c]) for c in range(3, 66))
-                _my_up    = _count_upsets(_me)
-                _oth_up   = max((_count_upsets(pk) for _, pk in _others), default=0)
-                _can_mu   = (_pot_upsets(_me) >= _oth_up) if _any_unpl else (_my_up >= _oth_up)
+                # Most Upsets — green if my potential >= others' potential,
+                # only counting future slots where an upset is still physically possible
+                _any_upset_possible = any(_slot_can_upset(c) for c in range(3, 66))
+                if _any_upset_possible:
+                    _my_up_pot  = _pot_upsets(_me)
+                    _oth_up_pot = max((_pot_upsets(pk) for _, pk in _others), default=0)
+                    _can_mu     = _my_up_pot >= _oth_up_pot
+                else:
+                    _my_up  = _count_upsets(_me)
+                    _oth_up = max((_count_upsets(pk) for _, pk in _others), default=0)
+                    _can_mu = _my_up >= _oth_up
 
                 # Tiebreaker
-                _can_tb   = is_unplayed(actual_winners[65])
+                if final_score is None:
+                    _can_tb = True
+                else:
+                    _my_tb_guess = tiebreaker_guesses.get(dna_select)
+                    if _my_tb_guess is None:
+                        _can_tb = False
+                    else:
+                        _my_tb_diff   = abs(_my_tb_guess - final_score)
+                        _best_tb_diff = min(abs(g - final_score) for g in tiebreaker_guesses.values())
+                        _can_tb = _my_tb_diff == _best_tb_diff
 
                 # Lucky Team
                 _my_lucky = [t for t, ps in lucky_map.items() if dna_select in ps]
@@ -2630,24 +2873,55 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Total Busting Games", len(busters_df))
                 m2.metric("Biggest Carnage",
-                          busters_df.iloc[0]["Winner"] + " " + busters_df.iloc[0]["Upset Seed"],
+                          busters_df.iloc[0]["Winner"],
                           f"{busters_df.iloc[0]['Busted Picks']} picks busted")
                 m3.metric("Total Pool Pts Lost",
                           f"{busters_df['Total Pts Lost'].sum():,}")
 
-                show_table(busters_df, key="table_busters")
+                display_cols = ["Round", "Busted Team", "Winner", "Busted Picks",
+                                "% Busted", "Pts Lost ea.", "Total Pts Lost"]
+                st.dataframe(busters_df[display_cols], use_container_width=True, hide_index=True)
+
+                _chart_df = busters_df.head(10).copy()
+                # Extract raw winner name (strip seed prefix like "(10) Arkansas" -> "Arkansas")
+                import re as _re
+                def _raw_name(s):
+                    m = _re.match(r"^\(\d+\)\s+(.+)$", s)
+                    return m.group(1) if m else s
 
                 fig = px.bar(
-                    busters_df.head(10), x="Winner", y="Busted Picks",
+                    _chart_df, x="Matchup", y="Busted Picks",
                     color="Total Pts Lost", color_continuous_scale="Reds",
                     title="Top 10 Pool Killers by Picks Busted",
-                    labels={"Winner": "Winning Team", "Busted Picks": "# Picks Busted"},
+                    labels={"Matchup": "", "Busted Picks": "# Picks Busted"},
                 )
                 fig.update_layout(
-                        dragmode=False,
+                    dragmode=False,
                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=0, r=0, t=40, b=0),
+                    margin=dict(l=0, r=0, t=40, b=20),
+                    height=420,
                 )
+                # Overlay ESPN logos inside each bar
+                _max_picks = _chart_df["Busted Picks"].max()
+                _images = []
+                for _i, (_idx, _row) in enumerate(_chart_df.iterrows()):
+                    _winner_raw = _raw_name(_row["Winner"])
+                    _logo = espn_logo_url(_winner_raw)
+                    if _logo:
+                        # Position logo at ~60% height of the bar, centred on x tick
+                        _bar_top = _row["Busted Picks"]
+                        _images.append(dict(
+                            source=_logo,
+                            xref="x", yref="y",
+                            x=_i,
+                            y=_bar_top * 0.55,
+                            sizex=0.55, sizey=_max_picks * 0.22,
+                            xanchor="center", yanchor="middle",
+                            layer="above",
+                            opacity=0.9,
+                        ))
+                if _images:
+                    fig.update_layout(images=_images)
                 st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
                 # Per-participant carnage
@@ -2751,16 +3025,23 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     # ── Tab 4: Bonus Games (group) ────────────────────────────────────────────
     with tab_bonus:
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
-        _bon_cols = st.columns(2)
         _bon_options = [
-            ("lucky-team",  "🍀 Lucky Team"),
-            ("regional",    "🗺️ Regional Breakdown"),
+            ("lucky-team",         "🍀 Lucky Team"),
+            ("regional",           "🗺️ Regional Breakdown"),
+            ("upset-picks",        "😤 Upset Picks"),
+            ("1st-weekend",        "♓ 1st Weekend Leader"),
+            ("2nd-weekend",        "♈ 2nd Weekend Leader"),
+            ("tiebreaker-scores",  "🎯 Tiebreaker Scores"),
+            ("bonus-pool",         "💰 Bonus Pool"),
         ]
+        _bon_row1 = st.columns(4)
+        _bon_row2 = st.columns(3)
         for _i, (_slug, _label) in enumerate(_bon_options):
             _active = _sub_bon == _slug
-            if _bon_cols[_i].button(_label, key=f"bon_{_slug}",
-                                     use_container_width=True,
-                                     type="primary" if _active else "secondary"):
+            _col = _bon_row1[_i] if _i < 4 else _bon_row2[_i - 4]
+            if _col.button(_label, key=f"bon_{_slug}",
+                           use_container_width=True,
+                           type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_bonus"] = _slug
                 st.rerun()
         st.divider()
@@ -2886,7 +3167,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         elif _sub_bon == "regional":
             st.subheader("🗺️ Regional Breakdown — Top 20 by Region")
-            st.caption("Points accumulated from each region's games (First Round through Elite Eight)")
+            st.caption("Points accumulated from each region's games (R64 through E8)")
 
             with st.expander("🔧 Debug: slot_to_region mapping", expanded=False):
                 debug_rows = []
@@ -2952,6 +3233,257 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                           </tbody>
                         </table>
                         """, unsafe_allow_html=True)
+
+        elif _sub_bon == "upset-picks":
+            st.subheader("😤 Upset Picks — Correctly Predicted Upsets")
+            st.caption("An upset is when the winning team's seed is at least 3 higher than the losing team's seed (e.g. a 10 seed beating a 7 seed)")
+
+            upset_rows = sorted(
+                [{"Name": r["Name"], "Upset Picks": r.get("Upset Correct", 0)} for r in results],
+                key=lambda x: x["Upset Picks"], reverse=True
+            )
+            # Assign ranks (tied players share the same rank)
+            ranked = []
+            rank = 1
+            for i, row in enumerate(upset_rows):
+                if i > 0 and row["Upset Picks"] < upset_rows[i-1]["Upset Picks"]:
+                    rank = i + 1
+                ranked.append({"Rank": rank, "Name": row["Name"], "Upset Picks": row["Upset Picks"]})
+
+            trs = ""
+            for row in ranked:
+                is_user = user_name and row["Name"] == user_name
+                row_style = ' style="background:#3a3000; color:#f5c518; font-weight:bold;"' if is_user else ""
+                trs += (
+                    f'<tr{row_style}>'
+                    f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                    f'<td style="padding:4px 8px;">{row["Name"]}</td>'
+                    f'<td style="width:80px;text-align:center;">{row["Upset Picks"]}</td>'
+                    f'</tr>'
+                )
+            st.markdown(f"""
+            <table style="border-collapse:collapse;width:100%;max-width:480px;font-size:13px;">
+              <thead>
+                <tr style="background:#1e1e2e;color:#fff;">
+                  <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
+                  <th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Name</th>
+                  <th style="width:80px;padding:6px 4px;text-align:center;border:1px solid #313244;">Correct Upsets</th>
+                </tr>
+              </thead>
+              <tbody style="color:#fff;">
+                {trs}
+              </tbody>
+            </table>
+            """, unsafe_allow_html=True)
+
+        elif _sub_bon == "tiebreaker-scores":
+            st.subheader("🎯 Tiebreaker Scores")
+
+            # Final score banner
+            if final_score is not None:
+                st.markdown(
+                    f'<div style="background:#14532d;border:1px solid #16a34a;border-radius:8px;'
+                    f'padding:12px 20px;display:inline-block;margin-bottom:16px;">'
+                    f'<span style="color:#9ca3af;font-size:12px;">Championship Final Score</span><br>'
+                    f'<span style="color:#d1fae5;font-size:32px;font-weight:700;">{final_score}</span>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div style="background:#1e1e2e;border:1px solid #374151;border-radius:8px;'
+                    'padding:12px 20px;display:inline-block;margin-bottom:16px;">'
+                    '<span style="color:#9ca3af;font-size:12px;">Championship Final Score</span><br>'
+                    '<span style="color:#6b7280;font-size:32px;font-weight:700;">TBD</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+
+            if not tiebreaker_guesses:
+                st.info("No tiebreaker guesses found. Make sure the TiebreakerScores sheet is accessible.")
+            else:
+                # Build rows — include diff only if final score is known
+                tb_rows = []
+                for name, guess in tiebreaker_guesses.items():
+                    diff = abs(guess - final_score) if final_score is not None else None
+                    tb_rows.append({"Name": name, "guess": guess, "diff": diff})
+
+                if final_score is not None:
+                    tb_rows.sort(key=lambda x: x["diff"])
+                else:
+                    tb_rows.sort(key=lambda x: x["Name"].lower())
+
+                # Assign ranks (tied players share rank, only when final score known)
+                ranked_tb = []
+                rank = 1
+                for i, row in enumerate(tb_rows):
+                    if final_score is not None:
+                        if i > 0 and row["diff"] != tb_rows[i-1]["diff"]:
+                            rank = i + 1
+                        ranked_tb.append({"Rank": rank, "Name": row["Name"],
+                                          "Tiebreaker Score": row["guess"],
+                                          "Difference": row["diff"]})
+                    else:
+                        ranked_tb.append({"Rank": "—", "Name": row["Name"],
+                                          "Tiebreaker Score": row["guess"],
+                                          "Difference": "TBD"})
+
+                trs = ""
+                for row in ranked_tb:
+                    is_user = user_name and row["Name"] == user_name
+                    row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                    diff_str = f'+{row["Difference"]}' if isinstance(row["Difference"], int) and row["Difference"] >= 0 else str(row["Difference"])
+                    trs += (
+                        f'<tr{row_style}>'
+                        f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                        f'<td style="padding:5px 10px;">{row["Name"]}</td>'
+                        f'<td style="width:110px;text-align:center;">{row["Tiebreaker Score"]}</td>'
+                        f'<td style="width:90px;text-align:center;">{diff_str}</td>'
+                        f'</tr>'
+                    )
+                st.markdown(f"""
+                <table style="border-collapse:collapse;width:100%;max-width:520px;font-size:13px;">
+                  <thead>
+                    <tr style="background:#1e1e2e;color:#fff;">
+                      <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
+                      <th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>
+                      <th style="width:110px;padding:6px 4px;text-align:center;border:1px solid #313244;">Tiebreaker Score</th>
+                      <th style="width:90px;padding:6px 4px;text-align:center;border:1px solid #313244;">Difference</th>
+                    </tr>
+                  </thead>
+                  <tbody style="color:#fff;">
+                    {trs}
+                  </tbody>
+                </table>
+                """, unsafe_allow_html=True)
+
+        elif _sub_bon in ("1st-weekend", "2nd-weekend"):
+            is_1st = _sub_bon == "1st-weekend"
+            if is_1st:
+                st.subheader("♓ 1st Weekend Leader")
+                st.caption("Standings at the conclusion of the R32")
+                col_end = 51   # score cols 3..50 inclusive
+                round_label = "R32"
+            else:
+                st.subheader("♈ 2nd Weekend Leader")
+                st.caption("Standings at the conclusion of the E8")
+                col_end = 63   # score cols 3..62 inclusive
+                round_label = "E8"
+
+            # Check if the relevant rounds are complete
+            relevant_played = [c for c in range(3, col_end) if not is_unplayed(actual_winners[c])]
+            relevant_unplayed = [c for c in range(3, col_end) if is_unplayed(actual_winners[c])]
+            rounds_complete = len(relevant_unplayed) == 0
+
+            if not rounds_complete:
+                remaining = len(relevant_unplayed)
+                st.info(f"⏳ {remaining} game(s) remaining before the {round_label} concludes. Standings will finalize once all games are played.")
+
+            # Score each participant through col_end only
+            wknd_rows = []
+            for i in range(3, len(df_p)):
+                row = df_p.iloc[i]
+                nm = str(row[0]).strip()
+                if not nm or nm in {"Winner", ""} or nm.lower() == "nan":
+                    continue
+                p_picks = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
+                score = sum(
+                    points_per_game[c] + seed_map.get(p_picks[c], 0)
+                    for c in range(3, col_end)
+                    if not is_unplayed(actual_winners[c]) and p_picks[c] == actual_winners[c]
+                )
+                wknd_rows.append({"Name": nm, "score": score})
+
+            wknd_rows.sort(key=lambda x: x["score"], reverse=True)
+
+            # Assign ranks with ties
+            ranked_wknd = []
+            rank = 1
+            for i, row in enumerate(wknd_rows):
+                if i > 0 and row["score"] < wknd_rows[i-1]["score"]:
+                    rank = i + 1
+                ranked_wknd.append({"Rank": rank, "Name": row["Name"], "Score": row["score"]})
+
+            trs = ""
+            for row in ranked_wknd:
+                is_user = user_name and row["Name"] == user_name
+                row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                trs += (
+                    f'<tr{row_style}>'
+                    f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                    f'<td style="padding:5px 10px;">{row["Name"]}</td>'
+                    f'<td style="width:70px;text-align:center;">{row["Score"]}</td>'
+                    f'</tr>'
+                )
+            st.markdown(f"""
+            <table style="border-collapse:collapse;width:100%;max-width:400px;font-size:13px;">
+              <thead>
+                <tr style="background:#1e1e2e;color:#fff;">
+                  <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>
+                  <th style="width:70px;padding:6px 4px;text-align:center;border:1px solid #313244;">Score</th>
+                </tr>
+              </thead>
+              <tbody style="color:#fff;">
+                {trs}
+              </tbody>
+            </table>
+            """, unsafe_allow_html=True)
+
+        elif _sub_bon == "bonus-pool":
+            st.subheader("💰 Bonus Pool")
+            st.caption("Separate pool for opted-in participants — Top 2 finish pays out")
+
+            # Filter to bonus pool participants only
+            bonus_df = final_df[final_df["Bonus Pool"] == True].copy()
+            bonus_df = bonus_df.sort_values("Current Score", ascending=False).reset_index(drop=True)
+
+            if bonus_df.empty:
+                st.info("No participants have opted into the Bonus Pool yet.")
+            else:
+                # Compute bonus-pool-specific Monte Carlo probabilities
+                # Build a name->raw_picks lookup from results to guarantee correct ordering
+                _raw_picks_map = {r["Name"]: r["raw_picks"] for r in results}
+                bonus_names  = tuple(bonus_df["Name"].tolist())
+                bonus_picks  = tuple(
+                    tuple(_raw_picks_map[n]) for n in bonus_names if n in _raw_picks_map
+                )
+                # Rebuild bonus_names to only include those with picks (should be all)
+                bonus_names = tuple(n for n in bonus_names if n in _raw_picks_map)
+                bonus_win_probs, bonus_top3_probs = run_monte_carlo(
+                    bonus_names, bonus_picks,
+                    tuple(actual_winners), tuple(points_per_game),
+                    tuple(all_alive), tuple(seed_map.items()),
+                    r1_contestants,
+                    top_n=2,
+                )
+
+                # Potential Status: Top 2 instead of Top 3
+                bonus_df["Win %"]   = bonus_df["Name"].map(lambda n: bonus_win_probs.get(n, 0.0))
+                bonus_df["Top 2 %"] = bonus_df["Name"].map(lambda n: bonus_top3_probs.get(n, 0.0))
+                def _bonus_status(row):
+                    if row["Win %"] > 0:
+                        return "🏆 Champion"
+                    elif row["Top 2 %"] > 0:
+                        return "🥈 Top 2"
+                    else:
+                        return "❌ Out"
+                bonus_df["Potential Status"] = bonus_df.apply(_bonus_status, axis=1)
+                bonus_df["Bonus Rank"] = range(1, len(bonus_df) + 1)
+
+                # Format for display
+                bp_display = bonus_df[["Bonus Rank", "Name", "Current Score", "Potential Score", "Win %", "Top 2 %", "Potential Status"]].copy()
+                bp_display = bp_display.rename(columns={"Bonus Rank": "Rank"})
+                bp_display["Win %"]   = bp_display["Win %"].map("{:.1f}%".format)
+                bp_display["Top 2 %"] = bp_display["Top 2 %"].map("{:.1f}%".format)
+
+                def _bp_highlight(row):
+                    if user_name and row["Name"] == user_name:
+                        return ["background-color:#3a3000;color:#f5c518;font-weight:bold"] * len(row)
+                    return [""] * len(row)
+                styled = bp_display.style.apply(_bp_highlight, axis=1)
+                st.dataframe(styled, use_container_width=True, hide_index=True,
+                             height=min(500, 44 + len(bp_display) * 36))
 
     st.markdown("---")
     st.caption(f"🕒 Last sync: {last_update} · 🔄 Monte Carlo: 1,000 runs · Built with Streamlit")
