@@ -1191,7 +1191,8 @@ try:
         def welcome_dialog():
             st.markdown("Select your name to personalise your experience across all tabs.")
             # Inject JS to make all inputs in this dialog readonly so mobile keyboard never appears
-            _components.html("""<script>
+            import streamlit.components.v1 as _dlg_components
+            _dlg_components.html("""<script>
             (function() {
                 function lockInputs() {
                     var inputs = window.parent.document.querySelectorAll(
