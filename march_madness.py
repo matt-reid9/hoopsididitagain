@@ -34,6 +34,14 @@ st.markdown("""
     max-width: 100% !important;
   }
 
+  /* ── Hide Streamlit toolbar buttons (Fork, Star, etc.) ── */
+  div[data-testid="stToolbar"] { display: none !important; }
+  .stDeployButton { display: none !important; }
+  button[kind="header"] { display: none !important; }
+  #MainMenu { display: none !important; }
+  header[data-testid="stHeader"] { display: none !important; }
+  footer { display: none !important; }
+
   /* ── Tab bar: scrollable row, smaller text on mobile ── */
   div[data-testid="stTabs"] > div:first-child {
     overflow-x: auto !important;
@@ -1007,6 +1015,32 @@ try:
         "Vanderbilt": 238,
         "VCU": 2670, "West Virginia": 277, "Wisconsin": 275,
         "Wofford": 2747, "Xavier": 2752, "Yale": 43,
+        "Siena": 2561,
+        "Ohio St": 194, "Ohio St.": 194, "Ohio State": 194,
+        "TCU": 2628,
+        "Cal Baptist": 2856, "California Baptist": 2856,
+        "South Florida": 58,
+        "N. Dakota St": 2446, "N. Dakota St.": 2446, "North Dakota St": 2446, "North Dakota State": 2446,
+        "UCF": 2116,
+        "Furman": 231,
+        "Iowa": 2294,
+        "Penn": 219,
+        "Idaho": 70,
+        "LIU": 2351, "Long Island University": 2351,
+        "Villanova": 222,
+        "Hawaii": 62, "Hawai'i": 62,
+        "Kennesaw St": 2309, "Kennesaw St.": 2309, "Kennesaw State": 2309,
+        "Miami": 2390,
+        "Queens": 2511, "Queens University": 2511,
+        "N. Iowa": 2460, "Northern Iowa": 2460,
+        "N. Carolina": 153, "N. Carolina A&T": 2428,
+        "Saint Louis": 139, "St. Louis": 139,
+        "Akron": 2006,
+        "Hofstra": 2261,
+        "Wright St": 2750, "Wright St.": 2750, "Wright State": 2750,
+        "Santa Clara": 2541,
+        "Tennessee St": 2634, "Tennessee St.": 2634, "Tennessee State": 2634,
+        "Virginia": 258,
     }
     # Normalise lookup: try exact name first, then strip trailing periods
     def espn_logo_url(team_name):
@@ -1278,15 +1312,21 @@ try:
     # ── Grouped tab navigation ────────────────────────────────────────────────
     # Map old slugs to new group + subpage
     SLUG_TO_GROUP = {
-        "standings":   ("standings", None),
-        "bracket":     ("your-bracket", "bracket"),
-        "win-conditions": ("your-bracket", "win-conditions"),
-        "head-to-head":   ("your-bracket", "head-to-head"),
-        "bracket-dna":    ("your-bracket", "bracket-dna"),
-        "bracket-busters":  ("fun-stats", "bracket-busters"),
-        "cinderella":       ("fun-stats", "cinderella"),
-        "lucky-team":       ("bonus", "lucky-team"),
-        "regional":         ("bonus", "regional"),
+        "standings":       ("standings", None),
+        "bracket":         ("your-bracket", "bracket"),
+        "win-conditions":  ("your-bracket", "win-conditions"),
+        "head-to-head":    ("your-bracket", "head-to-head"),
+        "bracket-dna":     ("your-bracket", "bracket-dna"),
+        "bracket-busters": ("fun-stats", "bracket-busters"),
+        "cinderella":      ("fun-stats", "cinderella"),
+        "lucky-team":      ("bonus", "lucky-team"),
+        "regional":        ("bonus", "regional"),
+        "upset-picks":     ("bonus", "upset-picks"),
+        "1st-weekend":     ("bonus", "1st-weekend"),
+        "2nd-weekend":     ("bonus", "2nd-weekend"),
+        "tiebreaker-scores": ("bonus", "tiebreaker-scores"),
+        "bonus-pool":      ("bonus", "bonus-pool"),
+        "hall-of-champions": ("hall-of-champs", None),
     }
 
     try:
@@ -1306,28 +1346,31 @@ try:
     if "nav_sub_bonus" not in st.session_state:
         st.session_state["nav_sub_bonus"] = "lucky-team"
 
-    # Apply deep-link only once on initial page load — not on every rerun.
-    # After applying, clear the tab query param so it doesn't fight with navigation.
-    if slug and slug != "standings" and not st.session_state.get("_deeplink_applied"):
+    GROUP_TAB_INDEX = {
+        "standings":       0,
+        "your-bracket":    1,
+        "bonus":           2,
+        "fun-stats":       3,
+        "hall-of-champs":  4,
+    }
+
+    # Apply deep-link on initial page load — keyed to the slug so each unique
+    # link works even if the app is already open.
+    _applied_slug = st.session_state.get("_deeplink_applied_slug", "")
+    if slug and slug != "standings" and slug != _applied_slug:
         st.session_state["nav_group"] = group
         if subpage:
             st.session_state[f"nav_sub_{group}"] = subpage
-        st.session_state["_deeplink_applied"] = True
+        st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX.get(group, 0)
+        st.session_state["_deeplink_applied_slug"] = slug
         try:
             st.query_params.pop("tab", None)
         except Exception:
             pass
 
-    GROUP_TAB_INDEX = {
-        "standings":    0,
-        "your-bracket": 1,
-        "bonus":        2,
-        "fun-stats":    3,
-    }
-
     # Top-level tabs
-    tab_standings, tab_bracket, tab_bonus, tab_fun = st.tabs([
-        "🏆 Standings", "🗂️ Your Bracket", "🎲 Bonus Games", "🎉 Fun Stats",
+    tab_standings, tab_bracket, tab_bonus, tab_fun, tab_hoc = st.tabs([
+        "🏆 Standings", "🗂️ Your Bracket", "🎲 Bonus Games", "🎉 Fun Stats", "👑 Hall of Champions",
     ])
 
     import streamlit.components.v1 as _components
@@ -1573,7 +1616,6 @@ try:
                     st.warning("Could not find picks for this participant.")
                 else:
                     p_picks = [str(p_row[c]).strip() if c < len(p_row) else "" for c in range(67)]
-
                     cur_score, _ = score_picks(p_picks, actual_winners, points_per_game, seed_map, all_alive)
                     correct  = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and p_picks[c] == actual_winners[c])
                     played_g = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]))
@@ -2092,6 +2134,28 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         ch_left  = f'<div class="matchup single champ-mu">{trow(tl, pk_l, ac_l, pl_l)}</div>'
                         ch_right = f'<div class="matchup single champ-mu">{trow(tr, pk_r, ac_r, pl_r, mirror=True)}</div>'
 
+                        # Champion pick label at top of finals column
+                        champ_team = p_picks[65] if len(p_picks) > 65 and not is_unplayed(p_picks[65]) else "TBD"
+                        champ_logo_url = espn_logo_url(champ_team) if champ_team != "TBD" else None
+                        champ_elim = champ_team != "TBD" and champ_team not in truly_alive
+                        champ_color = "#ef4444" if champ_elim else "#f5c518"
+                        champ_strike = "text-decoration:line-through;" if champ_elim else ""
+                        if champ_logo_url:
+                            champ_logo_tag = f'<img src="{champ_logo_url}" style="width:28px;height:28px;object-fit:contain;{"opacity:0.5;" if champ_elim else ""}margin-bottom:3px;">'
+                        else:
+                            champ_logo_tag = ""
+                        champ_pick_html = (
+                            f'<div style="display:flex;flex-direction:column;align-items:center;'
+                            f'background:#1a1400;border:1px solid #7c5c00;border-radius:6px;'
+                            f'padding:5px 4px;margin-bottom:6px;width:100%;box-sizing:border-box;">'
+                            f'<div style="font-size:7px;font-weight:700;color:#9ca3af;letter-spacing:.8px;'
+                            f'text-transform:uppercase;margin-bottom:3px;">My Pick</div>'
+                            f'{champ_logo_tag}'
+                            f'<div style="font-size:10px;font-weight:700;color:{champ_color};text-align:center;'
+                            f'line-height:1.2;"><span style="{champ_strike}">{champ_team}</span></div>'
+                            f'</div>'
+                        )
+
                         fl = (f'<div class="ff-wrap">'
                               f'<div class="rlbl ff-lbl">Final Four</div>'
                               f'{"".join(left_ff)}'
@@ -2104,7 +2168,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                               f'<div class="trophy-lbl">&#127942; Championship</div>'
                               f'{ch_left}{ch_right}'
                               f'</div>')
-                        return f'<div class="finals">{fl}{ch}{fr}</div>'
+                        return (f'<div class="finals">'
+                                f'<div style="width:100%;padding:0 2px;box-sizing:border-box;">{champ_pick_html}</div>'
+                                f'<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:8px;">'
+                                f'{fl}{ch}{fr}'
+                                f'</div>'
+                                f'</div>')
 
                     # West: top-left, flowing left→center (no mirror)
                     # East: bottom-left, flowing left→center (no mirror)
@@ -3208,21 +3277,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("🗺️ Regional Breakdown — Top 20 by Region")
             st.caption("Points accumulated from each region's games (First Round through Elite 8)")
 
-            with st.expander("🔧 Debug: slot_to_region mapping", expanded=False):
-                debug_rows = []
-                for c in range(3, 63):
-                    debug_rows.append({
-                        "Col": c,
-                        "Round": get_round_name(c),
-                        "Region": slot_to_region.get(c, "❌ MISSING"),
-                        "Actual Winner": actual_winners[c] if c < len(actual_winners) else "",
-                    })
-                debug_df = pd.DataFrame(debug_rows)
-                st.dataframe(debug_df, hide_index=True, use_container_width=True)
-                st.write("**Slots per region:**", debug_df["Region"].value_counts().to_dict())
-                st.write(f"**team_to_region sample:** {dict(list(team_to_region.items())[:10])}")
-
-
             regions = ["South", "East", "Midwest", "West"]
 
             for i in range(0, len(regions), 2):
@@ -3523,6 +3577,250 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 styled = bp_display.style.apply(_bp_highlight, axis=1)
                 st.dataframe(styled, use_container_width=True, hide_index=True,
                              height=min(500, 44 + len(bp_display) * 36))
+
+    # ── Tab 5: Hall of Champions ─────────────────────────────────────────────
+    with tab_hoc:
+        st.subheader("👑 Hall of Champions")
+        st.caption("A record of every pool champion and the tournament that crowned them.")
+        st.markdown("")
+
+        # ── Champion entries — add new years here ──────────────────────────
+        # Each entry: year, champion name, image path or URL, description
+        CHAMPIONS = [
+            {
+                "year": 2016,
+                "name": "Alana Davis",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2016AlanaDavis.png",
+                "champion_pick": "Kansas",
+                "tournament_champion": "Villanova",
+                "alma_mater": "SUNY New Paltz",
+                "2nd_name": "Pete Mullin",
+                "2nd_pick": "Kansas",
+                "3rd_name": "Laura Rubin",
+                "3rd_pick": "Kansas",
+                                "description": "The 2016 tournament was a wild ride featuring a historic 15-over-2 upset by Middle Tennessee and a legendary Villanova buzzer-beater in the final. Alana Davis navigated the chaos to claim our inaugural title, narrowly edging out Pete Mullin in a race that came down to the very last game. By the time the nets were cut down, Alana stood alone as the first-ever champion of this storied pool!",
+            },
+            {
+                "year": 2017,
+                "name": "Sarah Keo",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2017SarahKeo.png",
+                "champion_pick": "North Carolina",
+                "tournament_champion": "North Carolina",
+                "alma_mater": "University of Washington",
+                "2nd_name": "Molly Davis",
+                "2nd_pick": "Gonzaga",
+                "3rd_name": "Jared Goldstein",
+                "3rd_pick": "UCLA",
+                                "description": "In 2017, rookie Sarah Keo proved that spreadsheet mastery can beat basketball knowledge by \"math-ing\" her way all the way to the top spot. The title race came down to the wire against Molly, but Sarah's faith in UNC paid off when they defeated Gonzaga 71-65. It was a clinical performance that showed the pool exactly how powerful a well-organized data set can be.",
+            },
+            {
+                "year": 2018,
+                "name": "Jaymi Lynne",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2018JaymiLynne.png",
+                "champion_pick": "Villanova",
+                "tournament_champion": "Villanova",
+                "alma_mater": "Liberty University",
+                "2nd_name": "Dylan Driver",
+                "2nd_pick": "Kansas",
+                "3rd_name": "Robert Dick",
+                "3rd_pick": "Gonzaga",
+                                "description": "2018 was the year of the \"Heart-Over-Head\" strategy as Jaymi Lynne rode a powerhouse Villanova team to a dominant victory over Dylan Driver and Robert. While others faltered, Jaymi's Wildcats took care of business against both Kansas and Michigan to seal her crown. She didn't just win; she set the record for the \"Largest Margin of Victory\" in pool history — a record that still stands today!",
+            },
+            {
+                "year": 2019,
+                "name": "Armando Zamudio",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2019ArmandoZamudio.png",
+                "champion_pick": "North Carolina",
+                "tournament_champion": "Virginia",
+                "alma_mater": "Columbia College Chicago",
+                "2nd_name": "Dylan Grassl",
+                "2nd_pick": "Kentucky",
+                "3rd_name": "Tenley McCladdie",
+                "3rd_pick": "Duke",
+                                "description": "2019 saw rookie Armando Zamudio take the crown from a New York high-rise, creating some legendary workplace tension along the way! The tournament was defined by Virginia's high-drama, controversial win over Auburn, which paved the way for Armando to clinch the title over Dylan Grassl and Tenley. Though he retired after 2021, Armando's championship run remains a classic pool legend.",
+            },
+            {
+                "year": 2021,
+                "name": "Priya Gupta",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2021PriyaGupta.png",
+                "champion_pick": "Gonzaga",
+                "tournament_champion": "Baylor",
+                "alma_mater": "UCLA",
+                "2nd_name": "Kelyn Ikegami",
+                "2nd_pick": "Gonzaga",
+                "3rd_name": "Mike Plante",
+                "3rd_pick": "Gonzaga",
+                                "description": "After a year away, 2021 returned with a bang as Priya Gupta rode her UCLA Bruins' miraculous \"First Four to Final Four\" run all the way to 1st place! While most brackets were busted by the 11-seed's success, Priya's alma mater loyalty combined with a Baylor championship pick secured her the win over Kelyn and Mike. It was a masterclass in \"homer\" picking actually paying off in the biggest way possible!",
+            },
+            {
+                "year": 2022,
+                "name": "James Sawaya",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2022JamesSawaya.png",
+                "champion_pick": "Kansas",
+                "tournament_champion": "Kansas",
+                "alma_mater": "Westminster University",
+                "2nd_name": "Bryce Carlson",
+                "2nd_pick": "Kansas",
+                "3rd_name": "Siobhan Doheny",
+                "3rd_pick": "Kansas",
+                                "description": "2022 was finally the year for James Sawaya, who capitalized on years of top-10 finishes to grab the gold. After correctly calling Richmond's upset over Iowa, James was the only person left with a perfect Final Four going into the Elite Eight. He solidified his championship when Kansas cut down the nets, likely celebrating mid-flight while his competitors watched from the ground!",
+            },
+            {
+                "year": 2023,
+                "name": "Lauren Froman",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2023LaurenFroman.png",
+                "champion_pick": "UConn",
+                "tournament_champion": "UConn",
+                "alma_mater": "Grand Valley State University",
+                "2nd_name": "Jaymi Lynne",
+                "2nd_pick": "Penn State",
+                "3rd_name": "Matt Reid",
+                "3rd_pick": "UConn",
+                                "description": "The 2023 tournament featured a masterclass in resilience from Lauren Froman, who climbed from 60th place all the way to the winner's circle. Despite not being from New England, she was the only participant to correctly pick UConn to go all the way, out-dueling a crowd of Connecticut loyalists in the process. She trailed Jaymi going into the final, but the Huskies' victory earned her a permanent spot in the Hall of Champions!",
+            },
+            {
+                "year": 2024,
+                "name": "Tenley McLaddie",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2024TenleyMcLaddie.png",
+                "champion_pick": "Purdue",
+                "tournament_champion": "UConn",
+                "alma_mater": "George Washington University",
+                "2nd_name": "Ryan Sargent",
+                "2nd_pick": "UConn",
+                "3rd_name": "Ryan Reyes",
+                "3rd_pick": "UConn",
+                                "description": "Tenley McLaddie pulled off the ultimate \"worst to first\" story in 2024, rebounding from a dead-last ranking on Day 1 to claim the overall title. Her surge began in the second round, and she officially took control of the leaderboard after Alabama's upset win over UNC in the Sweet 16. By the time Purdue punched their ticket to the Championship game, Tenley had officially secured her place as our 2024 winner!",
+            },
+            {
+                "year": 2025,
+                "name": "Alana Davis",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2025AlanaDavis.png",
+                "champion_pick": "Florida",
+                "tournament_champion": "Florida",
+                "alma_mater": "SUNY New Paltz",
+                "2nd_name": "Bryce Carlson",
+                "2nd_pick": "Florida",
+                "3rd_name": "Sarah Keo",
+                "3rd_pick": "Duke",
+                                "description": "History was made in 2025 as Alana Davis became our first-ever two-time champion, reclaiming the crown she first wore nearly a decade prior. Her bold pick of Houston over Gonzaga in the second round proved to be the winning move in a massive field of 65 participants. She navigated a tense Final Four with ice in her veins, proving that her 2016 victory was definitely no fluke!",
+            },
+        ]
+
+        NCAA_LOGO_SLUGS = {
+            "Villanova":                     "villanova",
+            "North Carolina":                "north-carolina",
+            "Virginia":                      "virginia",
+            "UCLA":                          "ucla",
+            "Baylor":                        "baylor",
+            "Kansas":                        "kansas",
+            "UConn":                         "uconn",
+            "Connecticut":                   "uconn",
+            "Florida":                       "florida",
+            "Liberty University":            "liberty",
+            "Liberty":                       "liberty",
+            "Grand Valley State University": "grand-valley-st",
+            "Grand Valley State":            "grand-valley-st",
+            "George Washington University":  "george-washington",
+            "George Washington":             "george-washington",
+            "University of Washington":      "washington",
+            "Washington":                    "washington",
+            "SUNY New Paltz":                "suny-new-paltz",
+            "Columbia College Chicago":      "columbia-chicago",
+            "Westminster University":        "westminster-ut",
+            "Gonzaga":                       "gonzaga",
+            "Duke":                          "duke",
+            "Kentucky":                      "kentucky",
+            "Penn State":                    "penn-st",
+            "Purdue":                        "purdue",
+        }
+        def _ncaa_logo(school, size=28):
+            slug = NCAA_LOGO_SLUGS.get(school)
+            if slug:
+                url = f"https://www.ncaa.com/sites/default/files/images/logos/schools/bgd/{slug}.svg"
+                return (f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;' +
+                        f'vertical-align:middle;margin-right:6px;" ' +
+                        f'onerror="this.style.display=&quot;none&quot;">')
+            return ""
+
+        def _pill_simple(icon, label, pick, pick_logo, correct=False):
+            """Pill without participant name (Champion and Pick pills)."""
+            pick_color = "#d1fae5" if correct else "#e5e7eb"
+            pick_weight = "700" if correct else "500"
+            return (
+                f'<div style="display:inline-flex;flex-direction:column;align-items:center;' +
+                f'background:#1e1e2e;border:1px solid #313244;border-radius:16px;' +
+                f'padding:10px 18px;width:100%;text-align:center;box-sizing:border-box;">' +
+                f'<span style="color:#6b7280;font-size:12px;margin-bottom:8px;">{icon} {label}</span>' +
+                f'<span style="display:flex;align-items:center;justify-content:center;">' +
+                f'{pick_logo}<span style="color:{pick_color};font-weight:{pick_weight};font-size:14px;">{pick}</span>' +
+                f'</span></div>'
+            )
+
+        def _pill_named(icon, label, name, pick, pick_logo):
+            """Pill with participant name (2nd and 3rd place pills)."""
+            return (
+                f'<div style="display:inline-flex;flex-direction:column;align-items:center;' +
+                f'background:#1e1e2e;border:1px solid #313244;border-radius:16px;' +
+                f'padding:10px 18px;width:100%;text-align:center;box-sizing:border-box;">' +
+                f'<span style="color:#6b7280;font-size:12px;margin-bottom:6px;">{icon} {label}</span>' +
+                f'<span style="color:#fff;font-weight:600;font-size:14px;margin-bottom:6px;">{name}</span>' +
+                f'<span style="display:flex;align-items:center;justify-content:center;">' +
+                f'{pick_logo}<span style="color:#e5e7eb;font-weight:500;font-size:13px;">{pick}</span>' +
+                f'</span></div>'
+            )
+
+        for champ in sorted(CHAMPIONS, key=lambda x: x["year"], reverse=True):
+            _pick      = champ.get("champion_pick", "")
+            _champ     = champ.get("tournament_champion", "")
+            _2nd_name  = champ.get("2nd_name", "")
+            _2nd_pick  = champ.get("2nd_pick", "")
+            _3rd_name  = champ.get("3rd_name", "")
+            _3rd_pick  = champ.get("3rd_pick", "")
+            _correct   = _pick == _champ
+            _first_name = champ["name"].split()[0]
+
+            with st.container():
+                st.markdown(
+                    f'<div style="font-size:36px;font-weight:800;color:#f5c518;margin-bottom:12px;">' +
+                    f'👑 {champ["year"]} — {champ["name"]}</div>',
+                    unsafe_allow_html=True
+                )
+                img_col, txt_col = st.columns([1, 2], gap="large")
+                with img_col:
+                    if champ.get("image"):
+                        st.markdown(
+                            f'<div style="display:flex;justify-content:center;">' +
+                            f'<img src="{champ["image"]}" style="width:min(260px,90%);border-radius:8px;">' +
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
+                    else:
+                        st.markdown(
+                            '<div style="display:flex;justify-content:center;">' +
+                            '<div style="width:260px;height:260px;background:#1e1e2e;border:1px solid #313244;' +
+                            'border-radius:8px;display:flex;align-items:center;justify-content:center;">' +
+                            '<span style="font-size:48px;">👑</span></div></div>',
+                            unsafe_allow_html=True
+                        )
+                with txt_col:
+                    pills = (
+                        f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+                        _pill_simple("👑", "Champion",         _champ,   _ncaa_logo(_champ)) +
+                        _pill_simple("🎯", f"{_first_name}'s Pick", _pick, _ncaa_logo(_pick), correct=_correct) +
+                        (_pill_named("🥈", "2nd Place", _2nd_name, _2nd_pick, _ncaa_logo(_2nd_pick)) if _2nd_name else "<div></div>") +
+                        (_pill_named("🥉", "3rd Place", _3rd_name, _3rd_pick, _ncaa_logo(_3rd_pick)) if _3rd_name else "<div></div>") +
+                        f'</div>'
+                    )
+                    st.markdown(pills, unsafe_allow_html=True)
+                    if champ.get("description"):
+                        st.markdown(
+                            f'<p style="margin-top:14px;color:#9ca3af;font-size:15px;line-height:1.7;">' +
+                            champ["description"] +
+                            f'</p>',
+                            unsafe_allow_html=True
+                        )
+                st.markdown("---")
+
 
     st.markdown("---")
     st.caption(f"🕒 Last sync: {last_update} · 🔄 Monte Carlo: 1,000 runs · Built with Streamlit")
