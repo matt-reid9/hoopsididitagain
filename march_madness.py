@@ -3303,13 +3303,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     ]
                     with st.expander(f"❌ Eliminated Teams ({len(elim_by_team)})", expanded=False):
                         elim_df = pd.DataFrame(elim_display)
-                        show_table(
-                            elim_df,
-                            user_highlight_col="Participant(s)",
-                            user_highlight_val=user_name,
-                            user_highlight_contains=True,
-                            key="table_elim",
-                        )
+                        st.dataframe(elim_df, use_container_width=True, hide_index=True)
 
         elif _sub_bon == "regional":
             st.subheader("🗺️ Regional Breakdown — Top 20 by Region")
