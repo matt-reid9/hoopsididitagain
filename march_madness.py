@@ -1537,11 +1537,23 @@ try:
 
                     # Final Four logos — dim if eliminated, normal if still alive
                     _picks = _picks_lookup.get(nm, [])
-                    _ff_logo_size = 22 if _is_mobile else 18
-                    ff_logos = "".join(
-                        _logo_tag(_picks[c], _ff_logo_size, _picks[c] in truly_alive) for c in _ff_cols
+                    _ff_logo_size = 20 if _is_mobile else 18
+                    _ff_teams = [
+                        _picks[c] for c in _ff_cols
                         if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}
-                    )
+                    ]
+                    if _is_mobile:
+                        # 2x2 grid
+                        _row1 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive) for t in _ff_teams[:2])
+                        _row2 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive) for t in _ff_teams[2:])
+                        ff_logos = (
+                            f'<div style="display:flex;flex-direction:column;align-items:center;gap:1px;">'
+                            f'<div>{_row1}</div>'
+                            f'<div>{_row2}</div>'
+                            f'</div>'
+                        )
+                    else:
+                        ff_logos = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive) for t in _ff_teams)
 
                     # Champion — green if alive, red + strikethrough if eliminated
                     _champ_pick = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else ""
