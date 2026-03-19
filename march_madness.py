@@ -1521,11 +1521,12 @@ try:
                 cur_df = cur_df.rename(columns={"Current Rank": "Rank"})
                 cur_df = cur_df.reset_index(drop=True)
 
-                def _logo_tag(team, size=18, alive=True):
+                def _logo_tag(team, size=18, alive=True, block=False):
                     url = espn_logo_url(team) if team else None
                     opacity = "1" if alive else "0.35"
+                    display = "display:block;" if block else "vertical-align:middle;"
                     if url:
-                        return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;opacity:{opacity};" onerror="this.style.display=&quot;none&quot;">'
+                        return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;{display}opacity:{opacity};" onerror="this.style.display=&quot;none&quot;">'
                     return ""
 
                 trs = ""
@@ -1543,13 +1544,13 @@ try:
                         if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}
                     ]
                     if _is_mobile:
-                        # 2x2 grid
-                        _row1 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive) for t in _ff_teams[:2])
-                        _row2 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive) for t in _ff_teams[2:])
+                        # 2x2 grid — explicit flex rows to prevent vertical stacking
+                        _row1 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive, block=True) for t in _ff_teams[:2])
+                        _row2 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive, block=True) for t in _ff_teams[2:])
                         ff_logos = (
-                            f'<div style="display:flex;flex-direction:column;align-items:center;gap:1px;">'
-                            f'<div>{_row1}</div>'
-                            f'<div>{_row2}</div>'
+                            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:0;">'
+                            f'<div style="display:flex;flex-direction:row;gap:2px;">{_row1}</div>'
+                            f'<div style="display:flex;flex-direction:row;gap:2px;">{_row2}</div>'
                             f'</div>'
                         )
                     else:
