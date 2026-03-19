@@ -1595,15 +1595,16 @@ try:
                         lucky_html = "—"
 
                     correct = _correct_counts.get(nm, 0)
+                    _ff_td_style = f'padding:4px 2px;text-align:center;max-width:{"48px" if _is_mobile else "80px"};overflow:hidden;'
                     trs += (
                         f'<tr{row_style}>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{int(crow["Rank"])}</td>'
                         f'<td style="padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:{"70px" if _is_mobile else "120px"};">{disp_nm}</td>'
                         f'<td style="width:36px;text-align:center;padding:4px 2px;">{int(crow["Current Score"])}</td>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{correct}</td>'
-                        f'<td style="padding:4px 4px;text-align:center;">{ff_logos}</td>'
-                        f'<td style="padding:4px 6px;white-space:nowrap;">{champ_html}</td>'
-                        f'<td style="padding:4px 6px;white-space:nowrap;">{lucky_html}</td>'
+                        f'<td style="{_ff_td_style}">{ff_logos}</td>'
+                        f'<td style="padding:4px 6px;text-align:center;">{champ_html}</td>'
+                        f'<td style="padding:4px 6px;text-align:center;">{lucky_html}</td>'
                         f'</tr>'
                     )
                 st.markdown(f"""
@@ -1612,12 +1613,12 @@ try:
                   <thead>
                     <tr style="background:#1e1e2e;color:#fff;">
                       <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">#</th>
-                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Name</th>
+                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Name</th>
                       <th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>
                       <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>
-                      <th style="padding:5px 4px;text-align:center;border:1px solid #313244;">Final Four</th>
-                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Champion</th>
-                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Lucky Team</th>
+                      <th style="max-width:{"48px" if _is_mobile else "80px"};padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>
+                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Champion</th>
+                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>
                     </tr>
                   </thead>
                   <tbody style="color:#fff;">
