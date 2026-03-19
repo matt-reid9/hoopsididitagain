@@ -1371,7 +1371,9 @@ try:
         "tiebreaker-scores": ("bonus", "tiebreaker-scores"),
         "bonus-pool":      ("bonus", "bonus-pool"),
         "correct-picks":   ("bonus", "correct-picks"),
-        "hall-of-champions": ("hall-of-champs", None),
+        "hall-of-champions":    ("hall-of-champs", None),
+        "current-standings":    ("standings", "current"),
+        "potential-standings":  ("standings", "potential"),
     }
 
     try:
@@ -1408,6 +1410,11 @@ try:
     # Also handles post-dialog navigation via _deeplink_pending_apply.
     _pending_apply = st.session_state.pop("_deeplink_pending_apply", "")
     _effective_slug = _pending_apply if _pending_apply else slug
+    # Handle standings sub-nav from deep-link
+    if _effective_slug == "current-standings":
+        st.session_state["nav_sub_standings"] = "current"
+    elif _effective_slug == "potential-standings":
+        st.session_state["nav_sub_standings"] = "potential"
     _applied_slug = st.session_state.get("_deeplink_applied_slug", "")
     _modal_done = st.session_state.get("modal_done", False)
     # Only apply deep-link if modal is done — otherwise save for after dialog
@@ -1595,7 +1602,7 @@ try:
                         lucky_html = "—"
 
                     correct = _correct_counts.get(nm, 0)
-                    _ff_td_style = f'padding:4px 2px;text-align:center;max-width:{"48px" if _is_mobile else "80px"};overflow:hidden;'
+                    _ff_td_style = f'padding:4px 2px;text-align:center;overflow:visible;'
                     trs += (
                         f'<tr{row_style}>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{int(crow["Rank"])}</td>'
@@ -1616,7 +1623,7 @@ try:
                       <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Name</th>
                       <th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>
                       <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>
-                      <th style="max-width:{"48px" if _is_mobile else "80px"};padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>
+                      <th style="padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>
                       <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Champion</th>
                       <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>
                     </tr>
