@@ -1537,8 +1537,9 @@ try:
 
                     # Final Four logos — dim if eliminated, normal if still alive
                     _picks = _picks_lookup.get(nm, [])
+                    _ff_logo_size = 22 if _is_mobile else 18
                     ff_logos = "".join(
-                        _logo_tag(_picks[c], 18, _picks[c] in truly_alive) for c in _ff_cols
+                        _logo_tag(_picks[c], _ff_logo_size, _picks[c] in truly_alive) for c in _ff_cols
                         if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}
                     )
 
@@ -1547,10 +1548,18 @@ try:
                     if _champ_pick:
                         _champ_alive = _champ_pick in truly_alive
                         _champ_style = "color:#22c55e;" if _champ_alive else "color:#ef4444;text-decoration:line-through;"
-                        champ_html = (
-                            f'{_logo_tag(_champ_pick, 16, _champ_alive)}'
-                            f'<span style="font-size:11px;vertical-align:middle;{_champ_style}">{_champ_pick}</span>'
-                        )
+                        if _is_mobile:
+                            champ_html = (
+                                f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+                                f'{_logo_tag(_champ_pick, 18, _champ_alive)}'
+                                f'<span style="font-size:10px;{_champ_style}">{_champ_pick}</span>'
+                                f'</div>'
+                            )
+                        else:
+                            champ_html = (
+                                f'{_logo_tag(_champ_pick, 16, _champ_alive)}'
+                                f'<span style="font-size:11px;vertical-align:middle;{_champ_style}">{_champ_pick}</span>'
+                            )
                     else:
                         champ_html = "—"
 
@@ -1560,7 +1569,15 @@ try:
                         lt = _lucky_teams[0]
                         lt_alive = lt in truly_alive
                         lt_style = "color:#22c55e;" if lt_alive else "color:#ef4444;text-decoration:line-through;"
-                        lucky_html = f'{_logo_tag(lt, 16, lt_alive)}<span style="font-size:11px;vertical-align:middle;{lt_style}">{lt}</span>'
+                        if _is_mobile:
+                            lucky_html = (
+                                f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
+                                f'{_logo_tag(lt, 18, lt_alive)}'
+                                f'<span style="font-size:10px;{lt_style}">{lt}</span>'
+                                f'</div>'
+                            )
+                        else:
+                            lucky_html = f'{_logo_tag(lt, 16, lt_alive)}<span style="font-size:11px;vertical-align:middle;{lt_style}">{lt}</span>'
                     else:
                         lucky_html = "—"
 
