@@ -221,6 +221,14 @@ def load_all_data():
     # We'll populate this after loading df_p below.
 
     df_p = pd.read_csv(picks_url, header=None)
+
+    # Normalize team name abbreviations used in the sheet
+    TEAM_ABBREVS = {
+        "MICHST":  "Michigan St.",
+        "SFLA":    "South Florida",
+    }
+    df_p = df_p.replace(TEAM_ABBREVS)
+
     winners_row      = [str(x).strip() for x in df_p.iloc[2].values]
     points_per_game  = [safe_int(p) for p in df_p.iloc[1].values]
 
@@ -1030,7 +1038,10 @@ try:
         "Villanova": 222,
         "Hawaii": 62, "Hawai'i": 62,
         "Kennesaw St": 2309, "Kennesaw St.": 2309, "Kennesaw State": 2309,
-        "Miami": 2390,
+        "Miami": 2390, "Miami FL": 2390,
+        "Prairie View": 2440, "Prairie View A&M": 2440,
+        "Howard": 2275,
+        "Miami Ohio": 2393, "Miami (OH)": 2393, "Miami OH": 2393,
         "Queens": 2511, "Queens University": 2511,
         "N. Iowa": 2460, "Northern Iowa": 2460,
         "N. Carolina": 153, "N. Carolina A&T": 2428,
@@ -1169,26 +1180,43 @@ try:
     names_tuple      = tuple(r["Name"] for r in results)
     picks_matrix     = tuple(tuple(r["raw_picks"]) for r in results)
     r1_contestants   = tuple((c, a, b) for c, (a, b) in r1_matchups.items())
+    # Tournament progress flags
+    r1_played   = sum(1 for c in range(3, 35)  if not is_unplayed(actual_winners[c]))
+    r2_played   = sum(1 for c in range(35, 51) if not is_unplayed(actual_winners[c]))
+    r2_complete = r1_played >= 32 and r2_played >= 16
+    # Use more runs early in the tournament when variance is highest
+    mc_runs = 2000 if not r2_complete else 1000
     win_probs, top3_probs = run_monte_carlo(
         names_tuple, picks_matrix,
         tuple(actual_winners), tuple(points_per_game),
         tuple(all_alive), tuple(seed_map.items()),
         r1_contestants,
+        runs=mc_runs,
     )
 
     for r in results:
-        r["Win %"]   = win_probs.get(r["Name"], 0.0)
-        r["Top 3 %"] = top3_probs.get(r["Name"], 0.0)
+        win_pct  = win_probs.get(r["Name"], 0.0)
+        top3_pct = top3_probs.get(r["Name"], 0.0)
+        if not r2_complete:
+            import math
+            # Round up to nearest whole % so nobody shows 0% until R2 is done
+            win_pct  = math.ceil(win_pct)  if win_pct  > 0 else (100.0 / len(results) if results else 0.1)
+            top3_pct = math.ceil(top3_pct) if top3_pct > 0 else 1.0
+        r["Win %"]   = win_pct
+        r["Top 3 %"] = top3_pct
 
     # ── Potential Status: driven by Monte Carlo probabilities ─────────────────
-    # Champion if Win % > 0, Top 3 if Top 3 % > 0 (but Win % = 0), else Out
+    # Don't declare anyone "Out" until at least half of R1 is complete —
+    # with few games played the simulation has too much variance to be meaningful.
     for r in results:
         if r["Win %"] > 0:
             r["Potential Status"] = "🏆 Champion"
         elif r["Top 3 %"] > 0:
             r["Potential Status"] = "🥉 Top 3"
-        else:
+        elif r2_complete:
             r["Potential Status"] = "❌ Out"
+        else:
+            r["Potential Status"] = "🥉 Top 3"
 
     final_df = (
         pd.DataFrame(results)
