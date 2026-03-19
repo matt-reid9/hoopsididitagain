@@ -226,6 +226,10 @@ def load_all_data():
     TEAM_ABBREVS = {
         "MICHST":  "Michigan St.",
         "SFLA":    "South Florida",
+        "MIAOH":   "Miami (Ohio)",
+        "PVAM":    "Prairie View",
+        "KENSAW":  "Kennesaw St.",
+        "MARYCA":  "Saint Mary's",
     }
     df_p = df_p.replace(TEAM_ABBREVS)
 
@@ -335,6 +339,12 @@ def load_all_data():
         for r_start, r_end in round_ranges
     ]
 
+    # Slot → team mapping for R1 (to know if a specific team's game has been played)
+    r1_team_to_slot: dict[str, int] = {}
+    for col, (ta, tb) in r1_matchups.items():
+        r1_team_to_slot[ta] = col
+        r1_team_to_slot[tb] = col
+
     truly_alive: set[str] = set()
     for team in all_starting:
         # Find the latest round this team won
@@ -344,13 +354,13 @@ def load_all_data():
                 last_won_round = i
 
         if last_won_round == -1:
-            # Never won any game — check if round 1 has been played at all
-            # If round 1 has played games and this team never won one, they're out
-            if round_has_played[0]:
-                # Eliminated in round 1
+            # Never won any game — only eliminate if their specific R1 game has been played
+            r1_slot = r1_team_to_slot.get(team)
+            if r1_slot is not None and not is_unplayed(winners_row[r1_slot]):
+                # Their R1 game was played and they didn't win — eliminated
                 continue
             else:
-                # Tournament hasn't started
+                # Their game hasn't been played yet — still alive
                 truly_alive.add(team)
         else:
             # They won round `last_won_round`. Check if the next round has started.
@@ -1041,7 +1051,7 @@ try:
         "Miami": 2390, "Miami FL": 2390,
         "Prairie View": 2440, "Prairie View A&M": 2440,
         "Howard": 2275,
-        "Miami Ohio": 2393, "Miami (OH)": 2393, "Miami OH": 2393,
+        "Miami Ohio": 2393, "Miami (OH)": 2393, "Miami OH": 2393, "Miami (Ohio)": 2393,
         "Queens": 2511, "Queens University": 2511,
         "N. Iowa": 2460, "Northern Iowa": 2460,
         "N. Carolina": 153, "N. Carolina A&T": 2428,
