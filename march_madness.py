@@ -1364,6 +1364,7 @@ try:
         "2nd-weekend":     ("bonus", "2nd-weekend"),
         "tiebreaker-scores": ("bonus", "tiebreaker-scores"),
         "bonus-pool":      ("bonus", "bonus-pool"),
+        "correct-picks":   ("bonus", "correct-picks"),
         "hall-of-champions": ("hall-of-champs", None),
     }
 
@@ -3175,13 +3176,14 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("lucky-team",         "🍀 Lucky Team"),
             ("regional",           "🗺️ Regional Breakdown"),
             ("upset-picks",        "😤 Upset Picks"),
+            ("correct-picks",      "✅ Correct Picks"),
             ("1st-weekend",        "♓ 1st Weekend Leader"),
             ("2nd-weekend",        "♈ 2nd Weekend Leader"),
             ("tiebreaker-scores",  "🎯 Tiebreaker Scores"),
             ("bonus-pool",         "💰 Bonus Pool"),
         ]
         _bon_row1 = st.columns(4)
-        _bon_row2 = st.columns(3)
+        _bon_row2 = st.columns(4)
         for _i, (_slug, _label) in enumerate(_bon_options):
             _active = _sub_bon == _slug
             _col = _bon_row1[_i] if _i < 4 else _bon_row2[_i - 4]
@@ -3610,7 +3612,54 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 st.dataframe(styled, use_container_width=True, hide_index=True,
                              height=min(500, 44 + len(bp_display) * 36))
 
-    # ── Tab 5: Hall of Champions ─────────────────────────────────────────────
+
+        elif _sub_bon == "correct-picks":
+            st.subheader("✅ Correct Picks — Most Individual Correct Picks")
+            st.caption("Total number of correct picks regardless of points value")
+
+            correct_rows = sorted(
+                [{"Name": r["Name"], "Correct Picks": sum(
+                    1 for c in range(3, 66)
+                    if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
+                )} for r in results],
+                key=lambda x: x["Correct Picks"], reverse=True
+            )
+
+            # Assign ranks with ties
+            ranked_cp = []
+            rank = 1
+            for i, row in enumerate(correct_rows):
+                if i > 0 and row["Correct Picks"] < correct_rows[i-1]["Correct Picks"]:
+                    rank = i + 1
+                ranked_cp.append({"Rank": rank, "Name": row["Name"], "Correct Picks": row["Correct Picks"]})
+
+            trs = ""
+            for row in ranked_cp:
+                is_user = user_name and row["Name"] == user_name
+                row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                trs += (
+                    f'<tr{row_style}>'
+                    f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                    f'<td style="padding:5px 10px;">{row["Name"]}</td>'
+                    f'<td style="width:90px;text-align:center;">{row["Correct Picks"]}</td>'
+                    f'</tr>'
+                )
+            st.markdown(f"""
+            <table style="border-collapse:collapse;width:100%;max-width:420px;font-size:13px;">
+              <thead>
+                <tr style="background:#1e1e2e;color:#fff;">
+                  <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
+                  <th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>
+                  <th style="width:90px;padding:6px 4px;text-align:center;border:1px solid #313244;">Correct Picks</th>
+                </tr>
+              </thead>
+              <tbody style="color:#fff;">
+                {trs}
+              </tbody>
+            </table>
+            """, unsafe_allow_html=True)
+
+        # ── Tab 5: Hall of Champions ─────────────────────────────────────────────
     with tab_hoc:
         st.subheader("👑 Hall of Champions")
         st.caption("A record of every pool champion and the tournament that crowned them.")
@@ -3852,6 +3901,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             unsafe_allow_html=True
                         )
                 st.markdown("---")
+
 
 
     st.markdown("---")
