@@ -1347,6 +1347,12 @@ try:
                 st.rerun()
     st.caption(f"Last synced: {last_update} · Monte Carlo: 1,000 runs")
 
+    # After dialog rerun, apply pending deep-link navigation directly
+    _pending_slug = st.session_state.get("_pending_slug", "")
+    if _pending_slug and st.session_state.get("modal_done"):
+        st.session_state["_deeplink_pending_apply"] = _pending_slug
+        st.session_state.pop("_pending_slug", None)
+
     # ── Grouped tab navigation ────────────────────────────────────────────────
     # Map old slugs to new group + subpage
     SLUG_TO_GROUP = {
@@ -1373,6 +1379,10 @@ try:
     except Exception:
         slug = "standings"
 
+    # Preserve the intended deep-link slug across dialog reruns
+    if slug and slug != "standings" and not st.session_state.get("_pending_slug"):
+        st.session_state["_pending_slug"] = slug
+
     group, subpage = SLUG_TO_GROUP.get(slug, ("standings", None))
 
     # Set session state defaults
@@ -1395,17 +1405,24 @@ try:
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
     # link works even if the app is already open.
+    # Also handles post-dialog navigation via _deeplink_pending_apply.
+    _pending_apply = st.session_state.pop("_deeplink_pending_apply", "")
+    _effective_slug = _pending_apply if _pending_apply else slug
     _applied_slug = st.session_state.get("_deeplink_applied_slug", "")
-    if slug and slug != "standings" and slug != _applied_slug:
-        st.session_state["nav_group"] = group
-        if subpage:
-            st.session_state[f"nav_sub_{group}"] = subpage
-        st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX.get(group, 0)
-        st.session_state["_deeplink_applied_slug"] = slug
-        try:
-            st.query_params.pop("tab", None)
-        except Exception:
-            pass
+    _modal_done = st.session_state.get("modal_done", False)
+    # Only apply deep-link if modal is done — otherwise save for after dialog
+    if _effective_slug and _effective_slug != "standings" and _effective_slug != _applied_slug and _modal_done:
+        _eff_group, _eff_subpage = SLUG_TO_GROUP.get(_effective_slug, ("standings", None))
+        st.session_state["nav_group"] = _eff_group
+        if _eff_subpage:
+            st.session_state[f"nav_sub_{_eff_group}"] = _eff_subpage
+        st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX.get(_eff_group, 0)
+        st.session_state["_deeplink_applied_slug"] = _effective_slug
+        if not _pending_apply:
+            try:
+                st.query_params.pop("tab", None)
+            except Exception:
+                pass
 
     # Top-level tabs
     tab_standings, tab_bracket, tab_bonus, tab_fun, tab_hoc = st.tabs([
@@ -1438,6 +1455,19 @@ try:
     with tab_standings:
         st.subheader("Live Standings")
 
+        # Sub-navigation: Current / Potential
+        _std_sub = st.session_state.get("nav_sub_standings", "current")
+        _std_c1, _std_c2 = st.columns(2)
+        if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
+                           type="primary" if _std_sub == "current" else "secondary"):
+            st.session_state["nav_sub_standings"] = "current"
+            st.rerun()
+        if _std_c2.button("🔮 Potential", key="std_potential", use_container_width=True,
+                           type="primary" if _std_sub == "potential" else "secondary"):
+            st.session_state["nav_sub_standings"] = "potential"
+            st.rerun()
+        st.divider()
+        _std_sub = st.session_state.get("nav_sub_standings", "current")
 
         col_left, col_right = st.columns([3, 2], gap="medium")
 
@@ -1463,86 +1493,183 @@ try:
 
         _all_names = final_df["Name"].tolist()
 
-        display_cols = ["Current Rank", "Name", "Current Score",
-                        "Potential Score", "Win %", "Top 3 %", "Potential Status"]
-        with col_left:
-            def highlight_user_row(row):
-                if user_name and row["Name"] == user_name:
-                    return ["background-color: #3a3000; color: #f5c518; font-weight: bold"] * len(row)
-                return [""] * len(row)
+        # ── Shared H2H row-click state ─────────────────────────────────────────
+        if "nav_sub_standings" not in st.session_state:
+            st.session_state["nav_sub_standings"] = "current"
 
-            standings_df = final_df[display_cols].copy()
-            standings_df = standings_df.rename(columns={"Current Rank": "Rank"})
-            standings_df["Win %"]   = final_df["Win %"].map("{:.1f}%".format)
-            standings_df["Top 3 %"] = final_df["Top 3 %"].map("{:.1f}%".format)
-            if _is_mobile:
-                standings_df["Name"] = standings_df["Name"].apply(lambda n: _short_name(n, _all_names))
-                # Strip text from Potential Status — show icon only
-                standings_df["Potential Status"] = standings_df["Potential Status"].apply(
-                    lambda s: s.split()[0] if isinstance(s, str) and s else s
+        # ── Build lucky team lookup: name -> list of teams ──────────────────────
+        _name_to_lucky = {}
+        for _lt, _lparticipants in lucky_map.items():
+            for _lp in _lparticipants:
+                _name_to_lucky.setdefault(_lp, []).append(_lt)
+
+        # ── Build correct picks count per person ─────────────────────────────────
+        _correct_counts = {
+            r["Name"]: sum(
+                1 for c in range(3, 66)
+                if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
+            ) for r in results
+        }
+
+        _picks_lookup = {r["Name"]: r["raw_picks"] for r in results}
+        _ff_cols = [59, 60, 61, 62]
+
+        with col_left:
+            if _std_sub == "current":
+                # ── Current standings: rich HTML table with logos ────────────────
+                cur_df = final_df[["Current Rank", "Name", "Current Score"]].copy()
+                cur_df = cur_df.rename(columns={"Current Rank": "Rank"})
+                cur_df = cur_df.reset_index(drop=True)
+
+                def _logo_tag(team, size=18, alive=True):
+                    url = espn_logo_url(team) if team else None
+                    opacity = "1" if alive else "0.35"
+                    if url:
+                        return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;opacity:{opacity};" onerror="this.style.display=&quot;none&quot;">'
+                    return ""
+
+                trs = ""
+                for _, crow in cur_df.iterrows():
+                    nm = crow["Name"]
+                    is_user = user_name and nm == user_name
+                    row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                    disp_nm = _short_name(nm, _all_names) if _is_mobile else nm
+
+                    # Final Four logos — dim if eliminated, normal if still alive
+                    _picks = _picks_lookup.get(nm, [])
+                    ff_logos = "".join(
+                        _logo_tag(_picks[c], 18, _picks[c] in truly_alive) for c in _ff_cols
+                        if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}
+                    )
+
+                    # Champion — green if alive, red + strikethrough if eliminated
+                    _champ_pick = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else ""
+                    if _champ_pick:
+                        _champ_alive = _champ_pick in truly_alive
+                        _champ_style = "color:#22c55e;" if _champ_alive else "color:#ef4444;text-decoration:line-through;"
+                        champ_html = (
+                            f'{_logo_tag(_champ_pick, 16, _champ_alive)}'
+                            f'<span style="font-size:11px;vertical-align:middle;{_champ_style}">{_champ_pick}</span>'
+                        )
+                    else:
+                        champ_html = "—"
+
+                    # Lucky Team
+                    _lucky_teams = _name_to_lucky.get(nm, [])
+                    if _lucky_teams:
+                        lt = _lucky_teams[0]
+                        lt_alive = lt in truly_alive
+                        lt_style = "color:#22c55e;" if lt_alive else "color:#ef4444;text-decoration:line-through;"
+                        lucky_html = f'{_logo_tag(lt, 16, lt_alive)}<span style="font-size:11px;vertical-align:middle;{lt_style}">{lt}</span>'
+                    else:
+                        lucky_html = "—"
+
+                    correct = _correct_counts.get(nm, 0)
+                    trs += (
+                        f'<tr{row_style}>'
+                        f'<td style="width:28px;text-align:center;padding:4px 2px;">{int(crow["Rank"])}</td>'
+                        f'<td style="padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:{"70px" if _is_mobile else "120px"};">{disp_nm}</td>'
+                        f'<td style="width:36px;text-align:center;padding:4px 2px;">{int(crow["Current Score"])}</td>'
+                        f'<td style="width:28px;text-align:center;padding:4px 2px;">{correct}</td>'
+                        f'<td style="padding:4px 4px;text-align:center;">{ff_logos}</td>'
+                        f'<td style="padding:4px 6px;white-space:nowrap;">{champ_html}</td>'
+                        f'<td style="padding:4px 6px;white-space:nowrap;">{lucky_html}</td>'
+                        f'</tr>'
+                    )
+                st.markdown(f"""
+                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+                <table style="border-collapse:collapse;width:100%;font-size:12px;">
+                  <thead>
+                    <tr style="background:#1e1e2e;color:#fff;">
+                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">#</th>
+                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Name</th>
+                      <th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>
+                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>
+                      <th style="padding:5px 4px;text-align:center;border:1px solid #313244;">Final Four</th>
+                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Champion</th>
+                      <th style="padding:5px 6px;text-align:left;border:1px solid #313244;">Lucky Team</th>
+                    </tr>
+                  </thead>
+                  <tbody style="color:#fff;">
+                    {trs}
+                  </tbody>
+                </table>
+                </div>
+                """, unsafe_allow_html=True)
+                st.caption("💡 Tap a row in Potential view to open a Head-to-Head comparison")
+
+            else:
+                # ── Potential standings: existing AgGrid table ───────────────────
+                display_cols = ["Current Rank", "Name", "Current Score",
+                                "Potential Score", "Win %", "Top 3 %", "Potential Status"]
+                def highlight_user_row(row):
+                    if user_name and row["Name"] == user_name:
+                        return ["background-color: #3a3000; color: #f5c518; font-weight: bold"] * len(row)
+                    return [""] * len(row)
+
+                standings_df = final_df[display_cols].copy()
+                standings_df = standings_df.rename(columns={"Current Rank": "Rank"})
+                standings_df["Win %"]   = final_df["Win %"].map("{:.1f}%".format)
+                standings_df["Top 3 %"] = final_df["Top 3 %"].map("{:.1f}%".format)
+                if _is_mobile:
+                    standings_df["Name"] = standings_df["Name"].apply(lambda n: _short_name(n, _all_names))
+                    standings_df["Potential Status"] = standings_df["Potential Status"].apply(
+                        lambda s: s.split()[0] if isinstance(s, str) and s else s
+                    )
+
+                _user_display = _short_name(user_name, _all_names) if _is_mobile and user_name else user_name
+                selected_row = show_table(
+                    standings_df,
+                    user_highlight_col="Name", user_highlight_val=_user_display,
+                    key="table_standings",
+                    height=500,
+                    col_config={
+                        "Rank":             50,
+                        "Name":             90 if _is_mobile else 160,
+                        "Current Score":    80,
+                        "Potential Score":  85,
+                        "Win %":            60,
+                        "Top 3 %":         60,
+                        "Potential Status": 45 if _is_mobile else 120,
+                    },
+                    pinned_cols=["Rank", "Name"],
+                    return_selected=True,
+                    nowrap_cols=["Name"],
                 )
 
-            _user_display = _short_name(user_name, _all_names) if _is_mobile and user_name else user_name
-            selected_row = show_table(
-                standings_df,
-                user_highlight_col="Name", user_highlight_val=_user_display,
-                key="table_standings",
-                height=500,
-                col_config={
-                    "Rank":             50,
-                    "Name":             90 if _is_mobile else 160,
-                    "Current Score":    80,
-                    "Potential Score":  85,
-                    "Win %":            60,
-                    "Top 3 %":         60,
-                    "Potential Status": 45 if _is_mobile else 120,
-                },
-                pinned_cols=["Rank", "Name"],
-                return_selected=True,
-                nowrap_cols=["Name"],
-            )
-
-            if selected_row:
-                clicked_name_raw = selected_row.get("Name", "")
-                # On mobile, names are shortened — map back to full name
-                if _is_mobile and clicked_name_raw:
-                    _short_to_full = {_short_name(n, _all_names): n for n in _all_names}
-                    clicked_name = _short_to_full.get(clicked_name_raw, clicked_name_raw)
-                else:
-                    clicked_name = clicked_name_raw
-                # Only act if it's a new selection — compare against last processed name
-                if (clicked_name and clicked_name != user_name
-                        and clicked_name != st.session_state.get("_h2h_last_processed")):
-                    st.session_state["_h2h_last_processed"] = clicked_name
-                    p1_val = user_name or clicked_name
-                    st.session_state["_h2h_p1_pending"] = p1_val
-                    st.session_state["_h2h_p2_pending"] = clicked_name
-                    st.session_state["_h2h_show_banner"] = True
-                    st.rerun()
-
-            # H2H banner — appears after a row click, button navigates to H2H tab
-            _h2h_name = st.session_state.get("_h2h_last_processed")
-            if st.session_state.get("_h2h_show_banner") and _h2h_name:
-                bcol1, bcol2 = st.columns([3, 1])
-                with bcol1:
-                    st.info(f"⚔️ Ready to compare vs **{_h2h_name}**")
-                with bcol2:
-                    if st.button("Go to Head-to-Head →", key="go_h2h_btn", use_container_width=True, type="primary"):
-                        st.session_state["_h2h_show_banner"] = False
-                        st.session_state["nav_group"] = "your-bracket"
-                        st.session_state["nav_sub_your-bracket"] = "head-to-head"
-                        st.session_state["jump_to_tab_index"] = 1
+                if selected_row:
+                    clicked_name_raw = selected_row.get("Name", "")
+                    if _is_mobile and clicked_name_raw:
+                        _short_to_full = {_short_name(n, _all_names): n for n in _all_names}
+                        clicked_name = _short_to_full.get(clicked_name_raw, clicked_name_raw)
+                    else:
+                        clicked_name = clicked_name_raw
+                    if (clicked_name and clicked_name != user_name
+                            and clicked_name != st.session_state.get("_h2h_last_processed")):
+                        st.session_state["_h2h_last_processed"] = clicked_name
+                        p1_val = user_name or clicked_name
+                        st.session_state["_h2h_p1_pending"] = p1_val
+                        st.session_state["_h2h_p2_pending"] = clicked_name
+                        st.session_state["_h2h_show_banner"] = True
                         st.rerun()
-            else:
-                st.caption("💡 Tap any row to open a Head-to-Head comparison")
+
+                _h2h_name = st.session_state.get("_h2h_last_processed")
+                if st.session_state.get("_h2h_show_banner") and _h2h_name:
+                    bcol1, bcol2 = st.columns([3, 1])
+                    with bcol1:
+                        st.info(f"⚔️ Ready to compare vs **{_h2h_name}**")
+                    with bcol2:
+                        if st.button("Go to Head-to-Head →", key="go_h2h_btn", use_container_width=True, type="primary"):
+                            st.session_state["_h2h_show_banner"] = False
+                            st.session_state["nav_group"] = "your-bracket"
+                            st.session_state["nav_sub_your-bracket"] = "head-to-head"
+                            st.session_state["jump_to_tab_index"] = 1
+                            st.rerun()
+                else:
+                    st.caption("💡 Tap any row to open a Head-to-Head comparison")
 
         with col_right:
             top10 = final_df.head(10).sort_values("Current Score")
-
-            # Build a name -> raw_picks lookup for FF logo overlays
-            _picks_lookup = {r["Name"]: r["raw_picks"] for r in results}
-            # E8 cols 59-62 = the 4 FF picks (West, East, South, Midwest)
-            _ff_cols = [59, 60, 61, 62]
 
             fig = px.bar(
                 top10, x="Current Score", y="Name", orientation="h",
@@ -1864,37 +1991,41 @@ try:
                         can_second_weekend = my_e8_pot >= others_e8_cur_max
 
                     # ── 3) Total Correct Picks ───────────────────────────────
-                    # Can win if my potential correct >= every other player's potential correct
+                    # Until R2 is complete, everyone stays green — too early to judge.
+                    # After R2, compare potentials properly.
                     def correct_potential(picks):
                         return sum(
                             1 for c in range(3, 66)
                             if (not is_unplayed(actual_winners[c]) and picks[c] == actual_winners[c])
                             or (is_unplayed(actual_winners[c]) and picks[c] in all_alive)
                         )
-                    my_correct_pot = correct_potential(me_picks)
-                    others_correct_pot_max = max(
-                        correct_potential(pk) for nm, pk in all_rows if nm != bracket_name
-                    ) if len(all_rows) > 1 else 0
-                    can_most_correct = my_correct_pot >= others_correct_pot_max
+                    if not r2_complete:
+                        can_most_correct = True
+                    else:
+                        my_correct_pot = correct_potential(me_picks)
+                        others_correct_pot_max = max(
+                            correct_potential(pk) for nm, pk in all_rows if nm != bracket_name
+                        ) if len(all_rows) > 1 else 0
+                        can_most_correct = my_correct_pot >= others_correct_pot_max
 
                     # ── 4) Most Correct Upset Picks ──────────────────────────
-                    # Green if my potential upsets >= the max potential of any other player.
-                    # Uses potential_upsets() which only counts future slots where an upset
-                    # is still physically possible (alive teams with seed diff >= 3 exist).
-                    any_upset_possible = any(slot_can_produce_upset(c) for c in range(3, 66))
-                    if any_upset_possible:
-                        my_upset_pot = potential_upsets(me_picks)
-                        others_upset_pot_max = max(
-                            potential_upsets(pk) for nm, pk in all_rows if nm != bracket_name
-                        ) if len(all_rows) > 1 else 0
-                        can_most_upsets = my_upset_pot >= others_upset_pot_max
+                    # Until R2 is complete, everyone stays green — too early to judge.
+                    if not r2_complete:
+                        can_most_upsets = True
                     else:
-                        # No more upsets possible — compare final tallies
-                        my_upsets = count_upsets(me_picks)
-                        others_upset_max = max(
-                            count_upsets(pk) for nm, pk in all_rows if nm != bracket_name
-                        ) if len(all_rows) > 1 else 0
-                        can_most_upsets = my_upsets >= others_upset_max
+                        any_upset_possible = any(slot_can_produce_upset(c) for c in range(3, 66))
+                        if any_upset_possible:
+                            my_upset_pot = potential_upsets(me_picks)
+                            others_upset_pot_max = max(
+                                potential_upsets(pk) for nm, pk in all_rows if nm != bracket_name
+                            ) if len(all_rows) > 1 else 0
+                            can_most_upsets = my_upset_pot >= others_upset_pot_max
+                        else:
+                            my_upsets = count_upsets(me_picks)
+                            others_upset_max = max(
+                                count_upsets(pk) for nm, pk in all_rows if nm != bracket_name
+                            ) if len(all_rows) > 1 else 0
+                            can_most_upsets = my_upsets >= others_upset_max
 
                     # ── 5) Tiebreaker ─────────────────────────────────────────
                     champ_played = not is_unplayed(actual_winners[65])
@@ -2665,7 +2796,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 )
                 dna_win_pct         = f"{u['Win %']:.1f}%"
                 dna_top3_pct        = f"{u['Top 3 %']:.1f}%"
-                dna_upsets          = int(u["Upsets"])
+                dna_upsets          = int(u["Upset Correct"])
                 dna_correct         = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and dna_picks[c] == actual_winners[c])
                 dna_played_g        = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]))
                 dna_accuracy_str    = f"{dna_correct/dna_played_g*100:.0f}%" if dna_played_g else "—"
@@ -2798,21 +2929,27 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 _can_sw   = _my_e8 >= _oth_e8 if _e8_done else _my_e8p >= _oth_e8
 
                 # Most Correct
-                _my_cp    = _correct_pot(_me)
-                _oth_cp   = max((_correct_pot(pk) for _, pk in _others), default=0)
-                _can_mc   = _my_cp >= _oth_cp
+                if not r2_complete:
+                    _can_mc = True
+                else:
+                    _my_cp    = _correct_pot(_me)
+                    _oth_cp   = max((_correct_pot(pk) for _, pk in _others), default=0)
+                    _can_mc   = _my_cp >= _oth_cp
 
                 # Most Upsets — green if my potential >= others' potential,
                 # only counting future slots where an upset is still physically possible
-                _any_upset_possible = any(_slot_can_upset(c) for c in range(3, 66))
-                if _any_upset_possible:
-                    _my_up_pot  = _pot_upsets(_me)
-                    _oth_up_pot = max((_pot_upsets(pk) for _, pk in _others), default=0)
-                    _can_mu     = _my_up_pot >= _oth_up_pot
+                if not r2_complete:
+                    _can_mu = True
                 else:
-                    _my_up  = _count_upsets(_me)
-                    _oth_up = max((_count_upsets(pk) for _, pk in _others), default=0)
-                    _can_mu = _my_up >= _oth_up
+                    _any_upset_possible = any(_slot_can_upset(c) for c in range(3, 66))
+                    if _any_upset_possible:
+                        _my_up_pot  = _pot_upsets(_me)
+                        _oth_up_pot = max((_pot_upsets(pk) for _, pk in _others), default=0)
+                        _can_mu     = _my_up_pot >= _oth_up_pot
+                    else:
+                        _my_up  = _count_upsets(_me)
+                        _oth_up = max((_count_upsets(pk) for _, pk in _others), default=0)
+                        _can_mu = _my_up >= _oth_up
 
                 # Tiebreaker
                 if final_score is None:
@@ -2963,33 +3100,82 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             </style>
                         """, unsafe_allow_html=True)
 
-                # Popularity of remaining alive picks
-                alive_picks = [
-                    {"Team": u["raw_picks"][c], "Round": get_round_name(c),
-                     "Pool %": round(slot_pick_counts.get(c, {}).get(u["raw_picks"][c], 0) / max(len(results), 1) * 100, 1)}
+                # Top 10 rarest remaining picks with logos
+                all_remaining = [
+                    {
+                        "Team": u["raw_picks"][c],
+                        "Round": get_round_name(c),
+                        "Count": slot_pick_counts.get(c, {}).get(u["raw_picks"][c], 0),
+                        "Pool %": round(slot_pick_counts.get(c, {}).get(u["raw_picks"][c], 0) / max(len(results), 1) * 100, 1),
+                    }
                     for c in range(3, 66)
-                    if u["raw_picks"][c] in all_alive and is_unplayed(actual_winners[c])
+                    if u["raw_picks"][c] not in {"", "nan", "TBD"}
+                    and is_unplayed(actual_winners[c])
+                    and u["raw_picks"][c] in all_alive
                 ]
-                if alive_picks:
-                    st.markdown("#### Your Remaining Live Picks vs. Pool Popularity")
-                    ap_df = (
-                        pd.DataFrame(alive_picks)
+                if all_remaining:
+                    st.markdown("#### 🤫 Your 10 Rarest Remaining Picks")
+                    rarest_df = (
+                        pd.DataFrame(all_remaining)
                         .drop_duplicates("Team")
-                        .sort_values("Pool %")
+                        .sort_values("Count")
+                        .head(10)
                     )
-                    fig = px.bar(
-                        ap_df, x="Pool %", y="Team", orientation="h",
-                        color="Pool %", color_continuous_scale="Blues",
-                        title="How contrarian are your remaining picks?",
+                    _pool_size = max(len(results), 1)
+                    fig_r = px.bar(
+                        rarest_df, x="Count", y="Team", orientation="h",
+                        title="Fewest others who made the same pick",
+                        labels={"Count": "# Others with this pick", "Team": ""},
+                        custom_data=["Round", "Pool %"],
+                        text="Count",
                     )
-                    fig.update_layout(
-                        dragmode=False,
-                        coloraxis_showscale=False,
-                        xaxis_range=[0, 100],
-                        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                        margin=dict(l=0, r=0, t=40, b=0),
+                    fig_r.update_traces(
+                        marker_color=[
+                            f"rgba({max(20, 60 - int(v/70*40))}, {max(80, 160 - int(v/70*80))}, {max(120, 220 - int(v/70*100))}, 0.85)"
+                            for v in rarest_df["Count"]
+                        ],
+                        texttemplate="<b>%{x} / 70</b>",
+                        textposition="inside",
+                        insidetextanchor="start",
+                        textfont=dict(color="white", size=12, family="Arial Black, Arial, sans-serif"),
+                        hovertemplate="<b>%{y}</b><br>%{x} / 70 others (%{customdata[1]}%)<br>Round: %{customdata[0]}<extra></extra>"
                     )
-                    st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+                    # Add logos inside each bar
+                    _r_images = []
+                    for _ri, (_, _rrow) in enumerate(rarest_df.iterrows()):
+                        _rlogo = espn_logo_url(_rrow["Team"])
+                        if _rlogo:
+                            _rx = max(_rrow["Count"] - 4, 3)
+                            _r_images.append(dict(
+                                source=_rlogo,
+                                xref="x", yref="y",
+                                x=_rx,
+                                y=_ri,
+                                sizex=7,
+                                sizey=0.6,
+                                xanchor="center", yanchor="middle",
+                                layer="above", opacity=0.9,
+                            ))
+                    if _r_images:
+                        fig_r.update_layout(
+                            images=_r_images,
+                            dragmode=False,
+                            xaxis=dict(range=[0, 70], title="# Others with this pick"),
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            margin=dict(l=0, r=0, t=40, b=0),
+                            height=max(280, len(rarest_df) * 32 + 60),
+                            uniformtext=dict(minsize=11, mode="show"),
+                        )
+                    else:
+                        fig_r.update_layout(
+                            dragmode=False,
+                            xaxis=dict(range=[0, 70], title="# Others with this pick"),
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            margin=dict(l=0, r=0, t=40, b=0),
+                            height=max(280, len(rarest_df) * 32 + 60),
+                            uniformtext=dict(minsize=11, mode="show"),
+                        )
+                    st.plotly_chart(fig_r, use_container_width=True, config=PLOTLY_CONFIG)
 
     # ── Tab 3: Fun Stats (group) ──────────────────────────────────────────────
     with tab_fun:
@@ -3329,7 +3515,17 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         .head(20)
                         .reset_index(drop=True)
                     )
-                    region_df["Rank"] = region_df.index + 1
+                    # Assign shared ranks: tied on both Pts AND Correct share a rank
+                    _rank = 1
+                    for _ri in range(len(region_df)):
+                        if _ri > 0 and (
+                            region_df.at[_ri, "Pts"] == region_df.at[_ri-1, "Pts"] and
+                            region_df.at[_ri, "Correct"] == region_df.at[_ri-1, "Correct"]
+                        ):
+                            region_df.at[_ri, "Rank"] = region_df.at[_ri-1, "Rank"]
+                        else:
+                            region_df.at[_ri, "Rank"] = _rank
+                        _rank += 1
 
                     with reg_cols[j]:
                         st.markdown(f"### {region}")
