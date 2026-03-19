@@ -1551,13 +1551,13 @@ try:
                         if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}
                     ]
                     if _is_mobile:
-                        # 2x2 grid — explicit flex rows to prevent vertical stacking
+                        # 2x2 grid — centered within cell
                         _row1 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive, block=True) for t in _ff_teams[:2])
                         _row2 = "".join(_logo_tag(t, _ff_logo_size, t in truly_alive, block=True) for t in _ff_teams[2:])
                         ff_logos = (
-                            f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;line-height:0;">'
-                            f'<div style="display:flex;flex-direction:row;gap:2px;">{_row1}</div>'
-                            f'<div style="display:flex;flex-direction:row;gap:2px;">{_row2}</div>'
+                            f'<div style="display:inline-flex;flex-direction:column;align-items:center;gap:2px;line-height:0;">'
+                            f'<div style="display:flex;flex-direction:row;gap:2px;justify-content:center;">{_row1}</div>'
+                            f'<div style="display:flex;flex-direction:row;gap:2px;justify-content:center;">{_row2}</div>'
                             f'</div>'
                         )
                     else:
@@ -1602,7 +1602,7 @@ try:
                         lucky_html = "—"
 
                     correct = _correct_counts.get(nm, 0)
-                    _ff_td_style = f'padding:4px 2px;text-align:center;overflow:visible;'
+                    _ff_td_style = 'padding:4px 2px;text-align:center;overflow:visible;'
                     trs += (
                         f'<tr{row_style}>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{int(crow["Rank"])}</td>'
