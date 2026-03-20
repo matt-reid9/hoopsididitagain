@@ -3433,10 +3433,10 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     "Rank":           int(fd["Current Rank"]),
                     "Score":          int(fd["Current Score"]),
                     "Potential":      int(fd["Potential Score"]),
-                    "Correct":        int(r.get("Upset Correct", 0) + sum(
+                    "Correct":        sum(
                         1 for c in range(3, 66)
                         if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
-                    )),
+                    ),
                     "Upsets":         int(r.get("Upset Correct", 0)),
                     "Win %":          f"{fd['Win %']:.1f}%",
                     "Potential Status": fd["Potential Status"],
