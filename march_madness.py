@@ -1617,28 +1617,24 @@ try:
                         f'{_lucky_td}'
                         f'</tr>'
                     )
-                _lucky_th = '<th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>' if not _is_mobile else ""
-                st.markdown(f"""
-                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
-                <table style="border-collapse:collapse;width:100%;font-size:12px;">
-                  <thead>
-                    <tr style="background:#1e1e2e;color:#fff;">
-                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">#</th>
-                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Name</th>
-                      <th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>
-                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>
-                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">😤</th>
-                      <th style="padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>
-                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Champion</th>
-                      {_lucky_th}
-                    </tr>
-                  </thead>
-                  <tbody style="color:#fff;">
-                    {trs}
-                  </tbody>
-                </table>
-                </div>
-                """, unsafe_allow_html=True)
+                _lucky_th = '' if _is_mobile else '<th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>'
+                st.markdown(
+                    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:12px;">'
+                    '<thead><tr style="background:#1e1e2e;color:#fff;">'
+                    '<th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">#</th>'
+                    '<th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Name</th>'
+                    '<th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>'
+                    '<th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>'
+                    '<th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">😤</th>'
+                    '<th style="padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>'
+                    '<th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Champion</th>'
+                    + _lucky_th +
+                    '</tr></thead>'
+                    f'<tbody style="color:#fff;">{trs}</tbody>'
+                    '</table></div>',
+                    unsafe_allow_html=True
+                )
                 st.caption("💡 Tap a row in Potential view to open a Head-to-Head comparison")
 
             else:
