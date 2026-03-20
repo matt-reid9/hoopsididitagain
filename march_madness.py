@@ -1372,6 +1372,7 @@ try:
         "bonus-pool":      ("bonus", "bonus-pool"),
         "correct-picks":   ("bonus", "correct-picks"),
         "hall-of-champions":    ("hall-of-champs", None),
+        "classic-rivalries":    ("fun-stats", "classic-rivalries"),
         "current-standings":    ("standings", "current"),
         "potential-standings":  ("standings", "potential"),
     }
@@ -3160,12 +3161,15 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         .sort_values("Count")
                         .head(10)
                     )
+                    # Add round abbreviation to team label for y-axis
+                    rarest_df["Label"] = rarest_df["Team"] + " (" + rarest_df["Round"] + ")"
                     _pool_size = max(len(results), 1)
+                    _first_name_dna = dna_select.split()[0] if dna_select and dna_select != "— select —" else "Your"
                     fig_r = px.bar(
-                        rarest_df, x="Count", y="Team", orientation="h",
-                        title="Fewest others who made the same pick",
-                        labels={"Count": "# Others with this pick", "Team": ""},
-                        custom_data=["Round", "Pool %"],
+                        rarest_df, x="Count", y="Label", orientation="h",
+                        title=f"The games that might decide {_first_name_dna}'s fate",
+                        labels={"Count": "# Others with this pick", "Label": ""},
+                        custom_data=["Round", "Pool %", "Team"],
                         text="Count",
                     )
                     fig_r.update_traces(
@@ -3173,11 +3177,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             f"rgba({max(20, 60 - int(v/70*40))}, {max(80, 160 - int(v/70*80))}, {max(120, 220 - int(v/70*100))}, 0.85)"
                             for v in rarest_df["Count"]
                         ],
-                        texttemplate="<b>%{x} / 70</b>",
+                        texttemplate="<b>%{x}</b> / 70",
                         textposition="inside",
                         insidetextanchor="start",
                         textfont=dict(color="white", size=12, family="Arial Black, Arial, sans-serif"),
-                        hovertemplate="<b>%{y}</b><br>%{x} / 70 others (%{customdata[1]}%)<br>Round: %{customdata[0]}<extra></extra>"
+                        hovertemplate="<b>%{customdata[2]}</b> (%{customdata[0]})<br>%{x} / 70 others (%{customdata[1]}%)<extra></extra>"
                     )
                     # Add logos inside each bar
                     _r_images = []
@@ -3219,10 +3223,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     # ── Tab 3: Fun Stats (group) ──────────────────────────────────────────────
     with tab_fun:
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
-        _fun_cols = st.columns(2)
+        _fun_cols = st.columns(3)
         _fun_options = [
-            ("bracket-busters", "💥 Bracket Busters"),
-            ("cinderella",      "🏃 Cinderella Stories"),
+            ("bracket-busters",   "💥 Bracket Busters"),
+            ("cinderella",        "🏃 Cinderella Stories"),
+            ("classic-rivalries", "⚔️ Classic Rivalries"),
         ]
         for _i, (_slug, _label) in enumerate(_fun_options):
             _active = _sub_fun == _slug
@@ -3394,6 +3399,112 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             )
                         st.divider()
 
+        elif _sub_fun == "classic-rivalries":
+            st.subheader("⚔️ Classic Rivalries")
+
+            RIVALRIES = [
+                {
+                    "title": "🤺 Andy vs Dave",
+                    "names": ["Andy Yardley", "Dave Sabour"],
+                },
+                {
+                    "title": "🎭 Duel of the Dylans",
+                    "names": ["Dylan Driver", "Dylan Grassl", "Dylan Levy"],
+                },
+                {
+                    "title": "🐣 Rookies",
+                    "names": ["Diana Lower", "Kellie Knight", "Marise Gaughan", "Saoirse Johnston-Dick", "Sonia Raposo", "Walter Czaya"],
+                },
+                {
+                    "title": "🏆 Past Champions",
+                    "names": ["Alana Davis", "Jaymi Lynne", "Sarah Keo", "Tenley McCladdie", "Lauren Froman", "Armando Zamudio", "James Sawaya", "Priya Gupta"],
+                },
+                {
+                    "title": "👨‍👩‍👧‍👦 Reid Family Pool",
+                    "names": ["Debbie Reid", "Matt Reid", "Griffin Reid", "Jack Reid", "Elizabeth Hartmann", "Taylor Chacon"],
+                },
+                {
+                    "title": "🎖️ 8+ Year Veterans",
+                    "names": ["Alana Davis", "Laura Rubin", "Jared Goldstein", "Molly Davis", "Jaymi Lynne", "Greg Murphy", "James Sawaya", "Matt Reid", "Dylan Grassl", "Sam Bahre", "Griffin Reid", "Elias Luna", "Sarah Keo", "Tony Astacio", "Will Hillebrand", "Amanda Kosack", "Siobhan Sargent", "Priya Gupta", "Sean McCoy", "Dylan Driver", "Robert Dick", "Andrea Racine", "Andy Yardley", "Dave Sabour", "Anthony Snelling", "Sara Ruggiero", "Megan Gorman", "Christian Palacios", "Heidi Bruce", "Romana Guillotte", "Sarah Simonds", "McKinley Hancock", "Alex Bahre", "Pete Mullin", "Nicki Doyamis"],
+                },
+            ]
+
+            # Build a lookup of stats per name from final_df and results
+            _stats_lookup = {}
+            for r in results:
+                nm = r["Name"]
+                fd_row = final_df[final_df["Name"] == nm]
+                if fd_row.empty:
+                    continue
+                fd = fd_row.iloc[0]
+                _stats_lookup[nm] = {
+                    "Rank":           int(fd["Current Rank"]),
+                    "Score":          int(fd["Current Score"]),
+                    "Potential":      int(fd["Potential Score"]),
+                    "Correct":        int(r.get("Upset Correct", 0) + sum(
+                        1 for c in range(3, 66)
+                        if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
+                    )),
+                    "Upsets":         int(r.get("Upset Correct", 0)),
+                    "Win %":          f"{fd['Win %']:.1f}%",
+                    "Potential Status": fd["Potential Status"],
+                    "Champion Pick":  r["raw_picks"][65] if len(r["raw_picks"]) > 65 and r["raw_picks"][65] not in {"", "nan", "TBD"} else "TBD",
+                }
+
+            for rivalry in RIVALRIES:
+                st.markdown(f"### {rivalry['title']}")
+                members = [nm for nm in rivalry["names"] if nm in _stats_lookup]
+                missing = [nm for nm in rivalry["names"] if nm not in _stats_lookup]
+                if missing:
+                    st.caption(f"Not in pool this year: {', '.join(missing)}")
+                if not members:
+                    st.info("No participants from this group are in the pool this year.")
+                    st.markdown("---")
+                    continue
+
+                # Build comparison table — sorted by rank
+                members_sorted = sorted(members, key=lambda n: _stats_lookup[n]["Rank"])
+                trs_r = ""
+                for nm in members_sorted:
+                    s = _stats_lookup[nm]
+                    is_user = user_name and nm == user_name
+                    row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                    champ_logo = espn_logo_url(s["Champion Pick"])
+                    champ_td = (
+                        f'<img src="{champ_logo}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display:none">'
+                        if champ_logo else ""
+                    ) + s["Champion Pick"]
+                    trs_r += (
+                        f'<tr{row_style}>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Rank"]}</td>'
+                        f'<td style="padding:5px 8px;white-space:nowrap;font-weight:600;">{nm}</td>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Score"]}</td>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Potential"]}</td>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Correct"]}</td>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Win %"]}</td>'
+                        f'<td style="text-align:center;padding:5px 6px;">{s["Potential Status"]}</td>'
+                        f'<td style="padding:5px 8px;white-space:nowrap;">{champ_td}</td>'
+                        f'</tr>'
+                    )
+                st.markdown(
+                    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                    '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Rank</th>'
+                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Name</th>'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Score</th>'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Potential</th>'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">✓ Picks</th>'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Win %</th>'
+                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Potential Status</th>'
+                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Champion</th>'
+                    '</tr></thead>'
+                    f'<tbody style="color:#fff;">{trs_r}</tbody>'
+                    '</table></div>',
+                    unsafe_allow_html=True
+                )
+                st.markdown("---")
+
     # ── Tab 4: Bonus Games (group) ────────────────────────────────────────────
     with tab_bonus:
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
@@ -3509,11 +3620,17 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                 f'<span style="color:#e8eaf0; font-weight:600;">{p}</span>'
                                 for p in participants
                             )
+                            _lt_logo_url = espn_logo_url(team)
+                            _lt_logo = (
+                                f'<img src="{_lt_logo_url}" style="width:32px;height:32px;'
+                                f'object-fit:contain;vertical-align:middle;margin-right:8px;" '
+                                f'onerror="this.style.display=&quot;none&quot;">'
+                            ) if _lt_logo_url else ""
                             st.markdown(
                                 f"<div style='border:2px solid {border_color}; background:{bg_color}; "
                                 f"border-radius:10px; padding:14px 16px; margin-bottom:12px;'>"
-                                f"<div style='font-size:18px; font-weight:800; color:{border_color};'>"
-                                f"#{seed_map.get(team, '?')} {team}</div>"
+                                f"<div style='font-size:18px; font-weight:800; color:{border_color}; display:flex; align-items:center;'>"
+                                f"{_lt_logo}#{seed_map.get(team, '?')} {team}</div>"
                                 f"<div style='font-size:13px; margin-top:6px;'>{participants_html}</div>"
                                 f"</div>",
                                 unsafe_allow_html=True,
