@@ -3403,39 +3403,23 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("⚔️ Classic Rivalries")
 
             RIVALRIES = [
-                {
-                    "title": "🤺 Andy vs Dave",
-                    "names": ["Andy Yardley", "Dave Sabour"],
-                },
-                {
-                    "title": "🎭 Duel of the Dylans",
-                    "names": ["Dylan Driver", "Dylan Grassl", "Dylan Levy"],
-                },
-                {
-                    "title": "🐣 Rookies",
-                    "names": ["Diana Lower", "Kellie Knight", "Marise Gaughan", "Saoirse Johnston-Dick", "Sonia Raposo", "Walter Czaya"],
-                },
-                {
-                    "title": "🏆 Past Champions",
-                    "names": ["Alana Davis", "Jaymi Lynne", "Sarah Keo", "Tenley McCladdie", "Lauren Froman", "Armando Zamudio", "James Sawaya", "Priya Gupta"],
-                },
-                {
-                    "title": "👨‍👩‍👧‍👦 Reid Family Pool",
-                    "names": ["Debbie Reid", "Matt Reid", "Griffin Reid", "Jack Reid", "Elizabeth Hartmann", "Taylor Chacon"],
-                },
-                {
-                    "title": "⛰️ Mountain Folk",
-                    "names": ["Daniel Wright", "Dave Sabour", "Diana Lower", "Elizabeth Hartmann", "Heidi Bruce", "Hunter Phillips", "Isaiah Erichsen", "James Sawaya", "Jeff Kooring", "Kelyn Ikegami", "McKinley Hancock", "Robert Dick", "Sarah Keo", "Siobhan Sargent", "Sonia Raposo", "Andrea Racine", "Saoirse Johnston-Dick"],
-                },
-                {
-                    "title": "🏘️ Boltonites",
-                    "names": ["Anthony Snelling", "Brendan Tierney", "Brian Moske", "Bryce Carlson", "Debbie Reid", "Dylan Driver", "Greg Murphy", "Griffin Reid", "Jack Reid", "Karen Tierney", "Matt Reid", "Sam Bahre", "Walter Czaya", "Will Hillebrand"],
-                },
-                {
-                    "title": "🎖️ 8+ Year Veterans",
-                    "names": ["Alana Davis", "Laura Rubin", "Jared Goldstein", "Molly Davis", "Jaymi Lynne", "Greg Murphy", "James Sawaya", "Matt Reid", "Dylan Grassl", "Sam Bahre", "Griffin Reid", "Elias Luna", "Sarah Keo", "Tony Astacio", "Will Hillebrand", "Amanda Kosack", "Siobhan Sargent", "Priya Gupta", "Sean McCoy", "Dylan Driver", "Robert Dick", "Andrea Racine", "Andy Yardley", "Dave Sabour", "Anthony Snelling", "Sara Ruggiero", "Megan Gorman", "Christian Palacios", "Heidi Bruce", "Romana Guillotte", "Sarah Simonds", "McKinley Hancock", "Alex Bahre", "Pete Mullin", "Nicki Doyamis"],
-                },
+                {"slug": "andy-vs-dave",    "title": "🤺 Andy vs Dave",        "names": ["Andy Yardley", "Dave Sabour"]},
+                {"slug": "duel-of-dylans",  "title": "🎭 Duel of the Dylans",  "names": ["Dylan Driver", "Dylan Grassl", "Dylan Levy"]},
+                {"slug": "rookies",         "title": "🐣 Rookies",             "names": ["Diana Lower", "Kellie Knight", "Marise Gaughan", "Saoirse Johnston-Dick", "Sonia Raposo", "Walter Czaya"]},
+                {"slug": "past-champions",  "title": "🏆 Past Champions",      "names": ["Alana Davis", "Jaymi Lynne", "Sarah Keo", "Tenley McCladdie", "Lauren Froman", "Armando Zamudio", "James Sawaya", "Priya Gupta"]},
+                {"slug": "reid-family",     "title": "👨‍👩‍👧‍👦 Reid Family Pool", "names": ["Debbie Reid", "Matt Reid", "Griffin Reid", "Jack Reid", "Elizabeth Hartmann", "Taylor Chacon"]},
+                {"slug": "mountain-folk",   "title": "⛰️ Mountain Folk",       "names": ["Daniel Wright", "Dave Sabour", "Diana Lower", "Elizabeth Hartmann", "Heidi Bruce", "Hunter Phillips", "Isaiah Erichsen", "James Sawaya", "Jeff Kooring", "Kelyn Ikegami", "McKinley Hancock", "Robert Dick", "Sarah Keo", "Siobhan Sargent", "Sonia Raposo", "Andrea Racine", "Saoirse Johnston-Dick"]},
+                {"slug": "boltonites",      "title": "🏘️ Boltonites",           "names": ["Anthony Snelling", "Brendan Tierney", "Brian Moske", "Bryce Carlson", "Debbie Reid", "Dylan Driver", "Greg Murphy", "Griffin Reid", "Jack Reid", "Karen Tierney", "Matt Reid", "Sam Bahre", "Walter Czaya", "Will Hillebrand"]},
+                {"slug": "veterans",        "title": "🎖️ 8+ Year Veterans",    "names": ["Alana Davis", "Laura Rubin", "Jared Goldstein", "Molly Davis", "Jaymi Lynne", "Greg Murphy", "James Sawaya", "Matt Reid", "Dylan Grassl", "Sam Bahre", "Griffin Reid", "Elias Luna", "Sarah Keo", "Tony Astacio", "Will Hillebrand", "Amanda Kosack", "Siobhan Sargent", "Priya Gupta", "Sean McCoy", "Dylan Driver", "Robert Dick", "Andrea Racine", "Andy Yardley", "Dave Sabour", "Anthony Snelling", "Sara Ruggiero", "Megan Gorman", "Christian Palacios", "Heidi Bruce", "Romana Guillotte", "Sarah Simonds", "McKinley Hancock", "Alex Bahre", "Pete Mullin", "Nicki Doyamis"]},
             ]
+
+            # Read rivalry slug from query params (e.g. ?rivalry=veterans)
+            _rivalry_slug = st.query_params.get("rivalry", "")
+            if _rivalry_slug:
+                try:
+                    st.query_params.pop("rivalry", None)
+                except Exception:
+                    pass
 
             # Build a lookup of stats per name from final_df and results
             _stats_lookup = {}
@@ -3460,6 +3444,24 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 }
 
             for rivalry in RIVALRIES:
+                _r_slug = rivalry.get("slug", "")
+                # Inject anchor div for deep-linking
+                st.markdown(f'<div id="rivalry-{_r_slug}"></div>', unsafe_allow_html=True)
+                # Auto-scroll if this is the target rivalry
+                if _rivalry_slug and _r_slug == _rivalry_slug:
+                    _components.html(
+                        f"""<script>
+                        (function() {{
+                            function scrollToRivalry() {{
+                                var el = window.parent.document.getElementById('rivalry-{_r_slug}');
+                                if (el) {{ el.scrollIntoView({{behavior:'smooth', block:'start'}}); }}
+                                else {{ setTimeout(scrollToRivalry, 150); }}
+                            }}
+                            setTimeout(scrollToRivalry, 400);
+                        }})();
+                        </script>""",
+                        height=0,
+                    )
                 st.markdown(f"### {rivalry['title']}")
                 members = [nm for nm in rivalry["names"] if nm in _stats_lookup]
                 missing = [nm for nm in rivalry["names"] if nm not in _stats_lookup]
