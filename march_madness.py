@@ -1602,18 +1602,22 @@ try:
                         lucky_html = "—"
 
                     correct = _correct_counts.get(nm, 0)
+                    upset = next((r["Upset Correct"] for r in results if r["Name"] == nm), 0)
                     _ff_td_style = 'padding:4px 2px;text-align:center;overflow:visible;'
+                    _lucky_td = f'<td style="padding:4px 6px;text-align:center;">{lucky_html}</td>' if not _is_mobile else ""
                     trs += (
                         f'<tr{row_style}>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{int(crow["Rank"])}</td>'
                         f'<td style="padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:{"70px" if _is_mobile else "120px"};">{disp_nm}</td>'
                         f'<td style="width:36px;text-align:center;padding:4px 2px;">{int(crow["Current Score"])}</td>'
                         f'<td style="width:28px;text-align:center;padding:4px 2px;">{correct}</td>'
+                        f'<td style="width:28px;text-align:center;padding:4px 2px;">{upset}</td>'
                         f'<td style="{_ff_td_style}">{ff_logos}</td>'
                         f'<td style="padding:4px 6px;text-align:center;">{champ_html}</td>'
-                        f'<td style="padding:4px 6px;text-align:center;">{lucky_html}</td>'
+                        f'{_lucky_td}'
                         f'</tr>'
                     )
+                _lucky_th = '<th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>' if not _is_mobile else ""
                 st.markdown(f"""
                 <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
                 <table style="border-collapse:collapse;width:100%;font-size:12px;">
@@ -1623,9 +1627,10 @@ try:
                       <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Name</th>
                       <th style="width:36px;padding:5px 2px;text-align:center;border:1px solid #313244;">Pts</th>
                       <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">✓</th>
+                      <th style="width:28px;padding:5px 2px;text-align:center;border:1px solid #313244;">😤</th>
                       <th style="padding:5px 4px;text-align:center;border:1px solid #313244;">F4</th>
                       <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Champion</th>
-                      <th style="padding:5px 6px;text-align:center;border:1px solid #313244;">Lucky Team</th>
+                      {_lucky_th}
                     </tr>
                   </thead>
                   <tbody style="color:#fff;">
