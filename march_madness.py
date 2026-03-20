@@ -3424,6 +3424,14 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     "names": ["Debbie Reid", "Matt Reid", "Griffin Reid", "Jack Reid", "Elizabeth Hartmann", "Taylor Chacon"],
                 },
                 {
+                    "title": "⛰️ Mountain Folk",
+                    "names": ["Daniel Wright", "Dave Sabour", "Diana Lower", "Elizabeth Hartmann", "Heidi Bruce", "Hunter Phillips", "Isaiah Erichsen", "James Sawaya", "Jeff Kooring", "Kelyn Ikegami", "McKinley Hancock", "Robert Dick", "Sarah Keo", "Siobhan Sargent", "Sonia Raposo", "Andrea Racine", "Saoirse Johnston-Dick"],
+                },
+                {
+                    "title": "🏘️ Boltonites",
+                    "names": ["Anthony Snelling", "Brendan Tierney", "Brian Moske", "Bryce Carlson", "Debbie Reid", "Dylan Driver", "Greg Murphy", "Griffin Reid", "Jack Reid", "Karen Tierney", "Matt Reid", "Sam Bahre", "Walter Czaya", "Will Hillebrand"],
+                },
+                {
                     "title": "🎖️ 8+ Year Veterans",
                     "names": ["Alana Davis", "Laura Rubin", "Jared Goldstein", "Molly Davis", "Jaymi Lynne", "Greg Murphy", "James Sawaya", "Matt Reid", "Dylan Grassl", "Sam Bahre", "Griffin Reid", "Elias Luna", "Sarah Keo", "Tony Astacio", "Will Hillebrand", "Amanda Kosack", "Siobhan Sargent", "Priya Gupta", "Sean McCoy", "Dylan Driver", "Robert Dick", "Andrea Racine", "Andy Yardley", "Dave Sabour", "Anthony Snelling", "Sara Ruggiero", "Megan Gorman", "Christian Palacios", "Heidi Bruce", "Romana Guillotte", "Sarah Simonds", "McKinley Hancock", "Alex Bahre", "Pete Mullin", "Nicki Doyamis"],
                 },
