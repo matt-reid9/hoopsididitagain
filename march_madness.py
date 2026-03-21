@@ -1090,9 +1090,9 @@ try:
 
     # ── Build slot_to_region ──────────────────────────────────────────────────
     # R1 is split into 4 equal groups of 8 games (cols 3-34):
-    #   West:    cols 3-10
-    #   East:    cols 11-18
-    #   South:   cols 19-26
+    #   East:    cols 3-10
+    #   South:   cols 11-18
+    #   West:    cols 19-26
     #   Midwest: cols 27-34
     # R2 (cols 35-50): pairs of R1 slots feed each R2 slot
     # S16 (cols 51-58): pairs of R2 slots feed each S16 slot
@@ -1100,9 +1100,9 @@ try:
     slot_to_region: dict[int, str] = {}
 
     r1_region_ranges = [
-        ("West",    3,  10),
-        ("East",    11, 18),
-        ("South",   19, 26),
+        ("East",    3,  10),
+        ("South",   11, 18),
+        ("West",    19, 26),
         ("Midwest", 27, 34),
     ]
     for region, start, end in r1_region_ranges:
@@ -2205,12 +2205,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     )
 
                     # Column → region mapping for the 2025 bracket picks sheet.
-                    # Cols 3-10=West, 11-18=East, 19-26=South, 27-34=Midwest.
-                    # FF: 63 (West/East side), 64 (South/Midwest side)  Champ: 65
+                    # Cols 3-10=East, 11-18=South, 19-26=West, 27-34=Midwest.
+                    # FF: 63 (East/South side), 64 (West/Midwest side)  Champ: 65
                     RCOLS = {
-                        "West":    {"r1": list(range(3,11)),  "r2": list(range(35,39)), "s16":[51,52], "e8":[59]},
-                        "East":    {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
-                        "South":   {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
+                        "East":    {"r1": list(range(3,11)),  "r2": list(range(35,39)), "s16":[51,52], "e8":[59]},
+                        "South":   {"r1": list(range(11,19)), "r2": list(range(39,43)), "s16":[53,54], "e8":[60]},
+                        "West":    {"r1": list(range(19,27)), "r2": list(range(43,47)), "s16":[55,56], "e8":[61]},
                         "Midwest": {"r1": list(range(27,35)), "r2": list(range(47,51)), "s16":[57,58], "e8":[62]},
                     }
 
@@ -2434,9 +2434,9 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     # East: bottom-left, flowing left→center (no mirror)
                     # South: top-right, flowing right→center (mirror)
                     # Midwest: bottom-right, flowing right→center (mirror)
-                    west_h    = build_region("WEST",    RCOLS["West"])
-                    east_h    = build_region("EAST",    RCOLS["East"])
-                    south_h   = build_region("SOUTH",   RCOLS["South"],   mirror=True)
+                    west_h    = build_region("EAST",    RCOLS["East"])
+                    east_h    = build_region("SOUTH",   RCOLS["South"])
+                    south_h   = build_region("WEST",    RCOLS["West"],    mirror=True)
                     midwest_h = build_region("MIDWEST", RCOLS["Midwest"], mirror=True)
                     finals_h  = build_finals()
 
@@ -3772,7 +3772,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("🗺️ Regional Breakdown — Top 20 by Region")
             st.caption("Points accumulated from each region's games (First Round through Elite 8)")
 
-            regions = ["South", "East", "Midwest", "West"]
+            regions = ["East", "West", "South", "Midwest"]
 
             for i in range(0, len(regions), 2):
                 reg_cols = st.columns(2)
