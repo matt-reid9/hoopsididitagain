@@ -3606,12 +3606,15 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             pickers_html += f'<span style="color:#d1d5db;">{p}</span>, '
                     pickers_html = pickers_html.rstrip(", ")
 
+                    seed = seed_map.get(team, "")
+                    seed_str = f"({seed}) " if seed else ""
+
                     st.markdown(
                         f'<div style="border:1px solid {border_color};background:{bg_color};'
                         f'border-radius:12px;padding:12px 16px;margin-bottom:10px;">'
                         f'<div style="display:flex;align-items:center;margin-bottom:6px;">'
                         f'{logo_html}'
-                        f'<span style="font-size:17px;font-weight:700;color:#fff;">{team}{result_badge}</span>'
+                        f'<span style="font-size:17px;font-weight:700;color:#fff;">{seed_str}{team}{result_badge}</span>'
                         f'<span style="margin-left:auto;background:#374151;border-radius:20px;'
                         f'padding:3px 10px;font-size:13px;color:#9ca3af;font-weight:600;">'
                         f'{count} pick{"s" if count != 1 else ""}</span>'
