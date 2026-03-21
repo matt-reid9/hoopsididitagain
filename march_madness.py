@@ -1417,6 +1417,7 @@ try:
         "correct-picks":   ("bonus", "correct-picks"),
         "hall-of-champions":    ("hall-of-champs", None),
         "classic-rivalries":    ("fun-stats", "classic-rivalries"),
+        "champion-picks":      ("fun-stats", "champion-picks"),
         "current-standings":    ("standings", "current"),
         "potential-standings":  ("standings", "potential"),
     }
@@ -3267,17 +3268,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     # ── Tab 3: Fun Stats (group) ──────────────────────────────────────────────
     with tab_fun:
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
-        _fun_cols = st.columns(3)
         _fun_options = [
             ("bracket-busters",   "💥 Bracket Busters"),
             ("cinderella",        "🏃 Cinderella Stories"),
             ("classic-rivalries", "⚔️ Classic Rivalries"),
+            ("champion-picks",    "🏆 Champion Picks"),
         ]
+        _fun_row1 = st.columns(3)
+        _fun_row2 = st.columns(1)
         for _i, (_slug, _label) in enumerate(_fun_options):
             _active = _sub_fun == _slug
-            if _fun_cols[_i].button(_label, key=f"fun_{_slug}",
-                                     use_container_width=True,
-                                     type="primary" if _active else "secondary"):
+            _fcol = _fun_row1[_i] if _i < 3 else _fun_row2[0]
+            if _fcol.button(_label, key=f"fun_{_slug}",
+                            use_container_width=True,
+                            type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_fun-stats"] = _slug
                 st.rerun()
         st.divider()
@@ -3558,6 +3562,64 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     unsafe_allow_html=True
                 )
                 st.markdown("---")
+
+        elif _sub_fun == "champion-picks":
+            st.subheader("🏆 Champion Picks")
+            st.caption("Every team chosen as champion, and who picked them")
+
+            # Build champion pick → list of names
+            champ_picks: dict[str, list[str]] = {}
+            for r in results:
+                pick = r["raw_picks"][65] if len(r["raw_picks"]) > 65 else ""
+                if pick and pick not in {"", "nan", "TBD"}:
+                    champ_picks.setdefault(pick, []).append(r["Name"])
+
+            if not champ_picks:
+                st.info("No champion picks found yet.")
+            else:
+                # Sort by most popular first
+                sorted_picks = sorted(champ_picks.items(), key=lambda x: len(x[1]), reverse=True)
+                actual_champ = actual_winners[65] if len(actual_winners) > 65 and not is_unplayed(actual_winners[65]) else None
+
+                for team, pickers in sorted_picks:
+                    count = len(pickers)
+                    logo_url = espn_logo_url(team)
+                    is_correct = team == actual_champ
+                    is_eliminated = team not in truly_alive and not is_correct
+                    border_color = "#16a34a" if is_correct else ("#ef4444" if is_eliminated else "#334155")
+                    bg_color = "#052e16" if is_correct else ("#2d0a0a" if is_eliminated else "#1e1e2e")
+                    name_color = "#f5c518"
+
+                    logo_html = (
+                        f'<img src="{logo_url}" style="width:36px;height:36px;object-fit:contain;'
+                        f'vertical-align:middle;margin-right:10px;{"opacity:0.4;" if is_eliminated else ""}">'
+                    ) if logo_url else ""
+
+                    result_badge = " ✅" if is_correct else (" ❌" if is_eliminated else "")
+
+                    # Format picker names — highlight current user
+                    pickers_html = ""
+                    for p in sorted(pickers):
+                        if user_name and p == user_name:
+                            pickers_html += f'<span style="color:#f5c518;font-weight:700;">{p}</span>, '
+                        else:
+                            pickers_html += f'<span style="color:#d1d5db;">{p}</span>, '
+                    pickers_html = pickers_html.rstrip(", ")
+
+                    st.markdown(
+                        f'<div style="border:1px solid {border_color};background:{bg_color};'
+                        f'border-radius:12px;padding:12px 16px;margin-bottom:10px;">'
+                        f'<div style="display:flex;align-items:center;margin-bottom:6px;">'
+                        f'{logo_html}'
+                        f'<span style="font-size:17px;font-weight:700;color:#fff;">{team}{result_badge}</span>'
+                        f'<span style="margin-left:auto;background:#374151;border-radius:20px;'
+                        f'padding:3px 10px;font-size:13px;color:#9ca3af;font-weight:600;">'
+                        f'{count} pick{"s" if count != 1 else ""}</span>'
+                        f'</div>'
+                        f'<div style="font-size:12px;line-height:1.8;">{pickers_html}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
     # ── Tab 4: Bonus Games (group) ────────────────────────────────────────────
     with tab_bonus:
