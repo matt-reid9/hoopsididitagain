@@ -1228,14 +1228,58 @@ try:
         else:
             r["Potential Status"] = "🥉 Top 3"
 
-    final_df = (
-        pd.DataFrame(results)
-        .sort_values("Current Score", ascending=False)
-        .reset_index(drop=True)
-    )
-    final_df = final_df[final_df["Name"].notna() & (final_df["Name"].str.strip() != "") & (final_df["Name"].str.lower() != "nan")]
-    final_df = final_df.reset_index(drop=True)
-    final_df["Current Rank"] = range(1, len(final_df) + 1)
+    _champ_complete = not is_unplayed(actual_winners[65]) if len(actual_winners) > 65 else False
+
+    # Build tiebreaker diff for each participant (absolute difference from final score)
+    # Only used for ranking when championship is complete
+    def _tb_diff(name):
+        if final_score is None:
+            return 999999
+        guess = tiebreaker_guesses.get(name)
+        return abs(guess - final_score) if guess is not None else 999999
+
+    if _champ_complete:
+        # Sort by score desc, then tiebreaker diff asc
+        final_df = (
+            pd.DataFrame(results)
+            .sort_values("Current Score", ascending=False)
+            .reset_index(drop=True)
+        )
+        final_df = final_df[final_df["Name"].notna() & (final_df["Name"].str.strip() != "") & (final_df["Name"].str.lower() != "nan")]
+        final_df["_tb_diff"] = final_df["Name"].apply(_tb_diff)
+        final_df = final_df.sort_values(["Current Score", "_tb_diff"], ascending=[False, True]).reset_index(drop=True)
+        # Assign ranks: tied on both score AND tiebreaker share a rank
+        ranks = []
+        rank = 1
+        for i in range(len(final_df)):
+            if i > 0 and (
+                final_df.at[i, "Current Score"] == final_df.at[i-1, "Current Score"] and
+                final_df.at[i, "_tb_diff"] == final_df.at[i-1, "_tb_diff"]
+            ):
+                ranks.append(ranks[-1])
+            else:
+                rank = i + 1
+                ranks.append(rank)
+        final_df["Current Rank"] = ranks
+        final_df = final_df.drop(columns=["_tb_diff"])
+    else:
+        # Sort by score desc only; ties share a rank
+        final_df = (
+            pd.DataFrame(results)
+            .sort_values("Current Score", ascending=False)
+            .reset_index(drop=True)
+        )
+        final_df = final_df[final_df["Name"].notna() & (final_df["Name"].str.strip() != "") & (final_df["Name"].str.lower() != "nan")]
+        final_df = final_df.reset_index(drop=True)
+        ranks = []
+        rank = 1
+        for i in range(len(final_df)):
+            if i > 0 and final_df.at[i, "Current Score"] == final_df.at[i-1, "Current Score"]:
+                ranks.append(ranks[-1])
+            else:
+                rank = i + 1
+                ranks.append(rank)
+        final_df["Current Rank"] = ranks
     name_opts = sorted(final_df["Name"].tolist())
 
     # Try to restore user from cookie (persists across sessions)
