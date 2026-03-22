@@ -345,37 +345,54 @@ def load_all_data():
         r1_team_to_slot[ta] = col
         r1_team_to_slot[tb] = col
 
+    # Build a mapping from team → their slot in each round (for specific game lookup)
+    # For rounds beyond R1, we derive which slot a team would play in from the winners_row
+    def _team_next_slot(team, next_round_idx):
+        """Find the slot in next_round_idx where this team should appear."""
+        r_start, r_end = round_ranges[next_round_idx]
+        for c in range(r_start, r_end):
+            # The team's next slot is one whose parents include the slot they just won
+            # Simpler: check if any already-played slot in the next round has this team
+            # or if any unplayed slot in the next round could contain this team
+            pass
+        # Use round_winners to find if there's a slot we can check
+        # For partial rounds: find the child slot of the slot where team won
+        return None
+
     truly_alive: set[str] = set()
     for team in all_starting:
         # Find the latest round this team won
         last_won_round = -1
-        for i, winners in enumerate(round_winners):
-            if team in winners:
-                last_won_round = i
+        last_won_slot = -1
+        for i, (r_start, r_end) in enumerate(round_ranges):
+            for c in range(r_start, r_end):
+                if not is_unplayed(winners_row[c]) and winners_row[c] == team:
+                    last_won_round = i
+                    last_won_slot = c
 
         if last_won_round == -1:
             # Never won any game — only eliminate if their specific R1 game has been played
             r1_slot = r1_team_to_slot.get(team)
             if r1_slot is not None and not is_unplayed(winners_row[r1_slot]):
-                # Their R1 game was played and they didn't win — eliminated
-                continue
+                continue  # R1 game played, didn't win → eliminated
             else:
-                # Their game hasn't been played yet — still alive
-                truly_alive.add(team)
+                truly_alive.add(team)  # R1 game not yet played → still alive
         else:
-            # They won round `last_won_round`. Check if the next round has started.
             next_round = last_won_round + 1
             if next_round >= len(round_ranges):
-                # Won the championship
-                truly_alive.add(team)
-            elif not round_has_played[next_round]:
-                # Next round hasn't started yet — still alive
-                truly_alive.add(team)
+                truly_alive.add(team)  # Won championship
             else:
-                # Next round has started — did they win in it?
-                if team in round_winners[next_round]:
-                    truly_alive.add(team)
-                # else: they lost in the next round, not alive
+                # Find the specific next-round slot for this team
+                # Child slot index: each pair of consecutive parent slots → one child
+                r_start, r_end = round_ranges[last_won_round]
+                next_r_start = round_ranges[next_round][0]
+                slot_offset = last_won_slot - r_start
+                next_slot = next_r_start + slot_offset // 2
+                if is_unplayed(winners_row[next_slot]):
+                    truly_alive.add(team)  # Their next game hasn't been played yet
+                elif winners_row[next_slot] == team:
+                    truly_alive.add(team)  # They won their next game
+                # else: they lost → eliminated
 
     # ── Lucky Team sheet ──────────────────────────────────────────────────────
     lucky_map: dict[str, list[str]] = {}   # team → list of participant names
