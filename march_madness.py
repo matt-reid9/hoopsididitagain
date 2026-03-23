@@ -3335,7 +3335,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
 
-        # Date selector — grouped by round, 2 cols on mobile / 2 per row on desktop
+        # Date selector — grouped by round, always 2 cols per row
         DATE_ROUNDS = [
             ("🏀 First Round",   ["2026-03-19", "2026-03-20"]),
             ("🔥 Second Round",  ["2026-03-21", "2026-03-22"]),
@@ -3345,7 +3345,10 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         ]
 
         for _round_label, _round_dates in DATE_ROUNDS:
-            st.markdown(f'<div style="font-size:11px;color:#6b7280;margin-bottom:2px;margin-top:6px;">{_round_label}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div style="font-size:11px;color:#6b7280;margin:8px 0 2px 0;">{_round_label}</div>',
+                unsafe_allow_html=True
+            )
             _rcols = st.columns(2)
             for _ri, _d in enumerate(_round_dates):
                 _is_sel = _sel_date == _d
@@ -3360,6 +3363,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 ):
                     st.session_state["sp_sel_date"] = _d
                     st.rerun()
+
+        # Force columns to never stack on mobile
+        st.markdown("""
+        <style>
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            gap: 6px !important;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 0 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
