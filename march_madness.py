@@ -1055,26 +1055,26 @@ try:
         "TCU": 2628,
         "Cal Baptist": 2856, "California Baptist": 2856,
         "South Florida": 58,
-        "N. Dakota St": 2446, "N. Dakota St.": 2446, "North Dakota St": 2446, "North Dakota State": 2446,
+        "N. Dakota St": 2446, "N. Dakota St.": 2446, "North Dakota St": 2446, "North Dakota State": 2446, "North Dakota State Bison": 2446,
         "UCF": 2116,
         "Furman": 231,
         "Iowa": 2294,
         "Penn": 219,
         "Idaho": 70,
-        "LIU": 2351, "Long Island University": 2351,
+        "LIU": 2351, "Long Island University": 2351, "LIU Sharks": 2351, "Long Island University Sharks": 2351,
         "Villanova": 222,
         "Hawaii": 62, "Hawai'i": 62,
-        "Kennesaw St": 2309, "Kennesaw St.": 2309, "Kennesaw State": 2309,
-        "Miami": 2390, "Miami FL": 2390,
-        "Prairie View": 2440, "Prairie View A&M": 2440,
+        "Kennesaw St": 2309, "Kennesaw St.": 2309, "Kennesaw State": 2309, "Kennesaw State Owls": 2309,
+        "Miami": 2390, "Miami FL": 2390, "Miami Hurricanes": 2390,
+        "Prairie View": 2440, "Prairie View A&M": 2440, "Prairie View A&M Panthers": 2440,
         "Howard": 2275,
-        "Miami Ohio": 2393, "Miami (OH)": 2393, "Miami OH": 2393, "Miami (Ohio)": 2393,
+        "Miami Ohio": 2393, "Miami (OH)": 2393, "Miami OH": 2393, "Miami (Ohio)": 2393, "Miami (OH) RedHawks": 2393, "Miami RedHawks": 2393, "Miami of Ohio": 2393,
         "Queens": 2511, "Queens University": 2511,
         "N. Iowa": 2460, "Northern Iowa": 2460,
         "N. Carolina": 153, "N. Carolina A&T": 2428,
         "Saint Louis": 139, "St. Louis": 139,
         "Akron": 2006,
-        "Hofstra": 2261,
+        "Hofstra": 2261, "Hofstra Pride": 2261,
         "Wright St": 2750, "Wright St.": 2750, "Wright State": 2750,
         "Santa Clara": 2541,
         "Tennessee St": 2634, "Tennessee St.": 2634, "Tennessee State": 2634,
@@ -1421,6 +1421,7 @@ try:
         "bracket":         ("your-bracket", "bracket"),
         "win-conditions":  ("your-bracket", "win-conditions"),
         "head-to-head":    ("your-bracket", "head-to-head"),
+        "scores-picks":    ("your-bracket", "scores-picks"),
         "bracket-dna":     ("your-bracket", "bracket-dna"),
         "bracket-busters": ("fun-stats", "bracket-busters"),
         "cinderella":      ("fun-stats", "cinderella"),
@@ -1845,18 +1846,21 @@ try:
     with tab_bracket:
         # Submenu buttons
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
-        _yb_cols = st.columns(4)
         _yb_options = [
-            ("bracket",       "🗂️ Bracket"),
-            ("bracket-dna",   "🧬 Bracket DNA"),
-            ("win-conditions","🔍 Win Conditions"),
-            ("head-to-head",  "⚔️ Head-to-Head"),
+            ("bracket",        "🗂️ Bracket"),
+            ("bracket-dna",    "🧬 Bracket DNA"),
+            ("win-conditions", "🔍 Win Conditions"),
+            ("head-to-head",   "⚔️ Head-to-Head"),
+            ("scores-picks",   "📺 Scores & Picks"),
         ]
+        _yb_row1 = st.columns(4)
+        _yb_row2 = st.columns(1)
         for _i, (_slug, _label) in enumerate(_yb_options):
             _active = _sub_yb == _slug
-            if _yb_cols[_i].button(_label, key=f"yb_{_slug}",
-                                    use_container_width=True,
-                                    type="primary" if _active else "secondary"):
+            _yb_col = _yb_row1[_i] if _i < 4 else _yb_row2[0]
+            if _yb_col.button(_label, key=f"yb_{_slug}",
+                              use_container_width=True,
+                              type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_your-bracket"] = _slug
                 st.rerun()
         st.divider()
@@ -3281,6 +3285,387 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             uniformtext=dict(minsize=11, mode="show"),
                         )
                     st.plotly_chart(fig_r, use_container_width=True, config=PLOTLY_CONFIG)
+
+        elif _sub_yb == "scores-picks":
+            st.subheader("📺 Scores & Picks")
+
+            # ── Name selector ────────────────────────────────────────────────
+            _sp_name = st.selectbox(
+                "Select your name",
+                ["— select —"] + name_opts,
+                key="sp_name",
+                index=(name_opts.index(user_name) + 1) if user_name and user_name in name_opts else 0,
+            )
+            if _sp_name == "— select —":
+                st.info("Select your name above to see your picks highlighted.")
+                _sp_picks = []
+            else:
+                _sp_row = next((r for r in results if r["Name"] == _sp_name), None)
+                _sp_picks = _sp_row["raw_picks"] if _sp_row else []
+
+            # ── Build pool pick counts per slot ──────────────────────────────
+            # slot_pick_counts already built: slot -> {team -> count}
+
+            # ── Tournament dates ─────────────────────────────────────────────
+            TOURN_DATES = [
+                "2026-03-19", "2026-03-20",  # First Round
+                "2026-03-21", "2026-03-22",  # Second Round
+                "2026-03-26", "2026-03-27",  # Sweet 16
+                "2026-03-28", "2026-03-29",  # Elite 8
+                "2026-04-04",                # Final Four
+                "2026-04-06",                # Championship
+            ]
+            DATE_LABELS = {
+                "2026-03-19": "Thu Mar 19", "2026-03-20": "Fri Mar 20",
+                "2026-03-21": "Sat Mar 21", "2026-03-22": "Sun Mar 22",
+                "2026-03-26": "Thu Mar 26", "2026-03-27": "Fri Mar 27",
+                "2026-03-28": "Sat Mar 28", "2026-03-29": "Sun Mar 29",
+                "2026-04-04": "Sat Apr 4",  "2026-04-06": "Mon Apr 6",
+            }
+
+            # Determine default date (today or nearest past date)
+            from datetime import date as _date
+            _today_str = _date.today().isoformat()
+            _default_date = TOURN_DATES[0]
+            for _d in TOURN_DATES:
+                if _d <= _today_str:
+                    _default_date = _d
+
+            _sel_date = st.session_state.get("sp_sel_date", _default_date)
+
+            # Date selector pills — 2 rows of 5
+            _date_row1 = st.columns(5)
+            _date_row2 = st.columns(5)
+            for _di, _d in enumerate(TOURN_DATES):
+                _is_sel = _sel_date == _d
+                _is_today = _d == _today_str
+                _dlabel = DATE_LABELS[_d]
+                if _is_today:
+                    _dlabel = "🔴 " + _dlabel
+                _dcol = _date_row1[_di] if _di < 5 else _date_row2[_di - 5]
+                if _dcol.button(
+                    _dlabel, key=f"sp_date_{_d}",
+                    use_container_width=True,
+                    type="primary" if _is_sel else "secondary",
+                ):
+                    st.session_state["sp_sel_date"] = _d
+                    st.rerun()
+            _sel_date = st.session_state.get("sp_sel_date", _default_date)
+            st.markdown("---")
+
+            # ── Fetch ESPN scoreboard for selected date ───────────────────────
+            import urllib.request, json as _json
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+
+            _ET_OFFSET = _td(hours=-4)  # EDT (UTC-4) during March/April
+
+            @st.cache_data(ttl=61, show_spinner=False)
+            def fetch_espn_games(date_str):
+                """Fetch NCAA tournament games from ESPN for a given date (YYYY-MM-DD)."""
+                yyyymmdd = date_str.replace("-", "")
+                url = (
+                    f"https://site.api.espn.com/apis/site/v2/sports/basketball/"
+                    f"mens-college-basketball/scoreboard?dates={yyyymmdd}&groups=50&limit=200"
+                )
+                try:
+                    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        data = _json.loads(resp.read())
+                    games = []
+                    for ev in data.get("events", []):
+                        comp = ev.get("competitions", [{}])[0]
+                        competitors = comp.get("competitors", [])
+                        if len(competitors) < 2:
+                            continue
+                        # Filter to NCAA tournament games only via notes or seeds
+                        notes = comp.get("notes", [])
+                        is_tourney = any("Championship" in n.get("headline", "") for n in notes)
+                        if not is_tourney:
+                            has_seeds = any(c.get("rank") for c in competitors)
+                            if not has_seeds:
+                                continue
+                        status_type = ev.get("status", {}).get("type", {})
+                        state = status_type.get("state", "pre")
+                        status_detail = status_type.get("shortDetail", "")
+                        # Game time in ET and PT
+                        game_date_str = ev.get("date", "")
+                        try:
+                            _utc = _dt.fromisoformat(game_date_str.replace("Z", "+00:00"))
+                            _et = _utc.astimezone(_tz(offset=_ET_OFFSET))
+                            _pt = _utc.astimezone(_tz(offset=_td(hours=-7)))  # PDT (UTC-7)
+                            game_time = f'{_et.strftime("%-I:%M %p")} ET / {_pt.strftime("%-I:%M %p")} PT'
+                        except Exception:
+                            game_time = ""
+                        teams = []
+                        for c in competitors:
+                            team_info = c.get("team", {})
+                            teams.append({
+                                "name":   team_info.get("displayName", team_info.get("name", "")),
+                                "abbrev": team_info.get("abbreviation", ""),
+                                "logo":   team_info.get("logo", ""),
+                                "seed":   c.get("rank") or c.get("seed") or "",
+                                "score":  c.get("score", ""),
+                                "winner": c.get("winner", False),
+                                "home":   c.get("homeAway", "") == "home",
+                            })
+                        games.append({
+                            "id":        ev.get("id"),
+                            "state":     state,
+                            "detail":    status_detail,
+                            "time":      game_time,
+                            "sort_time": game_date_str,  # raw UTC for sorting
+                            "teams":     teams,
+                        })
+                    return games
+                except Exception:
+                    return []
+
+            _games = fetch_espn_games(_sel_date)
+            # Sort by scheduled start time
+            _games = sorted(_games, key=lambda g: g.get("sort_time", ""))
+
+            if not _games:
+                st.info(f"No NCAA tournament games found for {DATE_LABELS.get(_sel_date, _sel_date)}. Data loads from ESPN — try refreshing.")
+            else:
+                # ── Robust ESPN→pool name normaliser ─────────────────────────
+                # Build reverse lookup: ESPN ID → pool name
+                # Use all_starting so eliminated R1 teams are still included
+                # Prefer entries whose key exactly matches an all_starting name
+                _espn_id_to_pool = {}
+                for _pn, _pid in ESPN_IDS.items():
+                    if _pn in all_starting:
+                        # Exact match always wins — overwrite any prior entry
+                        _espn_id_to_pool[_pid] = _pn
+                # Fill remaining IDs with any variant that case-matches all_starting
+                for _pn, _pid in ESPN_IDS.items():
+                    if _pid not in _espn_id_to_pool:
+                        for _sn in all_starting:
+                            if _pn.lower() == _sn.lower():
+                                _espn_id_to_pool[_pid] = _sn
+                                break
+                # Build lowercase pool name set for fuzzy match
+                _pool_names_lower = {n.lower(): n for n in all_starting}
+
+                def _norm_name(espn_display, espn_logo_url_str=""):
+                    """Map ESPN display name → pool team name."""
+                    # 1. Direct match against all starting teams
+                    if espn_display in all_starting:
+                        return espn_display
+                    # 2. Try ESPN_IDS exact/variant
+                    for variant in [espn_display, espn_display.rstrip("."), espn_display.replace(".", "")]:
+                        if variant in ESPN_IDS:
+                            cand = ESPN_IDS[variant]
+                            if cand in _espn_id_to_pool:
+                                return _espn_id_to_pool[cand]
+                    # 3. Extract ESPN ID from logo URL and reverse-lookup
+                    if espn_logo_url_str:
+                        try:
+                            import re as _re
+                            _eid_match = _re.search(r'/(\d+)\.png', espn_logo_url_str)
+                            if _eid_match:
+                                _eid = int(_eid_match.group(1))
+                                if _eid in _espn_id_to_pool:
+                                    return _espn_id_to_pool[_eid]
+                        except Exception:
+                            pass
+                    # 4. Fuzzy: strip common ESPN nickname suffixes
+                    _espn_lower = espn_display.lower()
+                    for suffix in [
+                        " wildcats"," aggies"," tigers"," bears"," wolves"," bulldogs",
+                        " cardinals"," ravens"," eagles"," hawks"," owls"," knights",
+                        " trojans"," spartans"," bruins"," tar heels"," hoyas",
+                        " hurricanes"," seminoles"," gators"," volunteers",
+                        " razorbacks"," longhorns"," sooners"," cowboys"," cyclones",
+                        " hawkeyes"," badgers"," buckeyes"," wolverines"," blue devils",
+                        " blue jays"," jayhawks"," crimson tide"," mountaineers",
+                        " hokies"," demon deacons"," commodores"," golden eagles",
+                        " huskies"," terrapins"," terps"," catamounts"," zags",
+                        " billikens"," ramblers"," phoenix"," musketeers",
+                        " hilltoppers"," bison"," panthers"," flames"," friars",
+                        " bonnies"," gaels"," bearcats"," flyers"," sea hawks",
+                        " mean green"," red raiders"," fighting illini"," boilermakers",
+                        " orange"," green wave"," rainbow warriors"," scarlet knights",
+                        " cougars"," lakers"," pirates"," penguins"," anteaters",
+                        " horned frogs"," colonials"," dukes"," quakers"," big red",
+                        " cornhuskers"," huskers"," nittany lions"," fighting irish",
+                        " longhorns"," aztecs"," toreros"," tritons"," banana slugs",
+                        " gauchos"," retrievers"," retrievers"," leopards"," bucks",
+                        " colonels"," paladins"," spiders"," rams"," ducks",
+                        " beavers"," sun devils"," utes"," rebels"," wolf pack",
+                        " bulldogs"," yellow jackets"," ramblin' wreck"," toreros",
+                        " 49ers"," matadors"," roadrunners"," lumberjacks",
+                        " warhawks"," ragin' cajuns"," colonels"," ospreys",
+                        " sycamores"," leathernecks"," fighting hawks",
+                    ]:
+                        if _espn_lower.endswith(suffix):
+                            base = _espn_lower[:-len(suffix)].strip()
+                            if base in _pool_names_lower:
+                                return _pool_names_lower[base]
+                    # Direct lowercase match
+                    if _espn_lower in _pool_names_lower:
+                        return _pool_names_lower[_espn_lower]
+                    # Partial: pool name contained in ESPN name (prefer longer matches)
+                    _best_match = None
+                    _best_len = 0
+                    for _pl, _pn in _pool_names_lower.items():
+                        if len(_pl) >= 5 and (_pl in _espn_lower or _espn_lower.startswith(_pl)):
+                            if len(_pl) > _best_len:
+                                _best_match = _pn
+                                _best_len = len(_pl)
+                    if _best_match:
+                        return _best_match
+                    return espn_display
+
+                # Build slot matchup map ONCE outside the game loop
+                _slot_matchup: dict[int, tuple] = {}
+                for _sc, (ta, tb) in r1_matchups.items():
+                    _slot_matchup[_sc] = (ta, tb)
+                _round_starts = [3, 35, 51, 59, 63, 65]
+                for _ri in range(1, len(_round_starts) - 1):
+                    _rs = _round_starts[_ri]
+                    _re = _round_starts[_ri + 1]
+                    _prev_rs = _round_starts[_ri - 1]
+                    for _i, _sc in enumerate(range(_rs, _re)):
+                        _p1 = _prev_rs + _i * 2
+                        _p2 = _prev_rs + _i * 2 + 1
+                        _p1w = actual_winners[_p1] if _p1 < len(actual_winners) and not is_unplayed(actual_winners[_p1]) else ""
+                        _p2w = actual_winners[_p2] if _p2 < len(actual_winners) and not is_unplayed(actual_winners[_p2]) else ""
+                        if _p1w and _p2w:
+                            _slot_matchup[_sc] = (_p1w, _p2w)
+
+                # ── Render each game as a card ────────────────────────────────
+                for game in _games:
+                    teams = game["teams"]
+                    if len(teams) < 2:
+                        continue
+                    # Put away team first (index 0 is usually away)
+                    away = next((t for t in teams if not t["home"]), teams[0])
+                    home = next((t for t in teams if t["home"]),  teams[1])
+
+                    away_pool = _norm_name(away["name"], away.get("logo",""))
+                    home_pool = _norm_name(home["name"], home.get("logo",""))
+
+                    # Find the slot where these two specific teams play each other
+                    _match_slot = -1
+                    _game_set = {away_pool, home_pool}
+                    for _sc, (ta, tb) in _slot_matchup.items():
+                        if {ta, tb} == _game_set:
+                            _match_slot = _sc
+                            break
+
+                    # Pick counts from the exact slot
+                    _away_ct = 0
+                    _home_ct = 0
+                    if _match_slot >= 0:
+                        _sp = slot_pick_counts.get(_match_slot, {})
+                        _away_ct = _sp.get(away_pool, 0)
+                        _home_ct = _sp.get(home_pool, 0)
+                    _total_pool = max(len(results), 1)
+                    _total_slot = _away_ct + _home_ct
+
+                    # User's pick for the exact slot only
+                    _user_pick = ""
+                    if _match_slot >= 0 and _match_slot < len(_sp_picks):
+                        _user_pick = _sp_picks[_match_slot]
+
+                    # Is user's pick in this game?
+                    _pick_in_game = _user_pick in (away_pool, home_pool)
+                    _pick_eliminated = bool(_user_pick and not _pick_in_game)
+
+                    # Points for this slot
+                    _slot_pts = points_per_game[_match_slot] if _match_slot >= 0 and _match_slot < len(points_per_game) else 0
+                    _winner_pts = 0
+                    if _match_slot >= 0:
+                        _winning_team = away_pool if away.get("winner") else (home_pool if home.get("winner") else "")
+                        if _winning_team:
+                            _winner_pts = _slot_pts + seed_map.get(_winning_team, 0)
+
+                    # User pick points
+                    _user_pts = 0
+                    if _user_pick and _match_slot >= 0:
+                        _user_pts = _slot_pts + seed_map.get(_user_pick, 0)
+
+                    # Build card
+                    is_pre  = game["state"] == "pre"
+                    is_live = game["state"] == "in"
+                    is_post = game["state"] == "post"
+                    away_winner = away.get("winner", False)
+                    home_winner = home.get("winner", False)
+                    _winning_pool = away_pool if away_winner else (home_pool if home_winner else "")
+
+                    def _pick_ring_color(pool_name):
+                        """Return the border color for the user's pick highlight."""
+                        if _user_pick != pool_name:
+                            return ""
+                        if is_pre or is_live:
+                            return "#f5c518"  # gold — upcoming
+                        if _user_pick == _winning_pool:
+                            return "#16a34a"  # green — correct
+                        return "#dc2626"      # red — wrong
+
+                    def _team_block(t, pool_name, is_winner, is_live, is_pre, user_pick):
+                        seed_str = f'<span style="font-size:10px;color:#9ca3af;margin-right:4px;">({t["seed"]})</span>' if t["seed"] else ""
+                        logo = t["logo"] or espn_logo_url(pool_name) or ""
+                        logo_html = f'<img src="{logo}" style="width:32px;height:32px;object-fit:contain;" onerror="this.style.display=\'none\'">' if logo else '<div style="width:32px;"></div>'
+                        score_html = f'<div style="font-size:22px;font-weight:800;color:{"#f5c518" if is_winner else "#fff"};">{t["score"]}</div>' if not is_pre and t["score"] else ""
+                        _ring = _pick_ring_color(pool_name)
+                        pick_ring = f"box-shadow:0 0 0 3px {_ring};border-radius:8px;" if _ring else ""
+                        pick_count = _away_ct if pool_name == away_pool else _home_ct
+                        pct = f"{round(pick_count/_total_pool*100)}%" if _total_pool > 0 else "—"
+                        dim = "opacity:0.45;" if not is_winner and not is_pre and not is_live else ""
+                        _pts_val = _slot_pts + seed_map.get(pool_name, 0)
+                        pts_label = f'<div style="font-size:11px;color:#6b7280;">{_pts_val} pts if correct</div>' if is_pre or is_live else ""
+                        return (
+                            f'<div style="flex:1;display:flex;flex-direction:column;align-items:center;'
+                            f'gap:4px;padding:10px 6px;{pick_ring}{dim}">'
+                            f'{logo_html}'
+                            f'<div style="text-align:center;">{seed_str}<span style="font-size:13px;font-weight:700;">{pool_name}</span></div>'
+                            f'{score_html}'
+                            f'<div style="font-size:11px;color:#9ca3af;">{pick_count} picks ({pct})</div>'
+                            f'{pts_label}'
+                            f'</div>'
+                        )
+
+                    away_block = _team_block(away, away_pool, away_winner, is_live, is_pre, _user_pick)
+                    home_block = _team_block(home, home_pool, home_winner, is_live, is_pre, _user_pick)
+
+                    # Card border — neutral always
+                    border = "#334155"
+
+                    if is_pre:
+                        _time_str = game.get("time", "")
+                        if _time_str:
+                            _et_part, _, _pt_part = _time_str.partition(" / ")
+                            middle = (
+                                f'<div style="font-size:12px;color:#9ca3af;text-align:center;padding:0 8px;white-space:nowrap;">'
+                                f'{_et_part}<br><span style="font-size:11px;">{_pt_part}</span>'
+                                f'</div>'
+                            )
+                        else:
+                            middle = '<div style="font-size:12px;color:#9ca3af;text-align:center;padding:0 8px;">TBD</div>'
+                    elif is_live:
+                        middle = f'<div style="font-size:12px;color:#22c55e;font-weight:700;text-align:center;padding:0 6px;">🔴 LIVE<br><span style="font-size:11px;font-weight:400;color:#9ca3af;">{game["detail"]}</span></div>'
+                    else:
+                        pts_str = f'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">{_winner_pts} pts awarded</div>' if _winner_pts else ""
+                        middle = f'<div style="font-size:12px;color:#6b7280;text-align:center;padding:0 6px;">Final{pts_str}</div>'
+
+                    user_pick_note = ""
+                    if _pick_eliminated and _sp_name != "— select —":
+                        user_pick_note = (
+                            f'<div style="font-size:11px;color:#9ca3af;text-align:center;margin-top:4px;">'
+                            f'Your pick: <span style="color:#ef4444;">{_user_pick}</span> (eliminated)</div>'
+                        )
+
+                    st.markdown(
+                        f'<div style="border:1px solid {border};background:#1e1e2e;border-radius:12px;'
+                        f'padding:12px;margin-bottom:12px;">'
+                        f'<div style="display:flex;align-items:center;justify-content:space-between;">'
+                        f'{away_block}{middle}{home_block}'
+                        f'</div>'
+                        f'{user_pick_note}'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
 
     # ── Tab 3: Fun Stats (group) ──────────────────────────────────────────────
     with tab_fun:
