@@ -3344,39 +3344,52 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
+        # Inject CSS for past/today/future button styles
+        st.markdown("""
+        <style>
+        /* Past date buttons */
+        .sp-date-past button { opacity: 0.45 !important; border-color: #374151 !important; color: #6b7280 !important; }
+        /* Today button */
+        .sp-date-today button { border-color: #dc2626 !important; color: #ef4444 !important; }
+        /* Future date buttons */
+        .sp-date-future button { border-color: #1d4ed8 !important; color: #60a5fa !important; }
+        /* Force date row columns to never stack — scoped via parent class */
+        .sp-date-row [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            gap: 6px !important;
+        }
+        .sp-date-row [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 0 !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         for _round_label, _round_dates in DATE_ROUNDS:
             st.markdown(
-                f'<div style="font-size:11px;color:#6b7280;margin:8px 0 2px 0;">{_round_label}</div>',
+                f'<div class="sp-date-row"><div style="font-size:11px;color:#6b7280;margin:8px 0 2px 0;">{_round_label}</div>',
                 unsafe_allow_html=True
             )
             _rcols = st.columns(2)
             for _ri, _d in enumerate(_round_dates):
                 _is_sel = _sel_date == _d
                 _is_today = _d == _today_str
-                _dlabel = DATE_LABELS[_d]
-                if _is_today:
-                    _dlabel = "🔴 " + _dlabel
-                if _rcols[_ri].button(
-                    _dlabel, key=f"sp_date_{_d}",
-                    use_container_width=True,
-                    type="primary" if _is_sel else "secondary",
-                ):
-                    st.session_state["sp_sel_date"] = _d
-                    st.rerun()
+                _is_past = _d < _today_str
+                _is_future = _d > _today_str
+                _dlabel = "🔴 Today" if _is_today else DATE_LABELS[_d]
+                _css_class = "sp-date-today" if _is_today else ("sp-date-past" if _is_past else "sp-date-future")
 
-        # Force columns to never stack on mobile
-        st.markdown("""
-        <style>
-        [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
-            gap: 6px !important;
-        }
-        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-            min-width: 0 !important;
-            flex: 1 1 0 !important;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+                with _rcols[_ri]:
+                    st.markdown(f'<div class="{_css_class}">', unsafe_allow_html=True)
+                    if st.button(
+                        _dlabel, key=f"sp_date_{_d}",
+                        use_container_width=True,
+                        type="primary" if _is_sel else "secondary",
+                    ):
+                        st.session_state["sp_sel_date"] = _d
+                        st.rerun()
+                    st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
