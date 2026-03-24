@@ -3360,51 +3360,21 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
-        # Build the date picker as a proper HTML grid rendered in components.html
-        # This guarantees 2-col layout on all screen sizes
-        _picker_rows_html = ""
         for _round_label, _round_dates in DATE_ROUNDS:
-            _picker_rows_html += f'<div class="round-label">{_round_label}</div><div class="date-row">'
-            for _d in _round_dates:
-                _is_sel = _d == _sel_date
+            st.markdown(f'<p style="font-size:11px;color:#6b7280;margin:6px 0 2px 0;">{_round_label}</p>', unsafe_allow_html=True)
+            _rcols = st.columns(2)
+            for _ri, _d in enumerate(_round_dates):
+                _is_sel = _sel_date == _d
                 _is_today = _d == _today_str
                 _is_past = _d < _today_str
-                _label = "🔴 Today" if _is_today else (f"✓ {DATE_LABELS[_d]}" if _is_past else DATE_LABELS[_d])
-                _cls = "btn-today" if _is_today else ("btn-past" if _is_past else "btn-future")
-                if _is_sel:
-                    _cls += " btn-selected"
-                _picker_rows_html += f'<button class="date-btn {_cls}" onclick="selectDate(\'{_d}\')">{_label}</button>'
-            _picker_rows_html += '</div>'
-
-        import streamlit.components.v1 as _sp_comp2
-        _sp_comp2.html(f"""
-        <style>
-            body {{ margin:0; background:transparent; font-family: sans-serif; }}
-            .round-label {{ font-size:11px; color:#6b7280; margin:8px 0 3px 0; }}
-            .date-row {{ display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:4px; }}
-            .date-btn {{
-                padding:8px 4px; border-radius:6px; font-size:13px; font-weight:500;
-                cursor:pointer; border:1px solid; text-align:center; width:100%;
-            }}
-            .btn-past   {{ background:#111827; border-color:#374151; color:#6b7280; }}
-            .btn-today  {{ background:#2d0a0a; border-color:#dc2626; color:#ef4444; }}
-            .btn-future {{ background:#0f172a; border-color:#3b82f6; color:#93c5fd; }}
-            .btn-selected {{ background:#1e3a5f; border-color:#60a5fa; color:#fff; font-weight:700; }}
-            .btn-today.btn-selected {{ background:#7f1d1d; border-color:#dc2626; }}
-        </style>
-        {_picker_rows_html}
-        <script>
-        function selectDate(d) {{
-            window.parent.postMessage({{type:'streamlit:setComponentValue', value: d}}, '*');
-        }}
-        </script>
-        """, height=320, scrolling=False, key="sp_date_picker")
-
-        # Read the selected date from the component
-        _picked = st.session_state.get("sp_date_picker")
-        if _picked and _picked in TOURN_DATES and _picked != _sel_date:
-            st.session_state["sp_sel_date"] = _picked
-            st.rerun()
+                _label = ("🔴 Today" if _is_today else
+                          f"✓ {DATE_LABELS[_d]}" if _is_past else
+                          DATE_LABELS[_d])
+                if _rcols[_ri].button(_label, key=f"sp_date_{_d}",
+                                      use_container_width=True,
+                                      type="primary" if _is_sel else "secondary"):
+                    st.session_state["sp_sel_date"] = _d
+                    st.rerun()
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
