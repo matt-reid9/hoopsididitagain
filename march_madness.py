@@ -1422,6 +1422,7 @@ try:
         "win-conditions":  ("your-bracket", "win-conditions"),
         "head-to-head":    ("your-bracket", "head-to-head"),
         "scores-picks":    ("scores", None),
+        "schedule":        ("scores", None),
         "bracket-dna":     ("your-bracket", "bracket-dna"),
         "bracket-busters": ("fun-stats", "bracket-busters"),
         "cinderella":      ("fun-stats", "cinderella"),
@@ -3333,17 +3334,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             if _d <= _today_str:
                 _default_date = _d
 
+        # Remove the _spdate query param handler since we're back to st.buttons
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
-
-        # Read date selection from query param (set by HTML buttons below)
-        try:
-            _qdate = st.query_params.get("_spdate", "")
-            if _qdate and _qdate in TOURN_DATES:
-                st.session_state["sp_sel_date"] = _qdate
-                _sel_date = _qdate
-                st.query_params.pop("_spdate", None)
-        except Exception:
-            pass
 
         DATE_ROUNDS = [
             ("🏀 First Round",   ["2026-03-19", "2026-03-20"]),
@@ -3353,50 +3345,29 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
-        # Build pure HTML date picker — 2 cols always, colored by status
-        _picker_html = '<div style="margin-bottom:12px;">'
+        # Tighten spacing between rows
+        st.markdown("""<style>
+        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"],
+        div[data-testid="stVerticalBlock"] > div.element-container {
+            margin-bottom: 0 !important;
+        }
+        </style>""", unsafe_allow_html=True)
+
         for _round_label, _round_dates in DATE_ROUNDS:
-            _picker_html += (
-                f'<div style="font-size:11px;color:#6b7280;margin:10px 0 4px 0;">{_round_label}</div>'
-                f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:2px;">'
-            )
-            for _d in _round_dates:
-                _is_sel = _d == _sel_date
+            st.markdown(f'<div style="font-size:11px;color:#6b7280;margin:8px 0 3px 0;">{_round_label}</div>', unsafe_allow_html=True)
+            _rcols = st.columns(2)
+            for _ri, _d in enumerate(_round_dates):
+                _is_sel = _sel_date == _d
                 _is_today = _d == _today_str
                 _is_past = _d < _today_str
-                _label = "Today" if _is_today else DATE_LABELS[_d]
-                if _is_today:
-                    _prefix = "🔴 "
-                    _bg = "#2d0a0a" if not _is_sel else "#7f1d1d"
-                    _border = "#dc2626"
-                    _color = "#ef4444"
-                elif _is_past:
-                    _prefix = "✓ "
-                    _bg = "#111827" if not _is_sel else "#1f2937"
-                    _border = "#374151" if not _is_sel else "#6b7280"
-                    _color = "#6b7280" if not _is_sel else "#9ca3af"
-                else:
-                    _prefix = ""
-                    _bg = "#0f172a" if not _is_sel else "#1e3a5f"
-                    _border = "#1d4ed8"
-                    _color = "#60a5fa"
-                if _is_sel:
-                    _bg = "#1e3a5f" if not _is_today else "#7f1d1d"
-                    _border = "#3b82f6" if not _is_today else "#dc2626"
-                    _color = "#fff"
-                    _fw = "bold"
-                else:
-                    _fw = "normal"
-                _picker_html += (
-                    f'<a href="?_spdate={_d}" style="text-decoration:none;">'
-                    f'<div style="background:{_bg};border:1px solid {_border};border-radius:6px;'
-                    f'padding:7px 4px;text-align:center;font-size:12px;font-weight:{_fw};'
-                    f'color:{_color};cursor:pointer;white-space:nowrap;">'
-                    f'{_prefix}{_label}</div></a>'
-                )
-            _picker_html += '</div>'
-        _picker_html += '</div>'
-        st.markdown(_picker_html, unsafe_allow_html=True)
+                _label = ("🔴 Today" if _is_today else
+                          f"✓ {DATE_LABELS[_d]}" if _is_past else
+                          DATE_LABELS[_d])
+                if _rcols[_ri].button(_label, key=f"sp_date_{_d}",
+                                      use_container_width=True,
+                                      type="primary" if _is_sel else "secondary"):
+                    st.session_state["sp_sel_date"] = _d
+                    st.rerun()
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
@@ -3797,15 +3768,25 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     _away_pickers = _pickers_for_team(away_pool, _match_slot)
                     _home_pickers = _pickers_for_team(home_pool, _match_slot)
 
-                    def _picker_chips(pickers, team_name):
+                    def _picker_chips(pickers, team_name, is_winner):
                         if not pickers:
                             return f'<span style="color:#6b7280;font-size:12px;">Nobody picked {team_name}</span>'
                         chips = ""
                         for p in sorted(pickers):
                             is_me = user_name and p == user_name
-                            bg = "#3a3000" if is_me else "#1e293b"
-                            color = "#f5c518" if is_me else "#d1d5db"
-                            border_c = "#f5c518" if is_me else "#334155"
+                            if is_me:
+                                # Current user always yellow
+                                bg = "#3a3000"
+                                color = "#f5c518"
+                                border_c = "#f5c518"
+                            elif is_post:
+                                # Past game — green if correct, red if wrong
+                                if is_winner:
+                                    bg, color, border_c = "#052e16", "#4ade80", "#16a34a"
+                                else:
+                                    bg, color, border_c = "#2d0a0a", "#f87171", "#dc2626"
+                            else:
+                                bg, color, border_c = "#1e293b", "#d1d5db", "#334155"
                             _rank_row = final_df[final_df["Name"] == p]
                             _rank_str = f"#{int(_rank_row.iloc[0]['Current Rank'])} " if not _rank_row.empty else ""
                             chips += (
@@ -3827,12 +3808,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         f'<div style="margin-bottom:8px;">'
                         f'<div style="font-size:12px;font-weight:700;color:#9ca3af;margin-bottom:4px;">'
                         f'{logo_a_html}{away_pool} — {len(_away_pickers)} pick{"s" if len(_away_pickers) != 1 else ""}</div>'
-                        f'<div style="line-height:2;">{_picker_chips(_away_pickers, away_pool)}</div>'
+                        f'<div style="line-height:2;">{_picker_chips(_away_pickers, away_pool, away_winner)}</div>'
                         f'</div>'
                         f'<div>'
                         f'<div style="font-size:12px;font-weight:700;color:#9ca3af;margin-bottom:4px;">'
                         f'{logo_h_html}{home_pool} — {len(_home_pickers)} pick{"s" if len(_home_pickers) != 1 else ""}</div>'
-                        f'<div style="line-height:2;">{_picker_chips(_home_pickers, home_pool)}</div>'
+                        f'<div style="line-height:2;">{_picker_chips(_home_pickers, home_pool, home_winner)}</div>'
                         f'</div>'
                         f'</div>',
                         unsafe_allow_html=True
