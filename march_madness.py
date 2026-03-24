@@ -2013,40 +2013,43 @@ try:
                     def slot_can_produce_upset(c):
                         if not is_unplayed(actual_winners[c]):
                             return False
-                        # Check if there's any alive team with seed >= 4 still in contention
-                        # We check all alive teams — if any two alive teams could face each
-                        # other with a seed diff >= 3, a future upset is possible in this slot.
+                        # Get seeds of all alive teams — use all_starting seeds too
                         alive_seeds = [seed_map.get(t, 0) for t in truly_alive if seed_map.get(t, 0) > 0]
-                        if not alive_seeds:
+                        if len(alive_seeds) < 2:
                             return False
-                        min_seed = min(alive_seeds)
-                        max_seed = max(alive_seeds)
-                        return (max_seed - min_seed) >= 3
+                        return (max(alive_seeds) - min(alive_seeds)) >= 3
 
                     # Helper: potential upsets (earned + future slots where pick is alive
                     # and the slot could still produce an upset with seed diff >= 3)
                     def potential_upsets(picks):
                         earned = count_upsets(picks)
+                        # Future potential: for each alive team that could still produce an upset,
+                        # check if this person picked that team to win in ANY future slot.
+                        # We don't care who they picked them to face — just whether they picked them.
                         future = 0
-                        for c in range(3, 66):
-                            if not is_unplayed(actual_winners[c]):
-                                continue
-                            if not slot_can_produce_upset(c):
-                                continue
-                            team = picks[c]
-                            if team not in truly_alive:
-                                continue
+                        # Find all alive teams that can still produce an upset (seed diff >= 3 vs any alive opponent)
+                        _potential_upset_teams = set()
+                        for team in truly_alive:
                             t_seed = seed_map.get(team, 0)
                             if t_seed < 4:
                                 continue
-                            # Check if any alive team exists that this team could upset
-                            # (i.e. an alive team with seed <= t_seed - 3)
                             can_upset = any(
                                 seed_map.get(opp, 0) > 0 and t_seed - seed_map.get(opp, 0) >= 3
                                 for opp in truly_alive if opp != team
                             )
                             if can_upset:
+                                _potential_upset_teams.add(team)
+                        # Count how many of this person's future picks are potential upset teams
+                        _counted = set()  # avoid double-counting same team in multiple slots
+                        for c in range(3, 66):
+                            if not is_unplayed(actual_winners[c]):
+                                continue
+                            team = picks[c]
+                            if not team or team in UNPLAYED:
+                                continue
+                            if team in _potential_upset_teams and team not in _counted:
                                 future += 1
+                                _counted.add(team)
                         return earned + future
 
                     # Gather all participants' data for comparisons
@@ -2994,22 +2997,25 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     return (max(alive_seeds) - min(alive_seeds)) >= 3
                 def _pot_upsets(picks):
                     earned = _count_upsets(picks)
-                    future = 0
-                    for c in range(3, 66):
-                        if not _slot_can_upset(c):
-                            continue
-                        team = picks[c]
-                        if team not in truly_alive:
-                            continue
+                    # Find all alive teams that could still produce an upset
+                    _pu_teams = set()
+                    for team in truly_alive:
                         t_seed = seed_map.get(team, 0)
                         if t_seed < 4:
                             continue
-                        can_upset = any(
-                            seed_map.get(opp, 0) > 0 and t_seed - seed_map.get(opp, 0) >= 3
-                            for opp in truly_alive if opp != team
-                        )
-                        if can_upset:
+                        if any(seed_map.get(opp, 0) > 0 and t_seed - seed_map.get(opp, 0) >= 3
+                               for opp in truly_alive if opp != team):
+                            _pu_teams.add(team)
+                    # Count future picks that are potential upset teams (no double count)
+                    future = 0
+                    _counted = set()
+                    for c in range(3, 66):
+                        if not is_unplayed(actual_winners[c]):
+                            continue
+                        team = picks[c]
+                        if team and team not in UNPLAYED and team in _pu_teams and team not in _counted:
                             future += 1
+                            _counted.add(team)
                     return earned + future
                 def _correct_pot(picks):
                     return sum(
@@ -3361,7 +3367,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         ]
 
         for _round_label, _round_dates in DATE_ROUNDS:
-            st.markdown(f'<p style="font-size:11px;color:#6b7280;margin:6px 0 2px 0;">{_round_label}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p style="font-size:13px;font-weight:600;color:#9ca3af;margin:8px 0 3px 0;">{_round_label}</p>', unsafe_allow_html=True)
             _rcols = st.columns(2)
             for _ri, _d in enumerate(_round_dates):
                 _is_sel = _sel_date == _d
