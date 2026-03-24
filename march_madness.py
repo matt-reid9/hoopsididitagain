@@ -3291,6 +3291,21 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
     # ── Tab 3: Schedule/Scores ──────────────────────────────────────────────────
     with tab_scores:
         st.subheader("📺 Schedule / Scores")
+        # Inject a unique marker + CSS to force 2-col date buttons on mobile
+        st.markdown("""
+        <div id="sp-tab-marker"></div>
+        <style>
+        #sp-tab-marker ~ * [data-testid="stHorizontalBlock"],
+        #sp-tab-marker + div [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+        }
+        #sp-tab-marker ~ * [data-testid="stHorizontalBlock"] > [data-testid="stColumn"],
+        #sp-tab-marker + div [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 0% !important;
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
         # ── Name selector ────────────────────────────────────────────────
         _sp_name = st.selectbox(
@@ -3345,23 +3360,21 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
-        # Tighten spacing and force 2-col layout on mobile for date buttons
-        st.markdown("""<style>
-        .sp-date-grid [data-testid="stHorizontalBlock"] {
-            flex-wrap: nowrap !important;
-            gap: 6px !important;
+        # Build CSS that forces each date button row to stay 2-col on mobile
+        # Target each stHorizontalBlock that contains sp_date_ keyed buttons
+        _all_dates = [d for _, dates in DATE_ROUNDS for d in dates]
+        _date_css = """<style>
+        button[data-testid="baseButton-secondary"][id*="sp_date_"],
+        button[data-testid="baseButton-primary"][id*="sp_date_"] {
+            white-space: nowrap !important;
+            font-size: 13px !important;
         }
-        .sp-date-grid [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
-            min-width: 0 !important;
-            flex: 1 1 0% !important;
-            width: 50% !important;
-        }
-        </style>""", unsafe_allow_html=True)
+        </style>"""
+        st.markdown(_date_css, unsafe_allow_html=True)
 
-        st.markdown('<div class="sp-date-grid">', unsafe_allow_html=True)
         for _round_label, _round_dates in DATE_ROUNDS:
-            st.markdown(f'<div style="font-size:11px;color:#6b7280;margin:8px 0 3px 0;">{_round_label}</div>', unsafe_allow_html=True)
-            _rcols = st.columns(2)
+            st.markdown(f'<p style="font-size:11px;color:#6b7280;margin:8px 0 2px 0;line-height:1.2;">{_round_label}</p>', unsafe_allow_html=True)
+            _rcols = st.columns([1, 1])
             for _ri, _d in enumerate(_round_dates):
                 _is_sel = _sel_date == _d
                 _is_today = _d == _today_str
@@ -3369,12 +3382,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 _label = ("🔴 Today" if _is_today else
                           f"✓ {DATE_LABELS[_d]}" if _is_past else
                           DATE_LABELS[_d])
-                if _rcols[_ri].button(_label, key=f"sp_date_{_d}",
-                                      use_container_width=True,
-                                      type="primary" if _is_sel else "secondary"):
-                    st.session_state["sp_sel_date"] = _d
-                    st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+                with _rcols[_ri]:
+                    if st.button(_label, key=f"sp_date_{_d}",
+                                 use_container_width=True,
+                                 type="primary" if _is_sel else "secondary"):
+                        st.session_state["sp_sel_date"] = _d
+                        st.rerun()
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
