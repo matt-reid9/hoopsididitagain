@@ -3335,7 +3335,16 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
 
-        # Date selector — grouped by round, always 2 cols per row
+        # Read date selection from query param (set by HTML buttons below)
+        try:
+            _qdate = st.query_params.get("_spdate", "")
+            if _qdate and _qdate in TOURN_DATES:
+                st.session_state["sp_sel_date"] = _qdate
+                _sel_date = _qdate
+                st.query_params.pop("_spdate", None)
+        except Exception:
+            pass
+
         DATE_ROUNDS = [
             ("🏀 First Round",   ["2026-03-19", "2026-03-20"]),
             ("🔥 Second Round",  ["2026-03-21", "2026-03-22"]),
@@ -3344,37 +3353,50 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
-        # Reduce spacing between button rows globally in this section
-        st.markdown("""
-        <style>
-        div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stButton"] {
-            margin-bottom: -12px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
+        # Build pure HTML date picker — 2 cols always, colored by status
+        _picker_html = '<div style="margin-bottom:12px;">'
         for _round_label, _round_dates in DATE_ROUNDS:
-            st.markdown(
-                f'<p style="font-size:11px;color:#6b7280;margin:2px 0 -6px 0;line-height:1.2;">{_round_label}</p>',
-                unsafe_allow_html=True
+            _picker_html += (
+                f'<div style="font-size:11px;color:#6b7280;margin:10px 0 4px 0;">{_round_label}</div>'
+                f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:2px;">'
             )
-            _rcols = st.columns(2)
-            for _ri, _d in enumerate(_round_dates):
-                _is_sel = _sel_date == _d
+            for _d in _round_dates:
+                _is_sel = _d == _sel_date
                 _is_today = _d == _today_str
                 _is_past = _d < _today_str
-                _is_future = _d > _today_str
-                _base_label = "Today" if _is_today else DATE_LABELS[_d]
+                _label = "Today" if _is_today else DATE_LABELS[_d]
                 if _is_today:
-                    _dlabel = f"🔴 {_base_label}"
+                    _prefix = "🔴 "
+                    _bg = "#2d0a0a" if not _is_sel else "#7f1d1d"
+                    _border = "#dc2626"
+                    _color = "#ef4444"
                 elif _is_past:
-                    _dlabel = f"✓ {_base_label}"
+                    _prefix = "✓ "
+                    _bg = "#111827" if not _is_sel else "#1f2937"
+                    _border = "#374151" if not _is_sel else "#6b7280"
+                    _color = "#6b7280" if not _is_sel else "#9ca3af"
                 else:
-                    _dlabel = f"› {_base_label}"
-                if _rcols[_ri].button(_dlabel, key=f"sp_date_{_d}", use_container_width=True,
-                                      type="primary" if _is_sel else "secondary"):
-                    st.session_state["sp_sel_date"] = _d
-                    st.rerun()
+                    _prefix = ""
+                    _bg = "#0f172a" if not _is_sel else "#1e3a5f"
+                    _border = "#1d4ed8"
+                    _color = "#60a5fa"
+                if _is_sel:
+                    _bg = "#1e3a5f" if not _is_today else "#7f1d1d"
+                    _border = "#3b82f6" if not _is_today else "#dc2626"
+                    _color = "#fff"
+                    _fw = "bold"
+                else:
+                    _fw = "normal"
+                _picker_html += (
+                    f'<a href="?_spdate={_d}" style="text-decoration:none;">'
+                    f'<div style="background:{_bg};border:1px solid {_border};border-radius:6px;'
+                    f'padding:7px 4px;text-align:center;font-size:12px;font-weight:{_fw};'
+                    f'color:{_color};cursor:pointer;white-space:nowrap;">'
+                    f'{_prefix}{_label}</div></a>'
+                )
+            _picker_html += '</div>'
+        _picker_html += '</div>'
+        st.markdown(_picker_html, unsafe_allow_html=True)
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
