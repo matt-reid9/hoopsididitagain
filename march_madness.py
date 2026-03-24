@@ -3345,14 +3345,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             ("🏆 Final Four & Championship", ["2026-04-04", "2026-04-06"]),
         ]
 
-        # Tighten spacing between rows
+        # Tighten spacing and force 2-col layout on mobile for date buttons
         st.markdown("""<style>
-        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"],
-        div[data-testid="stVerticalBlock"] > div.element-container {
-            margin-bottom: 0 !important;
+        .sp-date-grid [data-testid="stHorizontalBlock"] {
+            flex-wrap: nowrap !important;
+            gap: 6px !important;
+        }
+        .sp-date-grid [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 0 !important;
+            flex: 1 1 0% !important;
+            width: 50% !important;
         }
         </style>""", unsafe_allow_html=True)
 
+        st.markdown('<div class="sp-date-grid">', unsafe_allow_html=True)
         for _round_label, _round_dates in DATE_ROUNDS:
             st.markdown(f'<div style="font-size:11px;color:#6b7280;margin:8px 0 3px 0;">{_round_label}</div>', unsafe_allow_html=True)
             _rcols = st.columns(2)
@@ -3368,6 +3374,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                       type="primary" if _is_sel else "secondary"):
                     st.session_state["sp_sel_date"] = _d
                     st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
