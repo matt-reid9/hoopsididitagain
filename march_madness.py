@@ -640,7 +640,61 @@ def run_h2h_monte_carlo(
 
     return (p1_wins / runs * 100, p2_wins / runs * 100, ties / runs * 100)
 
-    return (p1_wins / runs * 100, p2_wins / runs * 100, ties / runs * 100)
+
+def run_nway_monte_carlo(
+    player_names: list,
+    player_picks: list,  # list of tuples
+    winners_row: tuple,
+    pts_list: tuple,
+    alive_tuple: tuple,
+    seed_items: tuple,
+    r1_contestants: tuple,
+    runs: int = 1000,
+) -> dict:
+    """N-player H2H simulation — returns win % per player summing to 100%."""
+    seed_map = dict(seed_items)
+    r1_teams = {col: (a, b) for col, a, b in r1_contestants}
+    unplayed = [c for c in range(3, 66) if is_unplayed(winners_row[c])]
+    n = len(player_names)
+    wins = {name: 0 for name in player_names}
+    ties_count = 0
+
+    for _ in range(runs):
+        sim_w = list(winners_row)
+        for c in sorted(unplayed):
+            parents = _BRACKET_PARENTS.get(c)
+            if parents is None:
+                contestants = set(r1_teams.get(c, ("", "")))
+            else:
+                p1s, p2s = parents
+                contestants = {sim_w[p1s], sim_w[p2s]}
+            contestants.discard("")
+            contestants.discard("None")
+            picks_for_slot = [t for picks in player_picks for t in [picks[c]] if t in contestants]
+            winner = random.choice(picks_for_slot) if picks_for_slot else (
+                random.choice(list(contestants)) if contestants else "None"
+            )
+            sim_w[c] = winner
+
+        scores = []
+        for picks in player_picks:
+            sc = sum(
+                pts_list[c] + seed_map.get(picks[c], 0)
+                for c in range(3, 66) if picks[c] == sim_w[c]
+            )
+            scores.append(sc)
+
+        max_sc = max(scores)
+        winners_this = [player_names[i] for i, s in enumerate(scores) if s == max_sc]
+        if len(winners_this) == 1:
+            wins[winners_this[0]] += 1
+        else:
+            ties_count += 1
+            for w in winners_this:
+                wins[w] += 1 / len(winners_this)
+
+    return {name: wins[name] / runs * 100 for name in player_names}
+
 
 
 # ─── 5. BRACKET BUSTERS ───────────────────────────────────────────────────────
@@ -2605,253 +2659,348 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         elif _sub_yb == "head-to-head":
             st.subheader("⚔️ Head-to-Head Comparison")
-            col_a, col_b = st.columns(2)
-            h2h_opts = ["— select —"] + name_opts
 
-            # Apply pending values from standings row-click
+            h2h_opts = ["— select —"] + name_opts
+            PLAYER_COLORS = ["#4fc3f7", "#f5c518", "#fb923c", "#c084fc"]  # blue, yellow, orange, purple
+            PLAYER_ICONS  = ["🔵", "🟡", "🟠", "🟣"]
+            _name_lower = {n.lower(): n for n in name_opts}
+
+            # Apply query params p1–p4 on first load
+            if "h2h_qp_applied" not in st.session_state:
+                st.session_state["h2h_qp_applied"] = True
+                try:
+                    for _qi, _qk in enumerate(["p1","p2","p3","p4"]):
+                        _qv = st.query_params.get(_qk, "")
+                        if _qv:
+                            _m = _name_lower.get(_qv.lower(), "")
+                            if _m:
+                                st.session_state[f"_h2h_p{_qi+1}_cur"] = _m
+                    for _qk in ["p1","p2","p3","p4"]:
+                        st.query_params.pop(_qk, None)
+                except Exception:
+                    pass
+
+            # Apply pending values from standings click
             if "_h2h_p1_pending" in st.session_state:
                 st.session_state["_h2h_p1_cur"] = st.session_state.pop("_h2h_p1_pending")
             if "_h2h_p2_pending" in st.session_state:
                 st.session_state["_h2h_p2_cur"] = st.session_state.pop("_h2h_p2_pending")
 
-            # Determine current values — default p1 to user_name
-            _p1_cur = st.session_state.get("_h2h_p1_cur")
-            if not _p1_cur or _p1_cur not in h2h_opts:
-                _p1_cur = user_name if user_name in h2h_opts else "— select —"
-            _p2_cur = st.session_state.get("_h2h_p2_cur", "— select —")
-            if _p2_cur not in h2h_opts:
-                _p2_cur = "— select —"
+            # P1 always defaults to current user (overrides stale session state)
+            if user_name and user_name in h2h_opts:
+                _p1_default = st.session_state.get("_h2h_p1_cur", user_name)
+                if not _p1_default or _p1_default not in h2h_opts:
+                    _p1_default = user_name
+            else:
+                _p1_default = st.session_state.get("_h2h_p1_cur", "— select —")
+                if _p1_default not in h2h_opts:
+                    _p1_default = "— select —"
 
-            _p1_idx = h2h_opts.index(_p1_cur)
-            _p2_idx = h2h_opts.index(_p2_cur)
+            _p_defaults = [_p1_default]
+            for _pi in range(1, 4):
+                _pval = st.session_state.get(f"_h2h_p{_pi+1}_cur", "— select —")
+                if _pval not in h2h_opts:
+                    _pval = "— select —"
+                _p_defaults.append(_pval)
 
-            with col_a:
-                p1_name = st.selectbox("Player 1", h2h_opts, index=_p1_idx, key="_h2h_sel_p1")
-                st.session_state["_h2h_p1_cur"] = p1_name
-            with col_b:
-                p2_name = st.selectbox("Player 2", h2h_opts, index=_p2_idx, key="_h2h_sel_p2")
-                st.session_state["_h2h_p2_cur"] = p2_name
-
-            if p1_name != "— select —" and p2_name != "— select —" and p1_name != p2_name:
-                p1 = final_df[final_df["Name"] == p1_name].iloc[0].to_dict()
-                p2 = final_df[final_df["Name"] == p2_name].iloc[0].to_dict()
-
-                h2h = head_to_head(p1, p2, actual_winners, points_per_game, seed_map)
-
-                # Score comparison + rankings — always 3 columns: P1 | Shared | P2
-                p1_delta = p1['Current Score'] - p2['Current Score']
-                p2_delta = p2['Current Score'] - p1['Current Score']
-                p1_delta_str = f"+{p1_delta}" if p1_delta >= 0 else str(p1_delta)
-                p2_delta_str = f"+{p2_delta}" if p2_delta >= 0 else str(p2_delta)
-                p1_delta_color = "#4caf50" if p1_delta > 0 else ("#f44336" if p1_delta < 0 else "#888")
-                p2_delta_color = "#4caf50" if p2_delta > 0 else ("#f44336" if p2_delta < 0 else "#888")
-
-                st.markdown(f"""
-                <div style="display:flex; gap:6px; width:100%; box-sizing:border-box; margin-bottom:12px;">
-                  <!-- P1 card -->
-                  <div style="flex:2; background:#1e1e2e; border:1px solid #313244; border-radius:10px; padding:clamp(10px,2.5vw,16px); min-width:0;">
-                    <div style="font-size:clamp(14px,4vw,18px); color:#7bb8f5; font-weight:600; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔵 {p1_name}</div>
-                    <div style="display:flex; gap:6px;">
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:clamp(11px,2.5vw,13px); color:#888;">Rank</div>
-                        <div style="font-size:clamp(24px,6vw,32px); font-weight:700; color:#fff; line-height:1.1;">#{int(p1['Current Rank'])}</div>
-                      </div>
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:clamp(11px,2.5vw,13px); color:#888;">Score</div>
-                        <div style="font-size:clamp(24px,6vw,32px); font-weight:700; color:#fff; line-height:1.1;">{p1['Current Score']}</div>
-                        <div style="font-size:clamp(12px,2.8vw,15px); color:{p1_delta_color}; font-weight:600;">{p1_delta_str}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <!-- Shared card -->
-                  <div style="flex:1; background:#1e1e2e; border:1px solid #313244; border-radius:10px; padding:clamp(10px,2.5vw,16px); min-width:0; text-align:center;">
-                    <div style="font-size:clamp(11px,2.5vw,13px); color:#888; margin-bottom:2px;">🤝 Shared</div>
-                    <div style="font-size:clamp(10px,2.2vw,12px); color:#666; margin-bottom:6px;">same pick,<br>both correct</div>
-                    <div style="font-size:clamp(26px,6.5vw,36px); font-weight:700; color:#fff; line-height:1.1;">{h2h['shared_pts']}</div>
-                  </div>
-                  <!-- P2 card -->
-                  <div style="flex:2; background:#1e1e2e; border:1px solid #313244; border-radius:10px; padding:clamp(10px,2.5vw,16px); min-width:0;">
-                    <div style="font-size:clamp(14px,4vw,18px); color:#f57b7b; font-weight:600; margin-bottom:6px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔴 {p2_name}</div>
-                    <div style="display:flex; gap:6px;">
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:clamp(11px,2.5vw,13px); color:#888;">Score</div>
-                        <div style="font-size:clamp(24px,6vw,32px); font-weight:700; color:#fff; line-height:1.1;">{p2['Current Score']}</div>
-                        <div style="font-size:clamp(12px,2.8vw,15px); color:{p2_delta_color}; font-weight:600;">{p2_delta_str}</div>
-                      </div>
-                      <div style="flex:1; min-width:0;">
-                        <div style="font-size:clamp(11px,2.5vw,13px); color:#888;">Rank</div>
-                        <div style="font-size:clamp(24px,6vw,32px); font-weight:700; color:#fff; line-height:1.1;">#{int(p2['Current Rank'])}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # 1v1 Win probability via dedicated Monte Carlo
-                h2h_p1_pct, h2h_p2_pct, h2h_tie_pct = run_h2h_monte_carlo(
-                    p1_name, p2_name,
-                    tuple(p1["raw_picks"]), tuple(p2["raw_picks"]),
-                    tuple(actual_winners), tuple(points_per_game),
-                    tuple(all_alive), tuple(seed_map.items()),
-                    r1_contestants,
+            _sel_cols = st.columns(4)
+            _sel_names = []
+            for _pi in range(4):
+                _sel = _sel_cols[_pi].selectbox(
+                    f"Player {_pi+1}", h2h_opts,
+                    index=h2h_opts.index(_p_defaults[_pi]),
+                    key=f"_h2h_sel_p{_pi+1}"
                 )
+                st.session_state[f"_h2h_p{_pi+1}_cur"] = _sel
+                _sel_names.append(_sel)
 
-                # Pool-wide win % and top 3 % from the full Monte Carlo
-                pool_p1_pct  = win_probs.get(p1_name, 0.0)
-                pool_p2_pct  = win_probs.get(p2_name, 0.0)
-                top3_p1_pct  = top3_probs.get(p1_name, 0.0)
-                top3_p2_pct  = top3_probs.get(p2_name, 0.0)
+            # Deduplicate
+            _players, _seen = [], set()
+            for _n in _sel_names:
+                if _n != "— select —" and _n not in _seen:
+                    _players.append(_n)
+                    _seen.add(_n)
 
-                chart_col1, chart_col2, chart_col3 = st.columns([1, 1, 1])
+            if len(_players) < 2:
+                st.info("Select at least 2 players to compare.")
+            else:
+                _pdata = [final_df[final_df["Name"] == n].iloc[0].to_dict() for n in _players]
+                _np = len(_players)
+                _max_score = max(p["Current Score"] for p in _pdata)
 
-                for col, title, y1, y2, caption, chart_height in [
-                    (chart_col1, "1v1 Win Probability", h2h_p1_pct, h2h_p2_pct,
-                     f"Ties: {h2h_tie_pct:.1f}%" if h2h_tie_pct > 0 else None, 165),
-                    (chart_col2, "Pool Win Probability (1st Place)", pool_p1_pct, pool_p2_pct,
-                     "Based on 1,000 Monte Carlo simulations vs. the full pool", 165),
-                    (chart_col3, "Top 3 Finish Probability", top3_p1_pct, top3_p2_pct,
-                     "Based on 1,000 Monte Carlo simulations vs. the full pool", 165),
-                ]:
-                    with col:
-                        fig = go.Figure(go.Bar(
-                            x=[p1_name, p2_name],
-                            y=[y1, y2],
-                            marker_color=["#4fc3f7", "#ff6b6b"],
-                            text=[f"{y1:.1f}%", f"{y2:.1f}%"],
-                            textposition="outside",
-                        ))
-                        fig.update_layout(
-                        dragmode=False,
-                            title=title,
-                            yaxis_range=[0, 100],
-                            height=chart_height,
-                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                            margin=dict(l=0, r=0, t=36, b=0),
-                            xaxis=dict(tickfont=dict(size=10)),
-                            font=dict(size=10),
+                # ── Stat cards (3-4 players only; 2-player has dedicated layout below) ──
+                if _np > 2:
+                    _cards_html = '<div style="display:flex;gap:6px;width:100%;margin-bottom:12px;">'
+                    for _pi, (n, p) in enumerate(zip(_players, _pdata)):
+                        _col = PLAYER_COLORS[_pi]
+                        _ico = PLAYER_ICONS[_pi]
+                        _delta = p["Current Score"] - _max_score
+                        _delta_str = f"{_delta}" if _delta < 0 else ("+0" if _delta == 0 else f"+{_delta}")
+                        _dcol = "#888" if _delta == 0 else ("#4caf50" if _delta > 0 else "#f44336")
+                        _cards_html += (
+                            f'<div style="flex:1;background:#1e1e2e;border:1px solid #313244;'
+                            f'border-radius:10px;padding:10px;min-width:0;">'
+                            f'<div style="font-size:clamp(11px,3vw,15px);color:{_col};font-weight:600;'
+                            f'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px;">'
+                            f'{_ico} {n}</div>'
+                            f'<div style="font-size:11px;color:#888;">Rank</div>'
+                            f'<div style="font-size:clamp(18px,5vw,26px);font-weight:700;color:#fff;line-height:1.1;">#{int(p["Current Rank"])}</div>'
+                            f'<div style="font-size:11px;color:#888;margin-top:4px;">Score</div>'
+                            f'<div style="font-size:clamp(18px,5vw,26px);font-weight:700;color:#fff;line-height:1.1;">{p["Current Score"]}</div>'
+                            f'<div style="font-size:12px;color:{_dcol};font-weight:600;">{_delta_str}</div>'
+                            f'</div>'
                         )
-                        st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
-                        if caption:
-                            st.caption(caption)
+                    _cards_html += '</div>'
+                    st.markdown(_cards_html, unsafe_allow_html=True)
 
-                st.markdown("#### 🔀 Where Your Brackets Split")
-                diverge_df = pd.DataFrame(h2h["divergences"])
+                # ── Shared picks (2-player only) ─────────────────────────────
+                if _np == 2:
+                    p1_name, p2_name = _players[0], _players[1]
+                    p1, p2 = _pdata[0], _pdata[1]
+                    h2h = head_to_head(p1, p2, actual_winners, points_per_game, seed_map)
+                    p1_delta = p1["Current Score"] - p2["Current Score"]
+                    p2_delta = -p1_delta
+                    p1_delta_str = f"+{p1_delta}" if p1_delta >= 0 else str(p1_delta)
+                    p2_delta_str = f"+{p2_delta}" if p2_delta >= 0 else str(p2_delta)
+                    p1_dcol = "#4caf50" if p1_delta > 0 else ("#f44336" if p1_delta < 0 else "#888")
+                    p2_dcol = "#4caf50" if p2_delta > 0 else ("#f44336" if p2_delta < 0 else "#888")
+                    st.markdown(f"""
+                    <div style="display:flex;gap:6px;width:100%;margin-bottom:12px;">
+                      <div style="flex:2;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;">
+                        <div style="font-size:clamp(14px,4vw,18px);color:#4fc3f7;font-weight:600;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔵 {p1_name}</div>
+                        <div style="display:flex;gap:6px;">
+                          <div style="flex:1;min-width:0;"><div style="font-size:clamp(11px,2.5vw,13px);color:#888;">Rank</div><div style="font-size:clamp(24px,6vw,32px);font-weight:700;color:#fff;line-height:1.1;">#{int(p1["Current Rank"])}</div></div>
+                          <div style="flex:1;min-width:0;"><div style="font-size:clamp(11px,2.5vw,13px);color:#888;">Score</div><div style="font-size:clamp(24px,6vw,32px);font-weight:700;color:#fff;line-height:1.1;">{p1["Current Score"]}</div><div style="font-size:clamp(12px,2.8vw,15px);color:{p1_dcol};font-weight:600;">{p1_delta_str}</div></div>
+                        </div>
+                      </div>
+                      <div style="flex:1;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;text-align:center;">
+                        <div style="font-size:clamp(11px,2.5vw,13px);color:#888;margin-bottom:2px;">🤝 Shared</div>
+                        <div style="font-size:clamp(10px,2.2vw,12px);color:#666;margin-bottom:6px;">same pick,<br>both correct</div>
+                        <div style="font-size:clamp(26px,6.5vw,36px);font-weight:700;color:#fff;line-height:1.1;">{h2h["shared_pts"]}</div>
+                      </div>
+                      <div style="flex:2;background:#1e1e2e;border:1px solid #313244;border-radius:10px;padding:clamp(10px,2.5vw,16px);min-width:0;">
+                        <div style="font-size:clamp(14px,4vw,18px);color:#f5c518;font-weight:600;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🟡 {p2_name}</div>
+                        <div style="display:flex;gap:6px;">
+                          <div style="flex:1;min-width:0;"><div style="font-size:clamp(11px,2.5vw,13px);color:#888;">Score</div><div style="font-size:clamp(24px,6vw,32px);font-weight:700;color:#fff;line-height:1.1;">{p2["Current Score"]}</div><div style="font-size:clamp(12px,2.8vw,15px);color:{p2_dcol};font-weight:600;">{p2_delta_str}</div></div>
+                          <div style="flex:1;min-width:0;"><div style="font-size:clamp(11px,2.5vw,13px);color:#888;">Rank</div><div style="font-size:clamp(24px,6vw,32px);font-weight:700;color:#fff;line-height:1.1;">#{int(p2["Current Rank"])}</div></div>
+                        </div>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-                ROUND_SHORT = {
-                    "R64":   "R64",
-                    "R32":   "R32",
-                    "S16":   "S16",
-                    "E8":    "E8",
-                    "F4":    "F4",
-                    "Champ": "Champ",
-                }
+                # ── Charts ───────────────────────────────────────────────────
+                _chart_titles = ["Pool Win %", "Top 3 Finish %"]
+                _chart_dicts  = [win_probs, top3_probs]
 
-                TABLE_STYLE = """
-                <style>
-                .div-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 16px; }
-                .div-table { border-collapse: collapse; width: 100%; font-size: 13px; }
-                .div-table th {
-                    background: #1e1e2e; color: #fff; padding: 6px 8px;
-                    border: 1px solid #313244; text-align: left;
-                    white-space: normal; word-break: keep-all;
-                    font-size: 12px; vertical-align: bottom; line-height: 1.3;
-                }
-                .div-table td {
-                    padding: 5px 8px; border: 1px solid #313244; color: #fff;
-                    background: #13161f; white-space: nowrap;
-                }
-                .div-table tr:nth-child(even) td { background: #1a1f2b; }
-                .div-table td.round-col, .div-table th.round-col { width: 1%; white-space: nowrap; }
-                </style>
-                """
+                if _np == 2:
+                    # 1v1 + pool win% + top3%
+                    h2h_p1_pct, h2h_p2_pct, h2h_tie_pct = run_h2h_monte_carlo(
+                        p1_name, p2_name,
+                        tuple(p1["raw_picks"]), tuple(p2["raw_picks"]),
+                        tuple(actual_winners), tuple(points_per_game),
+                        tuple(all_alive), tuple(seed_map.items()),
+                        r1_contestants,
+                    )
+                    _chart_cols = st.columns(3)
+                    for _ci, (_title, _ys, _cap) in enumerate([
+                        ("1v1 Win Probability", [h2h_p1_pct, h2h_p2_pct],
+                         f"Ties: {h2h_tie_pct:.1f}%" if h2h_tie_pct > 0 else None),
+                        ("Pool Win %", [win_probs.get(n, 0) for n in _players], "1,000 Monte Carlo simulations"),
+                        ("Top 3 Finish %", [top3_probs.get(n, 0) for n in _players], "1,000 Monte Carlo simulations"),
+                    ]):
+                        with _chart_cols[_ci]:
+                            fig = go.Figure(go.Bar(
+                                x=_players, y=_ys,
+                                marker_color=PLAYER_COLORS[:_np],
+                                text=[f"{v:.1f}%" for v in _ys],
+                                textposition="outside",
+                            ))
+                            fig.update_layout(dragmode=False, title=_title, yaxis_range=[0,100], height=165,
+                                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                                margin=dict(l=0,r=0,t=36,b=0), xaxis=dict(tickfont=dict(size=9)), font=dict(size=10))
+                            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+                            if _cap:
+                                st.caption(_cap)
+                else:
+                    # 3-4 players: all 3 charts showing all players together
+                    _chart_cols = st.columns(3)
+                    _pool_ys = [win_probs.get(n, 0) for n in _players]
+                    _top3_ys = [top3_probs.get(n, 0) for n in _players]
+
+                    # N-way H2H: single simulation, winner takes all each run
+                    _h2h_result = run_nway_monte_carlo(
+                        _players,
+                        [tuple(p["raw_picks"]) for p in _pdata],
+                        tuple(actual_winners), tuple(points_per_game),
+                        tuple(all_alive), tuple(seed_map.items()),
+                        r1_contestants,
+                    )
+                    _h2h_ys = [round(_h2h_result.get(n, 0), 1) for n in _players]
+
+                    for _ci, (_title, _ys, _cap) in enumerate([
+                        ("Head-to-Head Win %", _h2h_ys, "1v1v1 — ignoring all other pool participants"),
+                        ("Pool Win %", _pool_ys, "1,000 Monte Carlo simulations"),
+                        ("Top 3 Finish %", _top3_ys, "1,000 Monte Carlo simulations"),
+                    ]):
+                        with _chart_cols[_ci]:
+                            fig = go.Figure(go.Bar(
+                                x=_players, y=_ys,
+                                marker_color=PLAYER_COLORS[:_np],
+                                text=[f"{v:.1f}%" for v in _ys],
+                                textposition="outside",
+                            ))
+                            fig.update_layout(dragmode=False, title=_title, yaxis_range=[0,100], height=165,
+                                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                                margin=dict(l=0,r=0,t=36,b=0), xaxis=dict(tickfont=dict(size=9)), font=dict(size=10))
+                            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+                            st.caption(_cap)
+
+                # ── Divergences ──────────────────────────────────────────────
+                ROUND_SHORT = {"R64":"R64","R32":"R32","S16":"S16","E8":"E8","F4":"F4","Champ":"Champ"}
+                ELIM_STYLE  = "color:#e05555;text-decoration:line-through;"
+                TABLE_STYLE = """<style>
+                .div-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px;}
+                .div-table{border-collapse:collapse;width:100%;font-size:13px;}
+                .div-table th{background:#1e1e2e;color:#fff;padding:6px 8px;border:1px solid #313244;text-align:left;font-size:12px;vertical-align:bottom;line-height:1.3;}
+                .div-table td{padding:5px 8px;border:1px solid #313244;color:#fff;background:#13161f;white-space:nowrap;}
+                .div-table tr:nth-child(even) td{background:#1a1f2b;}
+                .div-table td.rc,.div-table th.rc{width:1%;white-space:nowrap;}
+                </style>"""
                 st.markdown(TABLE_STYLE, unsafe_allow_html=True)
 
-                def make_html_table(headers, rows, col_classes, row_colors=None, cell_styles=None):
-                    """
-                    cell_styles: list of lists of per-cell style strings (or None), matching rows x cols.
-                    row_colors: list of row-level color strings (applied if no cell_style overrides).
-                    """
-                    ths = "".join(f'<th class="{c}">{h}</th>' for h, c in zip(headers, col_classes))
+                def _html_table(headers, rows, col_classes, row_colors=None, cell_styles=None):
+                    ths = "".join(f'<th class="{c}">{h}</th>' for h,c in zip(headers,col_classes))
                     trs = ""
-                    for i, row in enumerate(rows):
-                        row_color = row_colors[i] if row_colors else None
+                    for i,row in enumerate(rows):
+                        rc = row_colors[i] if row_colors else None
                         tds = ""
-                        for j, (v, c) in enumerate(zip(row, col_classes)):
-                            cell_style = (cell_styles[i][j] if cell_styles and cell_styles[i] and cell_styles[i][j] else None)
-                            style = f' style="{cell_style}"' if cell_style else (f' style="color:{row_color};"' if row_color else "")
+                        for j,(v,c) in enumerate(zip(row,col_classes)):
+                            cs = cell_styles[i][j] if cell_styles and cell_styles[i] and cell_styles[i][j] else None
+                            style = f' style="{cs}"' if cs else (f' style="color:{rc};"' if rc else "")
                             tds += f'<td class="{c}"{style}>{v if v is not None else "—"}</td>'
                         trs += f"<tr>{tds}</tr>"
                     return f'<div class="div-table-wrap"><table class="div-table"><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table></div>'
 
-                ELIM_STYLE = "color:#e05555; text-decoration: line-through;"
-
-                if not diverge_df.empty:
-                    future = diverge_df[diverge_df["Played"] == False]  # noqa: E712
-                    past   = diverge_df[diverge_df["Played"] == True]   # noqa: E712
-
-                    if not future.empty:
-                        st.markdown("**Upcoming Divergences** — where the battle will be decided")
-                        future_display = future.copy()
-                        future_display["Round"] = future_display["Round"].map(lambda r: ROUND_SHORT.get(r, r))
-                        headers = ["Rnd", p1_name, f"{p1_name} Pts", p2_name, f"{p2_name} Pts"]
-                        col_classes = ["round-col", "", "round-col", "", "round-col"]
-                        rows = []
-                        cell_styles = []
-                        for _, row in future_display.iterrows():
-                            p1_pick = row[p1_name]
-                            p2_pick = row[p2_name]
-                            p1_pts = row.get("P1 Pts", "")
-                            p2_pts = row.get("P2 Pts", "")
-                            p1_elim = p1_pick not in truly_alive
-                            p2_elim = p2_pick not in truly_alive
-                            rows.append([
-                                row["Round"], p1_pick,
-                                int(p1_pts) if p1_pts != "" else "—",
-                                p2_pick,
-                                int(p2_pts) if p2_pts != "" else "—",
-                            ])
-                            cell_styles.append([
-                                None,
-                                ELIM_STYLE if p1_elim else None,
-                                ELIM_STYLE if p1_elim else None,
-                                ELIM_STYLE if p2_elim else None,
-                                ELIM_STYLE if p2_elim else None,
-                            ])
-                        st.markdown(make_html_table(headers, rows, col_classes, cell_styles=cell_styles), unsafe_allow_html=True)
-
-                    if not past.empty:
-                        st.markdown("**Past Divergences**")
-                        past_display = past.copy()
-                        past_display["Round"] = past_display["Round"].map(lambda r: ROUND_SHORT.get(r, r))
-                        past_display[p1_name] = past_display[p1_name] + " " + past_display["P1 Got It"]
-                        past_display[p2_name] = past_display[p2_name] + " " + past_display["P2 Got It"]
-                        past_display["Pts Awarded"] = past_display.apply(
-                            lambda r: int(r["Pts"]) if r["Pts"] > 0 else pd.NA, axis=1,
-                        ).astype("Int64")
-                        past_display = past_display.sort_values("Pts Awarded", ascending=False, na_position="last")
-                        headers = ["Rnd", p1_name, p2_name, "Winner", "Pts Awarded"]
-                        col_classes = ["round-col", "", "", "", "round-col"]
-                        rows = []
-                        row_colors = []
-                        for _, row in past_display.iterrows():
-                            pts_val = row["Pts Awarded"]
-                            pts_display = "None" if pd.isna(pts_val) else int(pts_val)
-                            rows.append([
-                                row["Round"], row[p1_name], row[p2_name],
-                                row["Winner"], pts_display,
-                            ])
-                            if row["P1 Got It"] == "✅":
-                                row_colors.append("#7bb8f5")
-                            elif row["P2 Got It"] == "✅":
-                                row_colors.append("#f57b7b")
-                            else:
-                                row_colors.append(None)
-                        st.markdown(make_html_table(headers, rows, col_classes, row_colors=row_colors), unsafe_allow_html=True)
+                if _np == 2:
+                    diverge_df = pd.DataFrame(h2h["divergences"])
+                    st.markdown("#### 🔀 Where Your Brackets Split")
+                    if not diverge_df.empty:
+                        future = diverge_df[diverge_df["Played"] == False]
+                        past   = diverge_df[diverge_df["Played"] == True]
+                        if not future.empty:
+                            st.markdown("**Upcoming Divergences** — where the battle will be decided")
+                            fd = future.copy()
+                            fd["Round"] = fd["Round"].map(lambda r: ROUND_SHORT.get(r,r))
+                            hdrs = ["Rnd", p1_name, f"{p1_name} Pts", p2_name, f"{p2_name} Pts"]
+                            ccs  = ["rc","","rc","","rc"]
+                            rows, css = [], []
+                            for _, row in fd.iterrows():
+                                p1e = row[p1_name] not in truly_alive
+                                p2e = row[p2_name] not in truly_alive
+                                p1_style = ELIM_STYLE if p1e else "color:#4fc3f7;"
+                                p2_style = ELIM_STYLE if p2e else "color:#f5c518;"
+                                rows.append([row["Round"], row[p1_name], int(row.get("P1 Pts","") or 0), row[p2_name], int(row.get("P2 Pts","") or 0)])
+                                css.append([None, p1_style, p1_style, p2_style, p2_style])
+                            st.markdown(_html_table(hdrs, rows, ccs, cell_styles=css), unsafe_allow_html=True)
+                        if not past.empty:
+                            st.markdown("**Past Divergences**")
+                            pd_ = past.copy()
+                            pd_["Round"] = pd_["Round"].map(lambda r: ROUND_SHORT.get(r,r))
+                            pd_["Pts Awarded"] = pd_.apply(lambda r: int(r["Pts"]) if r["Pts"] > 0 else pd.NA, axis=1).astype("Int64")
+                            pd_ = pd_.sort_values("Pts Awarded", ascending=False, na_position="last")
+                            hdrs = ["Rnd", p1_name, p2_name, "Winner", "Pts"]
+                            ccs  = ["rc","","","","rc"]
+                            rows, css = [], []
+                            for _, row in pd_.iterrows():
+                                pv = row["Pts Awarded"]
+                                p1g = row["P1 Got It"] == "✅"
+                                p2g = row["P2 Got It"] == "✅"
+                                p1_pick = row[p1_name]
+                                p2_pick = row[p2_name]
+                                p1_style = "color:#4ade80;" if p1g else "color:#f87171;text-decoration:line-through;"
+                                p2_style = "color:#4ade80;" if p2g else "color:#f87171;text-decoration:line-through;"
+                                rows.append([row["Round"],
+                                    f'{"✅ " if p1g else "❌ "}{p1_pick}',
+                                    f'{"✅ " if p2g else "❌ "}{p2_pick}',
+                                    row["Winner"], "—" if pd.isna(pv) else int(pv)])
+                                css.append([None, p1_style, p2_style, None, None])
+                            st.markdown(_html_table(hdrs, rows, ccs, cell_styles=css), unsafe_allow_html=True)
+                    else:
+                        st.info("These two have identical brackets!")
                 else:
-                    st.info("These two have identical brackets!")
+                    # Multi-player divergences
+                    st.markdown("#### 🔀 Where Brackets Split")
+                    _future_rows, _past_rows = [], []
+                    for _c in range(3, 66):
+                        _slot_picks = [p["raw_picks"][_c] if _c < len(p["raw_picks"]) else "" for p in _pdata]
+                        if len(set(_slot_picks)) <= 1:
+                            continue
+                        _rnd = ROUND_SHORT.get(get_round_name(_c), get_round_name(_c))
+                        _is_played = not is_unplayed(actual_winners[_c])
+                        _actual_winner = actual_winners[_c] if _is_played else ""
+                        # Points value for this slot
+                        _slot_pts_val = points_per_game[_c] if _c < len(points_per_game) else 0
 
-            elif p1_name == p2_name and p1_name != "— select —":
-                st.warning("Please select two different players.")
+                        if not _is_played:
+                            # Upcoming — show pick + potential pts
+                            _row = [_rnd]
+                            for _pi, (_n, _pk) in enumerate(zip(_players, _slot_picks)):
+                                _elim = _pk not in truly_alive
+                                _pts_val = _slot_pts_val + seed_map.get(_pk, 0)
+                                if _elim:
+                                    _row.append(f'<span style="color:#e05555;text-decoration:line-through;">{_pk}</span>')
+                                    _row.append(f'<span style="color:#e05555;">—</span>')
+                                else:
+                                    _row.append(f'<span style="color:{PLAYER_COLORS[_pi]};">{_pk}</span>')
+                                    _row.append(f'<span style="color:{PLAYER_COLORS[_pi]};">{_pts_val}</span>')
+                            _future_rows.append(_row)
+                        else:
+                            # Past — show pick + ✅/❌ + pts awarded
+                            _pts_awarded = 0
+                            _row = [_rnd]
+                            for _pi, (_n, _pk) in enumerate(zip(_players, _slot_picks)):
+                                _won = _pk == _actual_winner
+                                _pts_val = (_slot_pts_val + seed_map.get(_pk, 0)) if _won else 0
+                                if _won:
+                                    _pts_awarded = _pts_val
+                                    _row.append(f'<span style="color:#4ade80;font-weight:700;">✅ {_pk}</span>')
+                                else:
+                                    _row.append(f'<span style="color:#f87171;text-decoration:line-through;">❌ {_pk}</span>')
+                            _row.append(f'<span style="color:#9ca3af;">{_actual_winner}</span>')
+                            _row.append(str(_pts_awarded) if _pts_awarded else "—")
+                            _past_rows.append(_row)
+
+                    # Build headers
+                    _pick_hdrs = []
+                    for _n in _players:
+                        _pick_hdrs += [_n, "Pts"]
+                    _future_hdrs = ["Rnd"] + _pick_hdrs
+                    _past_hdrs   = ["Rnd"] + [_n for _n in _players] + ["Winner", "Pts"]
+
+                    _t2 = """<style>
+                    .div-table-wrap2{overflow-x:auto;margin-bottom:16px;}
+                    .div-table2{border-collapse:collapse;width:100%;font-size:13px;}
+                    .div-table2 th{background:#1e1e2e;color:#fff;padding:6px 8px;border:1px solid #313244;font-size:12px;}
+                    .div-table2 td{padding:5px 8px;border:1px solid #313244;color:#fff;background:#13161f;white-space:nowrap;}
+                    .div-table2 tr:nth-child(even) td{background:#1a1f2b;}
+                    .div-table2 td.rc{width:1%;white-space:nowrap;}
+                    </style>"""
+                    st.markdown(_t2, unsafe_allow_html=True)
+
+                    def _ht2(headers, rows):
+                        ths = "".join(f'<th class="{"rc" if i==0 else ""}">{h}</th>' for i,h in enumerate(headers))
+                        trs = "".join("<tr>" + "".join(f'<td class="{"rc" if j==0 else ""}">{v}</td>' for j,v in enumerate(r)) + "</tr>" for r in rows)
+                        return f'<div class="div-table-wrap2"><table class="div-table2"><thead><tr>{ths}</tr></thead><tbody>{trs}</tbody></table></div>'
+
+                    if _future_rows:
+                        st.markdown("**Upcoming Divergences**")
+                        st.markdown(_ht2(_future_hdrs, _future_rows), unsafe_allow_html=True)
+                    if _past_rows:
+                        st.markdown("**Past Divergences**")
+                        st.markdown(_ht2(_past_hdrs, _past_rows), unsafe_allow_html=True)
+                    if not _future_rows and not _past_rows:
+                        st.success("All selected players have identical picks!")
+
 
         elif _sub_yb == "bracket-dna":
             st.subheader("🧬 Bracket DNA & Probability")
