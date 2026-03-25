@@ -4260,31 +4260,35 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     s = _stats_lookup[nm]
                     is_user = user_name and nm == user_name
                     row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
-                    champ_logo = espn_logo_url(s["Champion Pick"])
-                    champ_td = (
-                        f'<img src="{champ_logo}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display:none">'
+                    champ_pick = s["Champion Pick"]
+                    champ_elim = champ_pick and champ_pick not in truly_alive
+                    champ_logo = espn_logo_url(champ_pick)
+                    champ_logo_html = (
+                        f'<img src="{champ_logo}" style="width:14px;height:14px;object-fit:contain;vertical-align:middle;margin-right:3px;{"opacity:0.4;" if champ_elim else ""}" onerror="this.style.display:none">'
                         if champ_logo else ""
-                    ) + s["Champion Pick"]
+                    )
+                    champ_text_style = "color:#e05555;text-decoration:line-through;" if champ_elim else ""
+                    champ_td = f'{champ_logo_html}<span style="{champ_text_style}">{champ_pick}</span>'
                     trs_r += (
                         f'<tr{row_style}>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Rank"]}</td>'
-                        f'<td style="padding:5px 8px;white-space:nowrap;font-weight:600;">{nm}</td>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Score"]}</td>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Potential"]}</td>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Correct"]}</td>'
-                        f'<td style="padding:5px 8px;white-space:nowrap;">{champ_td}</td>'
+                        f'<td style="text-align:center;padding:4px 5px;">{s["Rank"]}</td>'
+                        f'<td style="padding:4px 6px;white-space:nowrap;font-weight:600;">{nm}</td>'
+                        f'<td style="text-align:center;padding:4px 5px;">{s["Score"]}</td>'
+                        f'<td style="text-align:center;padding:4px 5px;">{s["Potential"]}</td>'
+                        f'<td style="text-align:center;padding:4px 5px;">{s["Correct"]}</td>'
+                        f'<td style="padding:4px 6px;white-space:nowrap;">{champ_td}</td>'
                         f'</tr>'
                     )
                 st.markdown(
-                    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">'
-                    '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                    '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:8px;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:12px;">'
                     '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Rank</th>'
-                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Name</th>'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Score</th>'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Potential</th>'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">✓ Picks</th>'
-                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Champion</th>'
+                    '<th style="padding:5px 5px;text-align:center;border:1px solid #313244;white-space:nowrap;">#</th>'
+                    '<th style="padding:5px 6px;text-align:left;border:1px solid #313244;white-space:nowrap;">Name</th>'
+                    '<th style="padding:5px 5px;text-align:center;border:1px solid #313244;white-space:nowrap;">Pts</th>'
+                    '<th style="padding:5px 5px;text-align:center;border:1px solid #313244;white-space:nowrap;">Max</th>'
+                    '<th style="padding:5px 5px;text-align:center;border:1px solid #313244;white-space:nowrap;">✓</th>'
+                    '<th style="padding:5px 6px;text-align:left;border:1px solid #313244;white-space:nowrap;">Champion</th>'
                     '</tr></thead>'
                     f'<tbody style="color:#fff;">{trs_r}</tbody>'
                     '</table></div>',
