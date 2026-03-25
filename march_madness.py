@@ -4272,8 +4272,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         f'<td style="text-align:center;padding:5px 6px;">{s["Score"]}</td>'
                         f'<td style="text-align:center;padding:5px 6px;">{s["Potential"]}</td>'
                         f'<td style="text-align:center;padding:5px 6px;">{s["Correct"]}</td>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Win %"]}</td>'
-                        f'<td style="text-align:center;padding:5px 6px;">{s["Potential Status"]}</td>'
                         f'<td style="padding:5px 8px;white-space:nowrap;">{champ_td}</td>'
                         f'</tr>'
                     )
@@ -4286,8 +4284,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Score</th>'
                     '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Potential</th>'
                     '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">✓ Picks</th>'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Win %</th>'
-                    '<th style="padding:6px 6px;text-align:center;border:1px solid #313244;">Potential Status</th>'
                     '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Champion</th>'
                     '</tr></thead>'
                     f'<tbody style="color:#fff;">{trs_r}</tbody>'
