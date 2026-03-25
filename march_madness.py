@@ -541,14 +541,16 @@ def run_monte_carlo(
             contestants.discard("")
             contestants.discard("None")
 
-            # Prefer picks that match a valid contestant; fall back to random contestant
+            # 50% chance to pick from participants' picks, 50% random contestant
+            # This ensures all bracket outcomes can occur in simulation
             picks_for_slot = [
                 picks_matrix[i][c] for i in range(len(names))
                 if picks_matrix[i][c] in contestants
             ]
-            sim_w[c] = random.choice(picks_for_slot) if picks_for_slot else (
-                random.choice(list(contestants)) if contestants else "None"
-            )
+            if picks_for_slot and random.random() < 0.5:
+                sim_w[c] = random.choice(picks_for_slot)
+            else:
+                sim_w[c] = random.choice(list(contestants)) if contestants else "None"
 
         scored = []
         for i, name in enumerate(names):
@@ -616,10 +618,21 @@ def run_h2h_monte_carlo(
             contestants.discard("")
             contestants.discard("None")
 
-            picks_for_slot = [t for t in (p1_picks[c], p2_picks[c]) if t in contestants]
-            winner = random.choice(picks_for_slot) if picks_for_slot else (
-                random.choice(list(contestants)) if contestants else "None"
-            )
+            if not contestants:
+                sim_w[c] = "None"
+                continue
+
+            # Pick winner from actual contestants — bias toward players' picks
+            # so that picks being correct happens at a realistic rate
+            picks_in = [t for t in (p1_picks[c], p2_picks[c]) if t in contestants]
+            if picks_in:
+                # 50% chance of a picked team winning, 50% random
+                if random.random() < 0.5:
+                    winner = random.choice(picks_in)
+                else:
+                    winner = random.choice(list(contestants))
+            else:
+                winner = random.choice(list(contestants))
             sim_w[c] = winner
 
         p1_score = sum(
@@ -670,10 +683,17 @@ def run_nway_monte_carlo(
                 contestants = {sim_w[p1s], sim_w[p2s]}
             contestants.discard("")
             contestants.discard("None")
-            picks_for_slot = [t for picks in player_picks for t in [picks[c]] if t in contestants]
-            winner = random.choice(picks_for_slot) if picks_for_slot else (
-                random.choice(list(contestants)) if contestants else "None"
-            )
+            if not contestants:
+                sim_w[c] = "None"
+                continue
+            picks_in = [t for picks in player_picks for t in [picks[c]] if t in contestants]
+            if picks_in:
+                if random.random() < 0.5:
+                    winner = random.choice(picks_in)
+                else:
+                    winner = random.choice(list(contestants))
+            else:
+                winner = random.choice(list(contestants))
             sim_w[c] = winner
 
         scores = []
@@ -1545,11 +1565,7 @@ try:
             st.session_state[f"nav_sub_{_eff_group}"] = _eff_subpage
         st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX.get(_eff_group, 0)
         st.session_state["_deeplink_applied_slug"] = _effective_slug
-        if not _pending_apply:
-            try:
-                st.query_params.pop("tab", None)
-            except Exception:
-                pass
+        # Keep ?tab= in the URL so it can be bookmarked/shared
 
     # Top-level tabs
     tab_standings, tab_bracket, tab_scores, tab_bonus, tab_fun, tab_hoc = st.tabs([
