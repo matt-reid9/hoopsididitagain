@@ -467,15 +467,18 @@ def load_all_data():
 # ─── 3. SCORING ───────────────────────────────────────────────────────────────
 def score_picks(picks: list[str], winners: list[str], pts: list[int],
                 seeds: dict[str, int], alive: set[str]) -> tuple[int, int]:
-    """Return (current_score, potential_score)."""
+    """Return (current_score, potential_score).
+    Potential score = current score + points for unplayed slots where the
+    picked team is still truly alive (can actually appear in that slot).
+    """
     cur = pot = 0
     for c in range(3, 66):
         val = pts[c] + seeds.get(picks[c], 0)
         if picks[c] == winners[c]:
             cur += val
-        if picks[c] in alive:
+        elif is_unplayed(winners[c]) and picks[c] in alive:
             pot += val
-    return cur, pot
+    return cur, cur + pot
 
 
 # ─── 4. MONTE CARLO ───────────────────────────────────────────────────────────
@@ -1225,7 +1228,7 @@ try:
             continue
         p_picks = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
 
-        cur_score, pot_score = score_picks(p_picks, actual_winners, points_per_game, seed_map, all_alive)
+        cur_score, pot_score = score_picks(p_picks, actual_winners, points_per_game, seed_map, truly_alive)
 
         upsets, best_s, best_t = 0, 0, "None"
         upset_correct = 0
@@ -3512,16 +3515,64 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             "2026-04-04": "Sat Apr 4",  "2026-04-06": "Mon Apr 6",
         }
 
-        # Determine default date (today or nearest past date)
+        # ── Detect user's local timezone via JS (must run before date picker) ──
+        import streamlit.components.v1 as _sp_components
+        import urllib.request, json as _json
+        from datetime import datetime as _dt, timezone as _tz_utc, timedelta as _td
+        import zoneinfo as _zi
+
+        if "user_tz" not in st.session_state:
+            st.session_state["user_tz"] = ""
+
+        if not st.session_state.get("user_tz"):
+            _sp_components.html("""
+            <script>
+            (function() {
+                try {
+                    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                    var url = new URL(window.parent.location.href);
+                    if (url.searchParams.get('_tz') !== tz) {
+                        url.searchParams.set('_tz', tz);
+                        window.parent.history.replaceState({}, '', url.toString());
+                        window.parent.location.reload();
+                    }
+                } catch(e) {}
+            })();
+            </script>
+            """, height=0)
+            try:
+                _tz_param = st.query_params.get("_tz", "")
+                if _tz_param:
+                    st.session_state["user_tz"] = _tz_param
+                    st.query_params.pop("_tz", None)
+                    st.rerun()
+            except Exception:
+                pass
+
+        _user_tz_str = st.session_state.get("user_tz", "")
+
+        # Determine today in the user's local timezone
         from datetime import date as _date
-        _today_str = _date.today().isoformat()
+        try:
+            if _user_tz_str:
+                _today_str = _dt.now(_zi.ZoneInfo(_user_tz_str)).date().isoformat()
+            else:
+                _today_str = _date.today().isoformat()
+        except Exception:
+            _today_str = _date.today().isoformat()
+
+        # Determine default date (today or nearest past date)
         _default_date = TOURN_DATES[0]
         for _d in TOURN_DATES:
             if _d <= _today_str:
                 _default_date = _d
 
-        # Remove the _spdate query param handler since we're back to st.buttons
+        # Auto-select today's date if not already set or if it was the previous default
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
+        # If today is a tournament date and user hasn't manually picked, jump to today
+        if _today_str in TOURN_DATES and st.session_state.get("sp_sel_date") is None:
+            st.session_state["sp_sel_date"] = _today_str
+            _sel_date = _today_str
 
         DATE_ROUNDS = [
             ("🏀 First Round",   ["2026-03-19", "2026-03-20"]),
@@ -3550,38 +3601,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
         st.markdown("---")
 
-        # ── Detect user's local timezone via JS ──────────────────────────
-        import streamlit.components.v1 as _sp_components
-        import urllib.request, json as _json
-        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
-
-        if "user_tz" not in st.session_state:
-            st.session_state["user_tz"] = ""
-
-        # Inject JS to detect timezone and store in a query param on first load
-        if not st.session_state.get("user_tz"):
-            _sp_components.html("""
-            <script>
-            (function() {
-                try {
-                    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                    var url = new URL(window.parent.location.href);
-                    if (url.searchParams.get('_tz') !== tz) {
-                        url.searchParams.set('_tz', tz);
-                        window.parent.history.replaceState({}, '', url.toString());
-                    }
-                } catch(e) {}
-            })();
-            </script>
-            """, height=0)
-            try:
-                _tz_param = st.query_params.get("_tz", "")
-                if _tz_param:
-                    st.session_state["user_tz"] = _tz_param
-                    st.query_params.pop("_tz", None)
-            except Exception:
-                pass
-
         _user_tz_str = st.session_state.get("user_tz", "")
 
         # ── Format game time in user's local timezone ─────────────────────
@@ -3597,7 +3616,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     except Exception:
                         pass
                 # Fallback to ET
-                _et = _utc.astimezone(_tz(offset=_td(hours=-4)))
+                _et = _utc.astimezone(_tz_utc(offset=_td(hours=-4)))
                 return _et.strftime("%-I:%M %p ET")
             except Exception:
                 return ""
@@ -3636,7 +3655,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     game_date_str = ev.get("date", "")
                     try:
                         _utc = _dt.fromisoformat(game_date_str.replace("Z", "+00:00"))
-                        _et = _utc.astimezone(_tz(offset=_td(hours=-4)))
+                        _et = _utc.astimezone(_tz_utc(offset=_td(hours=-4)))
                         game_time_et = _et.strftime("%-I:%M %p ET")
                     except Exception:
                         game_time_et = ""
