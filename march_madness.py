@@ -1702,7 +1702,7 @@ try:
                 cur_df = cur_df.rename(columns={"Current Rank": "Rank"})
                 cur_df = cur_df.reset_index(drop=True)
 
-                def _logo_tag(team, size=18, alive=True, block=False):
+                def _logo_tag(team, size=18, alive=True, block=False, show_x=True):
                     url = espn_logo_url(team) if team else None
                     display = "display:block;" if block else "display:inline-block;"
                     if url:
@@ -1713,12 +1713,14 @@ try:
                                 f'</span>'
                             )
                         else:
-                            # Eliminated: dim + red X overlay
+                            x_html = (
+                                f'<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+                                f'font-size:{int(size*0.80)}px;line-height:1;color:#ef444499;font-weight:700;pointer-events:none;">✕</span>'
+                            ) if show_x else ""
                             return (
                                 f'<span style="position:relative;{display}vertical-align:middle;">'
-                                f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;display:block;opacity:0.25;" onerror="this.style.display=&quot;none&quot;">'
-                                f'<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
-                                f'font-size:{int(size*0.85)}px;line-height:1;color:#ef4444;font-weight:900;pointer-events:none;">✕</span>'
+                                f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;display:block;opacity:0.50;" onerror="this.style.display=&quot;none&quot;">'
+                                f'{x_html}'
                                 f'</span>'
                             )
                     return ""
@@ -1758,13 +1760,13 @@ try:
                         if _is_mobile:
                             champ_html = (
                                 f'<div style="display:flex;flex-direction:column;align-items:center;gap:2px;">'
-                                f'{_logo_tag(_champ_pick, 18, _champ_alive)}'
+                                f'{_logo_tag(_champ_pick, 18, _champ_alive, show_x=False)}'
                                 f'<span style="font-size:10px;{_champ_style}">{_champ_pick}</span>'
                                 f'</div>'
                             )
                         else:
                             champ_html = (
-                                f'{_logo_tag(_champ_pick, 16, _champ_alive)}'
+                                f'{_logo_tag(_champ_pick, 16, _champ_alive, show_x=False)}'
                                 f'<span style="font-size:11px;vertical-align:middle;{_champ_style}">{_champ_pick}</span>'
                             )
                     else:
@@ -1784,7 +1786,7 @@ try:
                                 f'</div>'
                             )
                         else:
-                            lucky_html = f'{_logo_tag(lt, 16, lt_alive)}<span style="font-size:11px;vertical-align:middle;{lt_style}">{lt}</span>'
+                            lucky_html = f'{_logo_tag(lt, 16, lt_alive, show_x=False)}<span style="font-size:11px;vertical-align:middle;{lt_style}">{lt}</span>'
                     else:
                         lucky_html = "—"
 
