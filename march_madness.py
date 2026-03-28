@@ -129,33 +129,6 @@ if "modal_done" not in st.session_state:
 if "user_tz" not in st.session_state:
     st.session_state["user_tz"] = ""
 
-# ── Timezone detection — runs once on first load, before anything renders ──
-# JS sets ?_tz= in URL; Streamlit reads it on the next rerun (triggered by st.rerun)
-if not st.session_state.get("user_tz") and not st.session_state.get("_tz_rerun_done"):
-    import streamlit.components.v1 as _tz_comp
-    _tz_comp.html("""
-    <script>
-    (function() {
-        try {
-            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            var url = new URL(window.parent.location.href);
-            if (!url.searchParams.get('_tz')) {
-                url.searchParams.set('_tz', tz);
-                window.parent.history.replaceState({}, '', url.toString());
-            }
-        } catch(e) {}
-    })();
-    </script>
-    """, height=0)
-    _tz_val = st.query_params.get("_tz", "")
-    if _tz_val:
-        st.session_state["user_tz"] = _tz_val
-        st.session_state["_tz_rerun_done"] = True
-        try:
-            st.query_params.pop("_tz", None)
-        except Exception:
-            pass
-
 # Initialise cookie manager (requires: pip install streamlit-cookies-manager)
 _cookies = None
 if _cookies_available:
@@ -1677,14 +1650,10 @@ try:
         if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
-            st.session_state["nav_group"] = "standings"
-            st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["standings"]
             st.rerun()
         if _std_c2.button("🔮 Potential", key="std_potential", use_container_width=True,
                            type="primary" if _std_sub == "potential" else "secondary"):
             st.session_state["nav_sub_standings"] = "potential"
-            st.session_state["nav_group"] = "standings"
-            st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["standings"]
             st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
@@ -2038,8 +2007,6 @@ try:
                               use_container_width=True,
                               type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_your-bracket"] = _slug
-                st.session_state["nav_group"] = "your-bracket"
-                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["your-bracket"]
                 st.rerun()
         st.divider()
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
@@ -3627,6 +3594,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         from datetime import datetime as _dt, date as _date, timezone as _tz_utc, timedelta as _td
         import zoneinfo as _zi
         import streamlit.components.v1 as _sp_components
+        import urllib.request as _urllib_req
+        import json as _json
         try:
             if _user_tz_str:
                 _today_str = _dt.now(_zi.ZoneInfo(_user_tz_str)).date().isoformat()
@@ -3704,8 +3673,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 f"mens-college-basketball/scoreboard?dates={yyyymmdd}&groups=50&limit=200"
             )
             try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                with urllib.request.urlopen(req, timeout=8) as resp:
+                req = _urllib_req.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with _urllib_req.urlopen(req, timeout=8) as resp:
                     data = _json.loads(resp.read())
                 games = []
                 for ev in data.get("events", []):
@@ -4117,8 +4086,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             use_container_width=True,
                             type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_fun-stats"] = _slug
-                st.session_state["nav_group"] = "fun-stats"
-                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["fun-stats"]
                 st.rerun()
         st.divider()
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
@@ -4486,8 +4453,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                            use_container_width=True,
                            type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_bonus"] = _slug
-                st.session_state["nav_group"] = "bonus"
-                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["bonus"]
                 st.rerun()
         st.divider()
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
