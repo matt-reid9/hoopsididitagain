@@ -126,6 +126,35 @@ if "user_name" not in st.session_state:
     st.session_state["user_name"] = None
 if "modal_done" not in st.session_state:
     st.session_state["modal_done"] = False
+if "user_tz" not in st.session_state:
+    st.session_state["user_tz"] = ""
+
+# ── Timezone detection — runs once on first load, before anything renders ──
+# JS sets ?_tz= in URL; Streamlit reads it on the next rerun (triggered by st.rerun)
+if not st.session_state.get("user_tz") and not st.session_state.get("_tz_rerun_done"):
+    import streamlit.components.v1 as _tz_comp
+    _tz_comp.html("""
+    <script>
+    (function() {
+        try {
+            var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            var url = new URL(window.parent.location.href);
+            if (!url.searchParams.get('_tz')) {
+                url.searchParams.set('_tz', tz);
+                window.parent.history.replaceState({}, '', url.toString());
+            }
+        } catch(e) {}
+    })();
+    </script>
+    """, height=0)
+    _tz_val = st.query_params.get("_tz", "")
+    if _tz_val:
+        st.session_state["user_tz"] = _tz_val
+        st.session_state["_tz_rerun_done"] = True
+        try:
+            st.query_params.pop("_tz", None)
+        except Exception:
+            pass
 
 # Initialise cookie manager (requires: pip install streamlit-cookies-manager)
 _cookies = None
@@ -963,8 +992,9 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
         enableBrowserTooltips=False,
         autoHeaderHeight=True,
         wrapHeaderText=True,
-        rowSelection="single" if return_selected else None,
     )
+    if return_selected:
+        gb.configure_grid_options(rowSelection="single")
     if pct_cols:
         for col in pct_cols:
             if col in df.columns:
@@ -1612,21 +1642,26 @@ try:
 
     import streamlit.components.v1 as _components
 
-    # One-shot JS tab click — only fires when jump_to_tab_index is freshly set.
+    # Fire JS tab click on every rerun to keep the correct tab visually active.
+    # Uses nav_group session state so it always reflects the user's current location.
     _jump_tab = st.session_state.pop("jump_to_tab_index", None)
+    _current_group = st.session_state.get("nav_group", "standings")
+    _active_tab_idx = GROUP_TAB_INDEX.get(_current_group, 0)
+    # Only fire JS click if we need to switch away from tab 0, or have an explicit jump
     if _jump_tab is not None:
+        _fire_idx = _jump_tab
         _components.html(
             f"""<script>
             (function() {{
                 function clickTab() {{
                     var tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
-                    if (tabs.length > {_jump_tab}) {{
-                        tabs[{_jump_tab}].click();
+                    if (tabs.length > {_fire_idx}) {{
+                        tabs[{_fire_idx}].click();
                     }} else {{
                         setTimeout(clickTab, 100);
                     }}
                 }}
-                setTimeout(clickTab, 300);
+                setTimeout(clickTab, 150);
             }})();
             </script>""",
             height=1,
@@ -1642,10 +1677,14 @@ try:
         if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
+            st.session_state["nav_group"] = "standings"
+            st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["standings"]
             st.rerun()
         if _std_c2.button("🔮 Potential", key="std_potential", use_container_width=True,
                            type="primary" if _std_sub == "potential" else "secondary"):
             st.session_state["nav_sub_standings"] = "potential"
+            st.session_state["nav_group"] = "standings"
+            st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["standings"]
             st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
@@ -1999,6 +2038,8 @@ try:
                               use_container_width=True,
                               type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_your-bracket"] = _slug
+                st.session_state["nav_group"] = "your-bracket"
+                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["your-bracket"]
                 st.rerun()
         st.divider()
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
@@ -3580,44 +3621,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             "2026-04-04": "Sat Apr 4",  "2026-04-06": "Mon Apr 6",
         }
 
-        # ── Detect user's local timezone via JS (must run before date picker) ──
-        import streamlit.components.v1 as _sp_components
-        import urllib.request, json as _json
-        from datetime import datetime as _dt, timezone as _tz_utc, timedelta as _td
-        import zoneinfo as _zi
-
-        if "user_tz" not in st.session_state:
-            st.session_state["user_tz"] = ""
-
-        if not st.session_state.get("user_tz"):
-            _sp_components.html("""
-            <script>
-            (function() {
-                try {
-                    var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                    var url = new URL(window.parent.location.href);
-                    if (url.searchParams.get('_tz') !== tz) {
-                        url.searchParams.set('_tz', tz);
-                        window.parent.history.replaceState({}, '', url.toString());
-                        window.parent.location.reload();
-                    }
-                } catch(e) {}
-            })();
-            </script>
-            """, height=0)
-            try:
-                _tz_param = st.query_params.get("_tz", "")
-                if _tz_param:
-                    st.session_state["user_tz"] = _tz_param
-                    st.query_params.pop("_tz", None)
-                    st.rerun()
-            except Exception:
-                pass
-
         _user_tz_str = st.session_state.get("user_tz", "")
 
-        # Determine today in the user's local timezone
-        from datetime import date as _date
+        # Imports for timezone-aware date/time handling
+        from datetime import datetime as _dt, date as _date, timezone as _tz_utc, timedelta as _td
+        import zoneinfo as _zi
+        import streamlit.components.v1 as _sp_components
         try:
             if _user_tz_str:
                 _today_str = _dt.now(_zi.ZoneInfo(_user_tz_str)).date().isoformat()
@@ -3704,12 +3713,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     competitors = comp.get("competitors", [])
                     if len(competitors) < 2:
                         continue
-                    # Filter to NCAA tournament games only via notes or seeds
+                    # For known tournament dates, accept all games with seeds or neutral site
+                    # (ESPN note headlines vary by round — don't rely on them exclusively)
                     notes = comp.get("notes", [])
-                    is_tourney = any("Championship" in n.get("headline", "") or "NCAA" in n.get("headline", "") for n in notes)
+                    is_tourney = any(
+                        "Championship" in n.get("headline", "") or
+                        "NCAA" in n.get("headline", "") or
+                        "Elite" in n.get("headline", "") or
+                        "Sweet" in n.get("headline", "") or
+                        "Final Four" in n.get("headline", "") or
+                        "Regional" in n.get("headline", "")
+                        for n in notes
+                    )
                     if not is_tourney:
-                        has_seeds = any(c.get("rank") for c in competitors)
-                        # Also check if it's a neutral site game (tournament indicator)
+                        has_seeds = any(c.get("rank") or c.get("seed") for c in competitors)
                         is_neutral = comp.get("neutralSite", False)
                         if not has_seeds and not is_neutral:
                             continue
@@ -4100,6 +4117,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             use_container_width=True,
                             type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_fun-stats"] = _slug
+                st.session_state["nav_group"] = "fun-stats"
+                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["fun-stats"]
                 st.rerun()
         st.divider()
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
@@ -4114,9 +4133,13 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 # Summary metrics
                 m1, m2, m3 = st.columns(3)
                 m1.metric("Total Busting Games", len(busters_df))
-                m2.metric("Biggest Carnage",
-                          busters_df.iloc[0]["Winner"],
-                          f"{busters_df.iloc[0]['Busted Picks']} picks busted")
+
+                # Biggest carnage: sum Busted Picks per winner team across all rounds
+                _team_busts = busters_df.groupby("Winner")["Busted Picks"].sum().sort_values(ascending=False)
+                _top_buster = _team_busts.index[0]
+                _top_buster_picks = int(_team_busts.iloc[0])
+                m2.metric("Biggest Carnage", _top_buster, f"{_top_buster_picks} total picks busted")
+
                 m3.metric("Total Pool Pts Lost",
                           f"{busters_df['Total Pts Lost'].sum():,}")
 
@@ -4463,6 +4486,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                            use_container_width=True,
                            type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_bonus"] = _slug
+                st.session_state["nav_group"] = "bonus"
+                st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX["bonus"]
                 st.rerun()
         st.divider()
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
