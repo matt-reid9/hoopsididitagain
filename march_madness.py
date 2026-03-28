@@ -1937,6 +1937,7 @@ try:
             _max_score = top10["Current Score"].max() or 1
             _images = []
             _shapes = []
+            _annotations = []
             for _yi, (_idx, _row) in enumerate(top10.iterrows()):
                 _picks = _picks_lookup.get(_row["Name"], [])
                 _ff_teams = [_picks[c] for c in _ff_cols if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}]
@@ -1951,9 +1952,10 @@ try:
                         continue
                     _x = _bar_len * (_li + 0.5) / max(_n, 1)
                     _is_champ = (_team == _champ)
+                    _is_alive = _team in truly_alive
                     _sizex  = _max_score * 0.115 if _is_champ else _max_score * 0.09
                     _sizey  = 0.75 if _is_champ else 0.55
-                    _opac   = 1.0  if _is_champ else 0.55
+                    _opac   = 1.0 if _is_alive else 0.5
                     _images.append(dict(
                         source=_logo,
                         xref="x", yref="y",
@@ -1965,7 +1967,7 @@ try:
                         layer="above",
                         opacity=_opac,
                     ))
-                    # Gold circle outline behind champion logo via shape
+                    # Gold circle outline behind champion logo
                     if _is_champ:
                         _r = _max_score * 0.065
                         _shapes.append(dict(
@@ -1977,11 +1979,23 @@ try:
                             fillcolor="rgba(0,0,0,0)",
                             layer="above",
                         ))
+                    # Red ✕ annotation over eliminated logos
+                    if not _is_alive:
+                        _annotations.append(dict(
+                            x=_x, y=_yi,
+                            xref="x", yref="y",
+                            text="✕",
+                            showarrow=False,
+                            font=dict(size=18, color="rgba(239,68,68,0.9)", family="Arial Black"),
+                            xanchor="center", yanchor="middle",
+                        ))
             _layout_extra = {}
             if _images:
                 _layout_extra["images"] = _images
             if _shapes:
                 _layout_extra["shapes"] = _shapes
+            if _annotations:
+                _layout_extra["annotations"] = _annotations
             if _layout_extra:
                 fig.update_layout(**_layout_extra)
 
@@ -3653,14 +3667,14 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 _utc = _dt.fromisoformat(utc_iso.replace("Z", "+00:00"))
                 if user_tz_str:
                     try:
-                        import zoneinfo
-                        _local = _utc.astimezone(zoneinfo.ZoneInfo(user_tz_str))
-                        return _local.strftime("%-I:%M %p %Z")
+                        _local = _utc.astimezone(_zi.ZoneInfo(user_tz_str))
+                        _t = _local.strftime("%I:%M %p %Z").lstrip("0")
+                        return _t
                     except Exception:
                         pass
                 # Fallback to ET
                 _et = _utc.astimezone(_tz_utc(offset=_td(hours=-4)))
-                return _et.strftime("%-I:%M %p ET")
+                return _et.strftime("%I:%M %p ET").lstrip("0")
             except Exception:
                 return ""
 
@@ -3707,7 +3721,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     try:
                         _utc = _dt.fromisoformat(game_date_str.replace("Z", "+00:00"))
                         _et = _utc.astimezone(_tz_utc(offset=_td(hours=-4)))
-                        game_time_et = _et.strftime("%-I:%M %p ET")
+                        game_time_et = _et.strftime("%I:%M %p ET").lstrip("0")
                     except Exception:
                         game_time_et = ""
                     teams = []
@@ -3722,6 +3736,22 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             "winner": c.get("winner", False),
                             "home":   c.get("homeAway", "") == "home",
                         })
+                    # Extract broadcast network
+                    _broadcasts = comp.get("broadcasts", [])
+                    _network = ""
+                    for _b in _broadcasts:
+                        _names = _b.get("names", [])
+                        if _names:
+                            _network = _names[0]
+                            break
+                    # Also check geoBroadcasts
+                    if not _network:
+                        for _gb in comp.get("geoBroadcasts", []):
+                            _media = _gb.get("media", {})
+                            if _media.get("shortName"):
+                                _network = _media["shortName"]
+                                break
+
                     games.append({
                         "id":        ev.get("id"),
                         "state":     state,
@@ -3729,6 +3759,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         "time":      game_time_et,
                         "utc_iso":   game_date_str,
                         "sort_time": game_date_str,
+                        "network":   _network,
                         "teams":     teams,
                     })
                 return games
@@ -3956,10 +3987,26 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 if is_pre:
                     _time_str = _format_game_time(game.get("utc_iso", ""), _user_tz_str)
                     if not _time_str:
-                        _time_str = game.get("time", "")  # fallback to pre-formatted ET string
+                        _time_str = game.get("time", "")
+                    _network = game.get("network", "")
+                    _network_html = ""
+                    if _network:
+                        _net_upper = _network.upper()
+                        if any(x in _net_upper for x in ("TBS", "TNT", "TRUTV")):
+                            _streaming = "HBO Max · Paramount+ · March Madness Live"
+                        elif "CBS" in _net_upper:
+                            _streaming = "Paramount+ · March Madness Live"
+                        else:
+                            _streaming = ""
+                        _network_html = (
+                            f'<div style="font-size:13px;color:#6b7280;text-align:center;margin-top:2px;">{_network}</div>'
+                            + (f'<div style="font-size:11px;color:#4b5563;text-align:center;margin-top:1px;">{_streaming}</div>' if _streaming else "")
+                        )
                     middle = (
-                        f'<div style="font-size:16px;font-weight:600;color:#9ca3af;text-align:center;'
-                        f'padding:0 8px;white-space:nowrap;">{_time_str or "TBD"}</div>'
+                        f'<div style="text-align:center;padding:0 8px;">'
+                        f'<div style="font-size:16px;font-weight:600;color:#9ca3af;white-space:nowrap;">{_time_str or "TBD"}</div>'
+                        f'{_network_html}'
+                        f'</div>'
                     )
                 elif is_live:
                     middle = f'<div style="font-size:12px;color:#22c55e;font-weight:700;text-align:center;padding:0 6px;">🔴 LIVE<br><span style="font-size:11px;font-weight:400;color:#9ca3af;">{game["detail"]}</span></div>'
