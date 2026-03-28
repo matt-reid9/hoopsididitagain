@@ -4000,7 +4000,9 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             _streaming = ""
                         _network_html = (
                             f'<div style="font-size:13px;color:#6b7280;text-align:center;margin-top:2px;">{_network}</div>'
-                            + (f'<div style="font-size:11px;color:#4b5563;text-align:center;margin-top:1px;">{_streaming}</div>' if _streaming else "")
+                            + (f'<div style="font-size:11px;color:#4b5563;text-align:center;margin-top:1px;line-height:1.6;">'
+                               + "".join(f'{s}<br>' for s in _streaming.split(" · "))
+                               + '</div>' if _streaming else "")
                         )
                     middle = (
                         f'<div style="text-align:center;padding:0 8px;">'
