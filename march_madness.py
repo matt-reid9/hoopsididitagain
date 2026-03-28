@@ -932,7 +932,8 @@ from st_aggrid import AgGrid, GridOptionsBuilder, JsCode, ColumnsAutoSizeMode
 def show_table(df, user_highlight_col=None, user_highlight_val=None,
                user_highlight_contains=False, gradient_cols=None,
                pct_cols=None, height=None, key=None, col_config=None,
-               pinned_cols=None, return_selected=False, nowrap_cols=None):
+               pinned_cols=None, return_selected=False, nowrap_cols=None,
+               desc_cols=None, asc_cols=None, comparator_cols=None):
     """
     Render a DataFrame using AgGrid with:
     - Alternating row shading
@@ -942,6 +943,9 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
     - Optional % formatting
     - Optional column widths (col_config: dict of col_name -> width in px)
     - Optional pinned/frozen columns (pinned_cols: list of col names to pin left)
+    - desc_cols: list of col names that sort descending on first click
+    - asc_cols: list of col names that sort ascending on first click
+    - comparator_cols: dict of col_name -> JS comparator function string
     """
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_default_column(
@@ -987,6 +991,22 @@ def show_table(df, user_highlight_col=None, user_highlight_val=None,
         for col_name in pinned_cols:
             if col_name in df.columns and (not col_config or col_name not in col_config):
                 gb.configure_column(col_name, pinned="left")
+
+    # Apply first-click sort directions
+    if desc_cols:
+        for col_name in desc_cols:
+            if col_name in df.columns:
+                gb.configure_column(col_name, sortingOrder=["desc", "asc", None])
+    if asc_cols:
+        for col_name in asc_cols:
+            if col_name in df.columns:
+                gb.configure_column(col_name, sortingOrder=["asc", "desc", None])
+
+    # Apply custom JS comparators
+    if comparator_cols:
+        for col_name, comparator_js in comparator_cols.items():
+            if col_name in df.columns:
+                gb.configure_column(col_name, comparator=JsCode(comparator_js))
 
     grid_options = gb.build()
     grid_options["statusBar"] = {"statusPanels": []}
@@ -1312,13 +1332,28 @@ try:
     # ── Potential Status: driven by Monte Carlo probabilities ─────────────────
     # Don't declare anyone "Out" until at least half of R1 is complete —
     # with few games played the simulation has too much variance to be meaningful.
+
+    # Build a lookup of potential score (ceiling) per person for Last Place calc
+    _pot_lookup = {r["Name"]: r["Potential Score"] for r in results}
+
     for r in results:
         if r["Win %"] > 0:
             r["Potential Status"] = "🏆 Champion"
         elif r["Top 3 %"] > 0:
             r["Potential Status"] = "🥉 Top 3"
         elif r2_complete:
-            r["Potential Status"] = "❌ Out"
+            # Mathematically out of Top 3 — check if still in contention for Last Place
+            # Can finish last if current score <= at least one other player's ceiling
+            _my_score = r["Current Score"]
+            _others_ceilings = [
+                _pot_lookup[other["Name"]]
+                for other in results if other["Name"] != r["Name"]
+            ]
+            _can_last = _my_score <= min(_others_ceilings) if _others_ceilings else False
+            if _can_last:
+                r["Potential Status"] = "💩 Out/Last"
+            else:
+                r["Potential Status"] = "❌ Out"
         else:
             r["Potential Status"] = "🥉 Top 3"
 
@@ -1669,10 +1704,23 @@ try:
 
                 def _logo_tag(team, size=18, alive=True, block=False):
                     url = espn_logo_url(team) if team else None
-                    opacity = "1" if alive else "0.35"
-                    display = "display:block;" if block else "vertical-align:middle;"
+                    display = "display:block;" if block else "display:inline-block;"
                     if url:
-                        return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;{display}opacity:{opacity};" onerror="this.style.display=&quot;none&quot;">'
+                        if alive:
+                            return (
+                                f'<span style="{display}vertical-align:middle;">'
+                                f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;display:block;" onerror="this.style.display=&quot;none&quot;">'
+                                f'</span>'
+                            )
+                        else:
+                            # Eliminated: dim + red X overlay
+                            return (
+                                f'<span style="position:relative;{display}vertical-align:middle;">'
+                                f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;display:block;opacity:0.25;" onerror="this.style.display=&quot;none&quot;">'
+                                f'<span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);'
+                                f'font-size:{int(size*0.85)}px;line-height:1;color:#ef4444;font-weight:900;pointer-events:none;">✕</span>'
+                                f'</span>'
+                            )
                     return ""
 
                 trs = ""
@@ -1787,8 +1835,8 @@ try:
 
                 standings_df = final_df[display_cols].copy()
                 standings_df = standings_df.rename(columns={"Current Rank": "Rank"})
-                standings_df["Win %"]   = final_df["Win %"].map("{:.1f}%".format)
-                standings_df["Top 3 %"] = final_df["Top 3 %"].map("{:.1f}%".format)
+                # Keep Win % and Top 3 % as floats so AgGrid sorts numerically
+                # (formatting handled via pct_cols valueFormatter)
                 if _is_mobile:
                     standings_df["Name"] = standings_df["Name"].apply(lambda n: _short_name(n, _all_names))
                     standings_df["Potential Status"] = standings_df["Potential Status"].apply(
@@ -1801,6 +1849,19 @@ try:
                     user_highlight_col="Name", user_highlight_val=_user_display,
                     key="table_standings",
                     height=500,
+                    pct_cols=["Win %", "Top 3 %"],
+                    desc_cols=["Current Score", "Potential Score", "Win %", "Top 3 %"],
+                    asc_cols=["Rank", "Name"],
+                    comparator_cols={
+                        "Potential Status": """
+                        function(a, b) {
+                            var order = {'🏆 Champion': 0, '🥉 Top 3': 1, '💩 Out/Last': 2, '❌ Out': 3};
+                            var oa = (a in order) ? order[a] : 99;
+                            var ob = (b in order) ? order[b] : 99;
+                            return oa - ob;
+                        }
+                        """
+                    },
                     col_config={
                         "Rank":             50,
                         "Name":             90 if _is_mobile else 160,
@@ -2003,6 +2064,7 @@ try:
                     potential_color = (
                         "#f5c518" if "Champion"  in str(p_potential) else
                         "#60a5fa" if "Top 3"     in str(p_potential) else
+                        "#a855f7" if "Last"      in str(p_potential) else
                         "#ef4444" if "Out"       in str(p_potential) else
                         "#9ca3af"
                     )
@@ -3070,6 +3132,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 dna_pot_color       = (
                     "#f5c518" if "Champion" in str(dna_potential) else
                     "#60a5fa" if "Top 3"    in str(dna_potential) else
+                    "#a855f7" if "Last"     in str(dna_potential) else
                     "#ef4444" if "Out"      in str(dna_potential) else "#9ca3af"
                 )
                 dna_win_pct         = f"{u['Win %']:.1f}%"
