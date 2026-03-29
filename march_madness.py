@@ -463,16 +463,38 @@ def load_all_data():
     except Exception:
         pass
 
+    # Build seed_map from picks to ensure exact team name variants resolve correctly.
+    # Builds a lowercase→seed lookup once, then registers any unmatched names.
+    try:
+        _seed_lower = {k.lower(): v for k, v in seed_map.items()}
+        picks_row0 = [str(df_p.iloc[0][c]).strip() for c in range(len(df_p.columns))]
+
+        def _ensure_seed(name):
+            if name and name not in UNPLAYED and name not in seed_map:
+                s = _seed_lower.get(name.lower())
+                if s:
+                    seed_map[name] = s
+                    _seed_lower[name.lower()] = s
+
+        # Register all actual winners
+        for w in winners_row:
+            _ensure_seed(w)
+
+        # Register all participant picks
+        for c in range(3, 66):
+            for i in range(3, len(df_p)):
+                pick = str(df_p.iloc[i][c]).strip() if c < len(df_p.columns) else ""
+                _ensure_seed(pick)
+    except Exception:
+        pass
+
     return df_p, winners_row, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, datetime.now().strftime("%I:%M %p"), final_score, tiebreaker_guesses
 
 
 # ─── 3. SCORING ───────────────────────────────────────────────────────────────
 def score_picks(picks: list[str], winners: list[str], pts: list[int],
                 seeds: dict[str, int], alive: set[str]) -> tuple[int, int]:
-    """Return (current_score, potential_score).
-    Potential score = current score + points for unplayed slots where the
-    picked team is still truly alive (can actually appear in that slot).
-    """
+    """Return (current_score, potential_score)."""
     cur = pot = 0
     for c in range(3, 66):
         val = pts[c] + seeds.get(picks[c], 0)
@@ -1251,7 +1273,17 @@ try:
             continue
         p_picks = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
 
-        cur_score, pot_score = score_picks(p_picks, actual_winners, points_per_game, seed_map, truly_alive)
+        # Read current score directly from column CK (index 88) — sheet calculates it correctly
+        _sheet_score = safe_int(str(row[88]).strip()) if len(row) > 88 else 0
+        cur_score = _sheet_score if _sheet_score > 0 else 0
+
+        # Potential score = sheet's current score + future picks that are still alive
+        pot_additional = sum(
+            points_per_game[c] + seed_map.get(p_picks[c], 0)
+            for c in range(3, 66)
+            if is_unplayed(actual_winners[c]) and p_picks[c] in truly_alive
+        )
+        pot_score = cur_score + pot_additional
 
         upsets, best_s, best_t = 0, 0, "None"
         upset_correct = 0
@@ -1282,7 +1314,7 @@ try:
             if pick == winner and not is_unplayed(winner):
                 region = slot_to_region.get(c, "")
                 if region in region_scores:
-                    pts = points_per_game[c] + seed_map.get(pick, 0)
+                    pts = points_per_game[c]  # sheet already includes seed bonus for played games
                     region_scores[region]  += pts
                     region_correct[region] += 1
 
