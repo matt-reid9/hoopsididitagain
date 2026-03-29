@@ -3174,208 +3174,178 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             )
 
             if sp_name != "— select —":
-                # Build rank-after-each-game timeline
-                # Games are ordered by round (R1 first, then R2, etc.)
-                # Within each round we don't know exact game order, so use slot order as proxy
-                _played_slots = [
-                    c for c in range(3, 66)
-                    if not is_unplayed(actual_winners[c])
-                ]
+                _played_slots = [c for c in range(3, 66) if not is_unplayed(actual_winners[c])]
 
                 if not _played_slots:
                     st.info("No games played yet.")
                 else:
-                    # Build cumulative scores for all participants after each game
-                    _all_picks = {}
-                    for r in results:
-                        _all_picks[r["Name"]] = r["raw_picks"]
+                    # Manage highlighted players in session state
+                    _sp_key = "sp_prog_highlighted"
+                    if _sp_key not in st.session_state:
+                        st.session_state[_sp_key] = set()
+                    # Always ensure primary player is highlighted
+                    _highlighted = st.session_state[_sp_key] | {sp_name}
 
+                    # Colors for highlighted players (first = primary = gold)
+                    _HIGHLIGHT_COLORS = [
+                        "#f5c518", "#4fc3f7", "#fb923c", "#c084fc",
+                        "#4ade80", "#f87171", "#38bdf8", "#fde68a",
+                        "#a78bfa", "#34d399",
+                    ]
+                    # Assign colors: primary player always gets gold
+                    _color_map = {sp_name: _HIGHLIGHT_COLORS[0]}
+                    _color_idx = 1
+                    for _n in sorted(_highlighted):
+                        if _n != sp_name:
+                            _color_map[_n] = _HIGHLIGHT_COLORS[_color_idx % len(_HIGHLIGHT_COLORS)]
+                            _color_idx += 1
+
+                    # Build cumulative rank history
+                    _all_picks = {r["Name"]: r["raw_picks"] for r in results}
                     _names = list(_all_picks.keys())
                     _n_players = len(_names)
-
-                    # Running totals
                     _running = {n: 0 for n in _names}
                     _rank_history = {n: [] for n in _names}
-                    _game_labels = []
 
-                    _round_short = {
-                        "R64": "R1", "R32": "R2", "S16": "S16",
-                        "E8": "E8", "F4": "FF", "Champ": "🏆"
-                    }
+                    _round_short = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}
 
                     for _c in _played_slots:
                         _winner = actual_winners[_c]
-                        _pts_base = points_per_game[_c]
-                        _winner_seed = seed_map.get(_winner, 0)
-                        _pts_total = _pts_base + _winner_seed
-
-                        # Award points to correct pickers
+                        _pts_total = points_per_game[_c] + seed_map.get(_winner, 0)
                         for _n in _names:
                             _picks = _all_picks[_n]
                             if _c < len(_picks) and _picks[_c] == _winner:
                                 _running[_n] += _pts_total
-
-                        # Compute ranks after this game
-                        _scores = [(n, _running[n]) for n in _names]
-                        _scores.sort(key=lambda x: x[1], reverse=True)
+                        _scores = sorted([(n, _running[n]) for n in _names], key=lambda x: x[1], reverse=True)
                         _rank_map = {}
-                        _prev_score = None
-                        _prev_rank = 0
+                        _prev_sc, _prev_rk = None, 0
                         for _ri, (_n, _sc) in enumerate(_scores):
-                            if _sc != _prev_score:
-                                _prev_rank = _ri + 1
-                                _prev_score = _sc
-                            _rank_map[_n] = _prev_rank
-
+                            if _sc != _prev_sc:
+                                _prev_rk = _ri + 1
+                                _prev_sc = _sc
+                            _rank_map[_n] = _prev_rk
                         for _n in _names:
                             _rank_history[_n].append(_rank_map[_n])
 
-                        _rnd = _round_short.get(get_round_name(_c), get_round_name(_c))
-                        _game_labels.append(f"{_rnd} G{_c - (2 if _c < 35 else 34 if _c < 51 else 50 if _c < 59 else 58 if _c < 63 else 62 if _c < 65 else 64)}")
-
-                    # Build cleaner game labels: just sequential game numbers per round
-                    _label_list = []
-                    _round_game_count = {}
-                    for _c in _played_slots:
-                        _rnd = _round_short.get(get_round_name(_c), get_round_name(_c))
-                        _round_game_count[_rnd] = _round_game_count.get(_rnd, 0) + 1
-                        _label_list.append(f"{_rnd}-G{_round_game_count[_rnd]}")
-
-                    # Build game description strings for hover tooltips
-                    _game_descriptions = []
+                    # Build game descriptions for hover
+                    _game_descs = []
                     for _c in _played_slots:
                         _winner = actual_winners[_c]
-                        _w_seed = seed_map.get(_winner, 0)
+                        _ws = seed_map.get(_winner, 0)
                         _loser = defeated_map.get(_winner, "")
-                        _l_seed = seed_map.get(_loser, 0)
+                        _ls = seed_map.get(_loser, 0)
                         if _loser:
-                            _game_descriptions.append(
-                                f"({_w_seed}) {_winner} def. ({_l_seed}) {_loser}"
-                                if _w_seed and _l_seed else
-                                f"{_winner} def. {_loser}" if _loser else _winner
-                            )
+                            _game_descs.append(f"({_ws}) {_winner} def. ({_ls}) {_loser}" if _ws and _ls else f"{_winner} def. {_loser}")
                         else:
-                            _game_descriptions.append(f"({_w_seed}) {_winner}" if _w_seed else _winner)
+                            _game_descs.append(f"({_ws}) {_winner}" if _ws else _winner)
 
-                    # Build per-game hover text for selected player
-                    _player_ranks = _rank_history[sp_name]
-                    _hover_texts = []
-                    for _gi, (_rank, _desc) in enumerate(zip(_player_ranks, _game_descriptions)):
-                        _prev_rank = _player_ranks[_gi - 1] if _gi > 0 else _rank
-                        _delta = _prev_rank - _rank  # positive = moved up
-                        if _delta > 0:
-                            _delta_str = f"▲ {_delta} (moved up)"
-                        elif _delta < 0:
-                            _delta_str = f"▼ {abs(_delta)} (moved down)"
-                        else:
-                            _delta_str = "— no change"
-                        _rnd_label = _round_short.get(get_round_name(_played_slots[_gi]), "")
-                        _hover_texts.append(
-                            f"<b>#{_rank}</b> after game {_gi+1}<br>"
-                            f"{_rnd_label}: {_desc}<br>"
-                            f"{_delta_str}"
-                        )
+                    # Rotation note
+                    st.markdown('<p style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:4px;">📱 Rotate phone horizontally for a better view</p>', unsafe_allow_html=True)
 
-                    # Plot
+                    # Build chart
                     fig_sp = go.Figure()
 
-                    # All other players — thin grey lines
+                    # Grey lines for non-highlighted players
                     for _n in _names:
-                        if _n == sp_name:
+                        if _n in _highlighted:
                             continue
                         fig_sp.add_trace(go.Scatter(
                             x=list(range(1, len(_played_slots) + 1)),
                             y=_rank_history[_n],
                             mode="lines",
-                            line=dict(color="rgba(100,100,120,0.2)", width=1),
-                            name=_n,
+                            line=dict(color="rgba(100,100,120,0.15)", width=1),
                             showlegend=False,
                             hoverinfo="skip",
                         ))
 
-                    # Selected player — highlighted line with rich hover
-                    fig_sp.add_trace(go.Scatter(
-                        x=list(range(1, len(_played_slots) + 1)),
-                        y=_player_ranks,
-                        mode="lines+markers",
-                        line=dict(color="#f5c518", width=3),
-                        marker=dict(size=8, color="#f5c518", line=dict(color="#fff", width=1)),
-                        name=sp_name,
-                        text=_hover_texts,
-                        hovertemplate="%{text}<extra></extra>",
-                    ))
+                    # Highlighted players — colored lines with hover
+                    for _n in _highlighted:
+                        _col = _color_map.get(_n, "#ffffff")
+                        _ranks = _rank_history[_n]
+                        _htexts = []
+                        for _gi, (_rank, _desc) in enumerate(zip(_ranks, _game_descs)):
+                            _prev = _ranks[_gi - 1] if _gi > 0 else _rank
+                            _delta = _prev - _rank
+                            _dstr = f"▲ {_delta}" if _delta > 0 else (f"▼ {abs(_delta)}" if _delta < 0 else "—")
+                            _rnd_lbl = _round_short.get(get_round_name(_played_slots[_gi]), "")
+                            _htexts.append(f"<b>{_n}</b><br><b>#{_rank}</b> after game {_gi+1}<br>{_rnd_lbl}: {_desc}<br>Rank change: {_dstr}")
+                        _is_primary = (_n == sp_name)
+                        fig_sp.add_trace(go.Scatter(
+                            x=list(range(1, len(_played_slots) + 1)),
+                            y=_ranks,
+                            mode="lines+markers" if _is_primary else "lines+markers",
+                            line=dict(color=_col, width=3 if _is_primary else 2),
+                            marker=dict(size=7 if _is_primary else 5, color=_col,
+                                       line=dict(color="#fff", width=1) if _is_primary else dict(width=0)),
+                            name=_n,
+                            text=_htexts,
+                            hovertemplate="%{text}<extra></extra>",
+                        ))
 
-                    # Add round boundary vertical lines
-                    _round_boundaries = []
-                    _prev_rnd = None
-                    for _gi, _c in enumerate(_played_slots):
-                        _rnd = get_round_name(_c)
-                        if _rnd != _prev_rnd and _gi > 0:
-                            _round_boundaries.append(_gi + 0.5)
-                        _prev_rnd = _rnd
-
-                    _shapes_sp = [dict(
-                        type="line", x0=_x, x1=_x, y0=0.5, y1=_n_players + 0.5,
-                        line=dict(color="rgba(255,255,255,0.1)", width=1, dash="dot"),
-                        xref="x", yref="y"
-                    ) for _x in _round_boundaries]
-
-                    # Round label annotations at boundaries
-                    _rnd_labels_sp = []
-                    _rnd_start_game = {}
-                    _prev_rnd = None
+                    # Round boundary lines & labels
+                    _shapes_sp, _rnd_labels_sp = [], []
+                    _prev_rnd, _rnd_start = None, {}
                     for _gi, _c in enumerate(_played_slots):
                         _rnd = get_round_name(_c)
                         if _rnd != _prev_rnd:
-                            _rnd_start_game[_rnd] = _gi + 1
+                            if _gi > 0:
+                                _shapes_sp.append(dict(type="line", x0=_gi+0.5, x1=_gi+0.5,
+                                    y0=0.5, y1=_n_players+0.5, xref="x", yref="y",
+                                    line=dict(color="rgba(255,255,255,0.1)", width=1, dash="dot")))
+                            _rnd_start[_rnd] = _gi + 1
                             _prev_rnd = _rnd
-                    for _rnd, _gstart in _rnd_start_game.items():
-                        _rnd_labels_sp.append(dict(
-                            x=_gstart, y=_n_players + 0.5,
-                            text=_round_short.get(_rnd, _rnd),
-                            showarrow=False,
-                            font=dict(size=10, color="rgba(255,255,255,0.5)"),
-                            xanchor="left", yanchor="bottom",
-                            xref="x", yref="y",
-                        ))
+                    for _rnd, _gs in _rnd_start.items():
+                        _rnd_labels_sp.append(dict(x=_gs, y=0.3, text=_round_short.get(_rnd, _rnd),
+                            showarrow=False, font=dict(size=10, color="rgba(255,255,255,0.4)"),
+                            xanchor="left", yanchor="bottom", xref="x", yref="y"))
 
-                    # Current rank callout
-                    _cur_rank = _player_ranks[-1] if _player_ranks else "?"
+                    _cur_rank = _rank_history[sp_name][-1] if _rank_history[sp_name] else "?"
                     _first_name_sp = sp_name.split()[0]
 
                     fig_sp.update_layout(
                         dragmode=False,
                         title=f"{_first_name_sp}'s Rank Journey — Currently #{_cur_rank}",
-                        yaxis=dict(
-                            autorange="reversed",
-                            range=[_n_players + 1, 0],
-                            title="Rank",
-                            tickmode="linear", dtick=10,
-                            gridcolor="rgba(255,255,255,0.05)",
-                        ),
-                        xaxis=dict(
-                            title="Game #",
-                            gridcolor="rgba(255,255,255,0.05)",
-                            range=[0.5, len(_played_slots) + 0.5],
-                        ),
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        paper_bgcolor="rgba(0,0,0,0)",
+                        yaxis=dict(autorange="reversed", range=[_n_players+1, 0], title="Rank",
+                                   tickmode="linear", dtick=10, gridcolor="rgba(255,255,255,0.05)"),
+                        xaxis=dict(title="Game #", gridcolor="rgba(255,255,255,0.05)",
+                                   range=[0.5, len(_played_slots)+0.5]),
+                        plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                         height=420,
                         margin=dict(l=0, r=0, t=50, b=40),
-                        shapes=_shapes_sp,
-                        annotations=_rnd_labels_sp,
-                        hovermode="closest",
-                        hoverdistance=20,
+                        shapes=_shapes_sp, annotations=_rnd_labels_sp,
+                        hovermode="closest", hoverdistance=20,
+                        legend=dict(
+                            orientation="h", yanchor="top", y=-0.15,
+                            xanchor="center", x=0.5,
+                            font=dict(size=12), bgcolor="rgba(0,0,0,0)",
+                        ),
                     )
 
-                    _interactive_config = {
-                        "scrollZoom": False,
-                        "displayModeBar": False,
-                        "doubleClick": False,
-                        "staticPlot": False,
-                    }
+                    _interactive_config = {"scrollZoom": False, "displayModeBar": False,
+                                           "doubleClick": False, "staticPlot": False}
                     st.plotly_chart(fig_sp, use_container_width=True, config=_interactive_config)
-                    st.caption(f"Each point represents {_first_name_sp}'s rank immediately after that game was played. Grey lines show all other participants.")
+
+                    # Player highlight buttons
+                    st.markdown("**Highlight additional players:**")
+                    _btn_cols = st.columns(5)
+                    _sorted_names = sorted(name_opts)
+                    for _bi, _bn in enumerate(_sorted_names):
+                        if _bn == sp_name:
+                            continue
+                        _is_hl = _bn in st.session_state[_sp_key]
+                        _btn_color = _color_map.get(_bn, "#6b7280") if _is_hl else "#6b7280"
+                        _col_idx = _bi % 5
+                        if _btn_cols[_col_idx].button(
+                            _bn, key=f"sp_hl_{_bn}",
+                            use_container_width=True,
+                            type="primary" if _is_hl else "secondary",
+                        ):
+                            if _bn in st.session_state[_sp_key]:
+                                st.session_state[_sp_key].discard(_bn)
+                            else:
+                                if len(st.session_state[_sp_key]) < 9:
+                                    st.session_state[_sp_key].add(_bn)
+                            st.rerun()
 
         elif _sub_yb == "bracket-dna":
             st.subheader("🧬 Bracket DNA & Probability")
