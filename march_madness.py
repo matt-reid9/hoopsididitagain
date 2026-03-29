@@ -199,6 +199,18 @@ def load_all_data():
     # South:   rows 3-33,  team col N(13), seed col O(14)
     # East:    rows 36-65, team col B(1),  seed col A(0)   — row 35 is a label row
     # Midwest: rows 36-65, team col N(13), seed col O(14)  — row 35 is a label row
+    # Normalize abbreviations — must be defined before seed_map building
+    TEAM_ABBREVS = {
+        "MICHST":  "Michigan St.",
+        "SFLA":    "South Florida",
+        "MIAOH":   "Miami (Ohio)",
+        "PVAM":    "Prairie View",
+        "KENSAW":  "Kennesaw St.",
+        "MARYCA":  "Saint Mary's",
+    }
+    # Apply same normalization to MasterBracket so seed_map uses identical names
+    df_seeds = df_seeds.replace(TEAM_ABBREVS)
+
     region_specs = [
         ("West",    3, 33,  1,  0),
         ("South",   3, 33,  13, 14),
@@ -209,6 +221,7 @@ def load_all_data():
         for row_idx in range(row_start, min(row_end + 1, len(df_seeds))):
             row = df_seeds.iloc[row_idx]
             team_raw = str(row[team_col]).strip() if team_col < len(row) else ""
+            team_raw = TEAM_ABBREVS.get(team_raw, team_raw)  # normalize abbreviations
             seed = safe_int(row[seed_col]) if seed_col < len(row) else 0
             if team_raw and team_raw not in skip and seed > 0:
                 seed_map[team_raw] = seed
@@ -224,19 +237,37 @@ def load_all_data():
 
     df_p = pd.read_csv(picks_url, header=None)
 
-    # Normalize team name abbreviations used in the sheet
-    TEAM_ABBREVS = {
-        "MICHST":  "Michigan St.",
-        "SFLA":    "South Florida",
-        "MIAOH":   "Miami (Ohio)",
-        "PVAM":    "Prairie View",
-        "KENSAW":  "Kennesaw St.",
-        "MARYCA":  "Saint Mary's",
-    }
+    # Apply abbreviation normalization to picks sheet
     df_p = df_p.replace(TEAM_ABBREVS)
+
+    # Build case-insensitive seed lookup for name-variant resolution
+    _seed_lower = {k.lower(): v for k, v in seed_map.items()}
+
+    def _register_name(name):
+        if name and name not in UNPLAYED and name not in seed_map:
+            s = _seed_lower.get(name.lower())
+            if s:
+                seed_map[name] = s
+                _seed_lower[name.lower()] = s
+
+    # Register all normalized TEAM_ABBREVS values
+    for name in TEAM_ABBREVS.values():
+        _register_name(name)
+
+    # Register all team names that appear in picks row 0 (original seedings per slot)
+    try:
+        _p0 = [str(df_p.iloc[0][c]).strip() for c in range(len(df_p.columns))]
+        for name in _p0:
+            _register_name(name)
+    except Exception:
+        pass
 
     winners_row      = [str(x).strip() for x in df_p.iloc[2].values]
     points_per_game  = [safe_int(p) for p in df_p.iloc[1].values]
+
+    # Register all actual winners
+    for name in winners_row:
+        _register_name(name)
 
     # Build eliminated set from picks (used for bracket scoring)
     eliminated: set[str] = set()
@@ -260,6 +291,7 @@ def load_all_data():
     try:
         teams_key_url = get_csv_url(SHEET_URL, "TeamsKey")
         df_tk = pd.read_csv(teams_key_url, header=None)
+        df_tk = df_tk.replace(TEAM_ABBREVS)
         # Collect (seed, team, region) in sheet order, skipping blank rows
         # Also register seeds into seed_map so bracket display works regardless of name spelling
         tk_teams = []
@@ -1273,17 +1305,7 @@ try:
             continue
         p_picks = [str(row[c]).strip() if c < len(row) else "" for c in range(67)]
 
-        # Read current score directly from column CK (index 88) — sheet calculates it correctly
-        _sheet_score = safe_int(str(row[88]).strip()) if len(row) > 88 else 0
-        cur_score = _sheet_score if _sheet_score > 0 else 0
-
-        # Potential score = sheet's current score + future picks that are still alive
-        pot_additional = sum(
-            points_per_game[c] + seed_map.get(p_picks[c], 0)
-            for c in range(3, 66)
-            if is_unplayed(actual_winners[c]) and p_picks[c] in truly_alive
-        )
-        pot_score = cur_score + pot_additional
+        cur_score, pot_score = score_picks(p_picks, actual_winners, points_per_game, seed_map, truly_alive)
 
         upsets, best_s, best_t = 0, 0, "None"
         upset_correct = 0
