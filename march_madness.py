@@ -3239,6 +3239,53 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         else:
                             _game_descs.append(f"({_ws}) {_winner}" if _ws else _winner)
 
+                    # Zoom toggle
+                    _zoom_key = "sp_prog_zoom"
+                    if _zoom_key not in st.session_state:
+                        st.session_state[_zoom_key] = "games"
+                    _z1, _z2 = st.columns(2)
+                    if _z1.button("📊 By Game", key="sp_zoom_games", use_container_width=True,
+                                  type="primary" if st.session_state[_zoom_key] == "games" else "secondary"):
+                        st.session_state[_zoom_key] = "games"
+                        st.rerun()
+                    if _z2.button("📅 By Round", key="sp_zoom_rounds", use_container_width=True,
+                                  type="primary" if st.session_state[_zoom_key] == "rounds" else "secondary"):
+                        st.session_state[_zoom_key] = "rounds"
+                        st.rerun()
+                    _zoom_mode = st.session_state[_zoom_key]
+
+                    # Build x positions based on zoom mode
+                    # For "rounds" mode: divide [0,1] equally per round, then space games evenly within
+                    _round_names_order = ["R64", "R32", "S16", "E8", "F4", "Champ"]
+                    _slot_rounds = [get_round_name(c) for c in _played_slots]
+
+                    if _zoom_mode == "rounds":
+                        # Group slots by round
+                        _rounds_played = []
+                        _seen_rnds = []
+                        for _rn in _slot_rounds:
+                            if _rn not in _seen_rnds:
+                                _seen_rnds.append(_rn)
+                        # Count games per round
+                        _rnd_counts = {rn: _slot_rounds.count(rn) for rn in _seen_rnds}
+                        n_rounds = len(_seen_rnds)
+                        # Each round gets equal width = 1/n_rounds of total
+                        # Within each round, games are evenly spaced
+                        _x_positions = []
+                        _rnd_x_start = {}
+                        for _ri, _rn in enumerate(_seen_rnds):
+                            _rnd_x_start[_rn] = _ri / n_rounds
+                        for _gi, _rn in enumerate(_slot_rounds):
+                            _ri = _seen_rnds.index(_rn)
+                            _games_in_rnd = _rnd_counts[_rn]
+                            _game_num = sum(1 for r in _slot_rounds[:_gi] if r == _rn)
+                            # Position within round: evenly spaced, centered
+                            _frac = (_game_num + 0.5) / _games_in_rnd
+                            _x_pos = (_ri + _frac) / n_rounds
+                            _x_positions.append(_x_pos)
+                    else:
+                        _x_positions = list(range(1, len(_played_slots) + 1))
+
                     # Rotation note
                     st.markdown('<p style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:4px;">📱 Rotate phone horizontally for a better view</p>', unsafe_allow_html=True)
 
@@ -3250,7 +3297,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         if _n in _highlighted:
                             continue
                         fig_sp.add_trace(go.Scatter(
-                            x=list(range(1, len(_played_slots) + 1)),
+                            x=_x_positions,
                             y=_rank_history[_n],
                             mode="lines",
                             line=dict(color="rgba(100,100,120,0.15)", width=1),
@@ -3271,7 +3318,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             _htexts.append(f"<b>{_n}</b><br><b>#{_rank}</b> after game {_gi+1}<br>{_rnd_lbl}: {_desc}<br>Rank change: {_dstr}")
                         _is_primary = (_n == sp_name)
                         fig_sp.add_trace(go.Scatter(
-                            x=list(range(1, len(_played_slots) + 1)),
+                            x=_x_positions,
                             y=_ranks,
                             mode="lines+markers" if _is_primary else "lines+markers",
                             line=dict(color=_col, width=3 if _is_primary else 2),
@@ -3284,20 +3331,45 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                     # Round boundary lines & labels
                     _shapes_sp, _rnd_labels_sp = [], []
-                    _prev_rnd, _rnd_start = None, {}
-                    for _gi, _c in enumerate(_played_slots):
-                        _rnd = get_round_name(_c)
-                        if _rnd != _prev_rnd:
-                            if _gi > 0:
-                                _shapes_sp.append(dict(type="line", x0=_gi+0.5, x1=_gi+0.5,
+                    if _zoom_mode == "rounds":
+                        # Boundaries at round edges
+                        for _ri, _rn in enumerate(_seen_rnds):
+                            _bx = _ri / n_rounds
+                            if _ri > 0:
+                                _shapes_sp.append(dict(type="line", x0=_bx, x1=_bx,
                                     y0=0.5, y1=_n_players+0.5, xref="x", yref="y",
-                                    line=dict(color="rgba(255,255,255,0.1)", width=1, dash="dot")))
-                            _rnd_start[_rnd] = _gi + 1
-                            _prev_rnd = _rnd
-                    for _rnd, _gs in _rnd_start.items():
-                        _rnd_labels_sp.append(dict(x=_gs, y=0.3, text=_round_short.get(_rnd, _rnd),
-                            showarrow=False, font=dict(size=10, color="rgba(255,255,255,0.4)"),
-                            xanchor="left", yanchor="bottom", xref="x", yref="y"))
+                                    line=dict(color="rgba(255,255,255,0.15)", width=1, dash="dot")))
+                            # Label at center of round
+                            _cx = (_ri + 0.5) / n_rounds
+                            _rnd_labels_sp.append(dict(x=_cx, y=0.3,
+                                text=_round_short.get(_rn, _rn),
+                                showarrow=False, font=dict(size=11, color="rgba(255,255,255,0.5)"),
+                                xanchor="center", yanchor="bottom", xref="x", yref="y"))
+                        _xaxis_opts = dict(
+                            showticklabels=False, showgrid=False,
+                            range=[-0.01, 1.01],
+                            gridcolor="rgba(255,255,255,0.05)",
+                        )
+                    else:
+                        _prev_rnd, _rnd_start = None, {}
+                        for _gi, _c in enumerate(_played_slots):
+                            _rnd = get_round_name(_c)
+                            if _rnd != _prev_rnd:
+                                if _gi > 0:
+                                    _shapes_sp.append(dict(type="line", x0=_gi+0.5, x1=_gi+0.5,
+                                        y0=0.5, y1=_n_players+0.5, xref="x", yref="y",
+                                        line=dict(color="rgba(255,255,255,0.1)", width=1, dash="dot")))
+                                _rnd_start[_rnd] = _gi + 1
+                                _prev_rnd = _rnd
+                        for _rnd, _gs in _rnd_start.items():
+                            _rnd_labels_sp.append(dict(x=_gs, y=0.3, text=_round_short.get(_rnd, _rnd),
+                                showarrow=False, font=dict(size=10, color="rgba(255,255,255,0.4)"),
+                                xanchor="left", yanchor="bottom", xref="x", yref="y"))
+                        _xaxis_opts = dict(
+                            title="Game #",
+                            gridcolor="rgba(255,255,255,0.05)",
+                            range=[0.5, len(_played_slots)+0.5],
+                        )
 
                     _cur_rank = _rank_history[sp_name][-1] if _rank_history[sp_name] else "?"
                     _first_name_sp = sp_name.split()[0]
@@ -3307,8 +3379,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         title=f"{_first_name_sp}'s Rank Journey — Currently #{_cur_rank}",
                         yaxis=dict(autorange="reversed", range=[_n_players+1, 0], title="Rank",
                                    tickmode="linear", dtick=10, gridcolor="rgba(255,255,255,0.05)"),
-                        xaxis=dict(title="Game #", gridcolor="rgba(255,255,255,0.05)",
-                                   range=[0.5, len(_played_slots)+0.5]),
+                        xaxis=_xaxis_opts,
                         plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
                         height=420,
                         margin=dict(l=0, r=0, t=50, b=40),
