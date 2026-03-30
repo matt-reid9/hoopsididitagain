@@ -1609,6 +1609,7 @@ try:
         "champion-picks":      ("fun-stats", "champion-picks"),
         "current-standings":    ("standings", "current"),
         "potential-standings":  ("standings", "potential"),
+        "snapshot-standings":   ("standings", "snapshot"),
     }
 
     try:
@@ -1699,9 +1700,9 @@ try:
     with tab_standings:
         st.subheader("Live Standings")
 
-        # Sub-navigation: Current / Potential
+        # Sub-navigation: Current / Potential / Snapshot
         _std_sub = st.session_state.get("nav_sub_standings", "current")
-        _std_c1, _std_c2 = st.columns(2)
+        _std_c1, _std_c2, _std_c3 = st.columns(3)
         if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
@@ -1710,9 +1711,17 @@ try:
                            type="primary" if _std_sub == "potential" else "secondary"):
             st.session_state["nav_sub_standings"] = "potential"
             st.rerun()
+        if _std_c3.button("📸 Snapshot", key="std_snapshot", use_container_width=True,
+                           type="primary" if _std_sub == "snapshot" else "secondary"):
+            st.session_state["nav_sub_standings"] = "snapshot"
+            st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
 
+        if _std_sub == "snapshot":
+            _SNAPSHOT_SECTION = True
+        else:
+            _SNAPSHOT_SECTION = False
         col_left, col_right = st.columns([3, 2], gap="medium")
 
         # Detect mobile via user agent header (no JS needed, works reliably)
@@ -1759,7 +1768,7 @@ try:
         _ff_cols = [59, 60, 61, 62]
 
         with col_left:
-            if _std_sub == "current":
+            if not _SNAPSHOT_SECTION and _std_sub == "current":
                 # ── Current standings: rich HTML table with logos ────────────────
                 cur_df = final_df[["Current Rank", "Name", "Current Score"]].copy()
                 cur_df = cur_df.rename(columns={"Current Rank": "Rank"})
@@ -1889,7 +1898,7 @@ try:
                 )
                 st.caption("💡 Tap a row in Potential view to open a Head-to-Head comparison")
 
-            else:
+            elif not _SNAPSHOT_SECTION:
                 # ── Potential standings: existing AgGrid table ───────────────────
                 display_cols = ["Current Rank", "Name", "Current Score",
                                 "Potential Score", "Win %", "Top 3 %", "Potential Status"]
@@ -1973,90 +1982,217 @@ try:
                     st.caption("💡 Tap any row to open a Head-to-Head comparison")
 
         with col_right:
-            top10 = final_df.head(10).sort_values("Current Score")
+            if not _SNAPSHOT_SECTION:
+                top10 = final_df.head(10).sort_values("Current Score")
 
-            fig = px.bar(
-                top10, x="Current Score", y="Name", orientation="h",
-                color="Current Score", color_continuous_scale="YlOrRd",
-                title="Top 10 — Current Scores",
-            )
-            fig.update_layout(
-                dragmode=False,
-                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                coloraxis_showscale=False, margin=dict(l=0, r=0, t=40, b=0),
-                height=380,
-            )
-
-            # Overlay 4 FF logos inside each horizontal bar
-            # Champion pick (col 65) is shown larger and full opacity; others are dimmed
-            _max_score = top10["Current Score"].max() or 1
-            _images = []
-            _shapes = []
-            _annotations = []
-            for _yi, (_idx, _row) in enumerate(top10.iterrows()):
-                _picks = _picks_lookup.get(_row["Name"], [])
-                _ff_teams = [_picks[c] for c in _ff_cols if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}]
-                _champ = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else None
-                _bar_len = _row["Current Score"]
-                if _bar_len <= 0:
-                    continue
-                _n = len(_ff_teams)
-                for _li, _team in enumerate(_ff_teams):
-                    _logo = espn_logo_url(_team)
-                    if not _logo:
+                fig = px.bar(
+                    top10, x="Current Score", y="Name", orientation="h",
+                    color="Current Score", color_continuous_scale="YlOrRd",
+                    title="Top 10 — Current Scores",
+                )
+                fig.update_layout(
+                    dragmode=False,
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    coloraxis_showscale=False, margin=dict(l=0, r=0, t=40, b=0),
+                    height=380,
+                )
+    
+                # Overlay 4 FF logos inside each horizontal bar
+                # Champion pick (col 65) is shown larger and full opacity; others are dimmed
+                _max_score = top10["Current Score"].max() or 1
+                _images = []
+                _shapes = []
+                _annotations = []
+                for _yi, (_idx, _row) in enumerate(top10.iterrows()):
+                    _picks = _picks_lookup.get(_row["Name"], [])
+                    _ff_teams = [_picks[c] for c in _ff_cols if c < len(_picks) and _picks[c] not in {"", "nan", "TBD"}]
+                    _champ = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else None
+                    _bar_len = _row["Current Score"]
+                    if _bar_len <= 0:
                         continue
-                    _x = _bar_len * (_li + 0.5) / max(_n, 1)
-                    _is_champ = (_team == _champ)
-                    _is_alive = _team in truly_alive
-                    _sizex  = _max_score * 0.115 if _is_champ else _max_score * 0.09
-                    _sizey  = 0.75 if _is_champ else 0.55
-                    _opac   = 1.0 if _is_alive else 0.5
-                    _images.append(dict(
-                        source=_logo,
-                        xref="x", yref="y",
-                        x=_x,
-                        y=_yi,
-                        sizex=_sizex,
-                        sizey=_sizey,
-                        xanchor="center", yanchor="middle",
-                        layer="above",
-                        opacity=_opac,
-                    ))
-                    # Gold circle outline behind champion logo
-                    if _is_champ:
-                        _r = _max_score * 0.065
-                        _shapes.append(dict(
-                            type="circle",
+                    _n = len(_ff_teams)
+                    for _li, _team in enumerate(_ff_teams):
+                        _logo = espn_logo_url(_team)
+                        if not _logo:
+                            continue
+                        _x = _bar_len * (_li + 0.5) / max(_n, 1)
+                        _is_champ = (_team == _champ)
+                        _is_alive = _team in truly_alive
+                        _sizex  = _max_score * 0.115 if _is_champ else _max_score * 0.09
+                        _sizey  = 0.75 if _is_champ else 0.55
+                        _opac   = 1.0 if _is_alive else 0.5
+                        _images.append(dict(
+                            source=_logo,
                             xref="x", yref="y",
-                            x0=_x - _r, x1=_x + _r,
-                            y0=_yi - 0.4, y1=_yi + 0.4,
-                            line=dict(color="#f5c518", width=2),
-                            fillcolor="rgba(0,0,0,0)",
-                            layer="above",
-                        ))
-                    # Red ✕ annotation over eliminated logos
-                    if not _is_alive:
-                        _annotations.append(dict(
-                            x=_x, y=_yi,
-                            xref="x", yref="y",
-                            text="✕",
-                            showarrow=False,
-                            font=dict(size=18, color="rgba(239,68,68,0.9)", family="Arial Black"),
+                            x=_x,
+                            y=_yi,
+                            sizex=_sizex,
+                            sizey=_sizey,
                             xanchor="center", yanchor="middle",
+                            layer="above",
+                            opacity=_opac,
                         ))
-            _layout_extra = {}
-            if _images:
-                _layout_extra["images"] = _images
-            if _shapes:
-                _layout_extra["shapes"] = _shapes
-            if _annotations:
-                _layout_extra["annotations"] = _annotations
-            if _layout_extra:
-                fig.update_layout(**_layout_extra)
+                        # Gold circle outline behind champion logo
+                        if _is_champ:
+                            _r = _max_score * 0.065
+                            _shapes.append(dict(
+                                type="circle",
+                                xref="x", yref="y",
+                                x0=_x - _r, x1=_x + _r,
+                                y0=_yi - 0.4, y1=_yi + 0.4,
+                                line=dict(color="#f5c518", width=2),
+                                fillcolor="rgba(0,0,0,0)",
+                                layer="above",
+                            ))
+                        # Red ✕ annotation over eliminated logos
+                        if not _is_alive:
+                            _annotations.append(dict(
+                                x=_x, y=_yi,
+                                xref="x", yref="y",
+                                text="✕",
+                                showarrow=False,
+                                font=dict(size=18, color="rgba(239,68,68,0.9)", family="Arial Black"),
+                                xanchor="center", yanchor="middle",
+                            ))
+                _layout_extra = {}
+                if _images:
+                    _layout_extra["images"] = _images
+                if _shapes:
+                    _layout_extra["shapes"] = _shapes
+                if _annotations:
+                    _layout_extra["annotations"] = _annotations
+                if _layout_extra:
+                    fig.update_layout(**_layout_extra)
+    
+                st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
-            st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
+        if _SNAPSHOT_SECTION:
+            st.subheader("📸 Standings Snapshot")
+            st.caption("View the full standings as they stood after any game in the tournament.")
 
-    # ── Tab 2: Your Bracket (group) ───────────────────────────────────────────
+            # Chronological order of game winners within each round
+            _CHRON_BY_ROUND = {
+                "R64": ["TCU","Nebraska","Louisville","High Point","Duke","Vanderbilt",
+                        "Michigan St.","Arkansas","VCU","Michigan","Texas","Texas A&M",
+                        "Illinois","Saint Louis","Gonzaga","Houston",
+                        "Kentucky","Texas Tech","Arizona","Virginia","Iowa St.","Alabama",
+                        "Utah St.","Tennessee","Iowa","St. John's","Purdue","UCLA",
+                        "Florida","Kansas","Miami (Fla.)","UConn"],
+                "R32": ["Michigan","Michigan St.","Duke","Houston","Texas","Illinois","Nebraska","Arkansas",
+                        "Purdue","Iowa St.","St. John's","Tennessee","Iowa","Arizona","UConn","Alabama"],
+                "S16": ["Purdue","Iowa","Arizona","Illinois","Duke","Michigan","UConn","Tennessee"],
+                "E8":  ["Illinois","Arizona","Michigan","UConn"],
+                "F4":  [],
+                "Champ": [],
+            }
+            _ROUND_ORDER = {"R64": 0, "R32": 1, "S16": 2, "E8": 3, "F4": 4, "Champ": 5}
+
+            def _chron_sort_key(c):
+                _w = actual_winners[c]
+                _r = get_round_name(c)
+                _round_idx = _ROUND_ORDER.get(_r, 9)
+                _lst = _CHRON_BY_ROUND.get(_r, [])
+                try:
+                    _pos = _lst.index(_w)
+                except ValueError:
+                    _pos = 999
+                return (_round_idx, _pos)
+
+            _snap_slots = sorted(
+                [c for c in range(3, 66) if not is_unplayed(actual_winners[c])],
+                key=_chron_sort_key
+            )
+
+            if not _snap_slots:
+                st.info("No games have been played yet.")
+            else:
+                _snap_all_picks = {r["Name"]: r["raw_picks"] for r in results}
+                _snap_names = list(_snap_all_picks.keys())
+                _snap_running = {n: 0 for n in _snap_names}
+                _snap_rank_history = {n: [] for n in _snap_names}  # rank after each game
+                _snap_score_history = {n: [] for n in _snap_names}  # score after each game
+
+                _rshort = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}
+
+                _snap_game_labels = []
+                _snap_rnd_counts = {}
+                for _c in _snap_slots:
+                    _winner = actual_winners[_c]
+                    _pts = points_per_game[_c] + seed_map.get(_winner, 0)
+                    for _n in _snap_names:
+                        _pk = _snap_all_picks[_n]
+                        if _c < len(_pk) and _pk[_c] == _winner:
+                            _snap_running[_n] += _pts
+                    _scores = sorted([(n, _snap_running[n]) for n in _snap_names], key=lambda x: x[1], reverse=True)
+                    _rm, _ps, _pr = {}, None, 0
+                    for _ri, (_n, _sc) in enumerate(_scores):
+                        if _sc != _ps:
+                            _pr = _ri + 1
+                            _ps = _sc
+                        _rm[_n] = _pr
+                    for _n in _snap_names:
+                        _snap_rank_history[_n].append(_rm[_n])
+                        _snap_score_history[_n].append(_snap_running[_n])
+
+                    _rnd = _rshort.get(get_round_name(_c), get_round_name(_c))
+                    _snap_rnd_counts[_rnd] = _snap_rnd_counts.get(_rnd, 0) + 1
+                    _loser = defeated_map.get(_winner, "")
+                    _ws = seed_map.get(_winner, 0)
+                    _ls = seed_map.get(_loser, 0)
+                    if _loser:
+                        _matchup = f"({_ws}) {_winner} def. ({_ls}) {_loser}" if _ws and _ls else f"{_winner} def. {_loser}"
+                    else:
+                        _matchup = f"({_ws}) {_winner}" if _ws else _winner
+                    _snap_game_labels.append(f"{_rnd} G{_snap_rnd_counts[_rnd]}: {_matchup}")
+
+                # Game selector
+                _snap_idx = st.select_slider(
+                    "Select game",
+                    options=list(range(len(_snap_slots))),
+                    value=len(_snap_slots) - 1,
+                    format_func=lambda i: _snap_game_labels[i],
+                    key="snap_game_idx",
+                )
+
+                # Build standings at selected game
+                _snap_data = []
+                for _n in _snap_names:
+                    _snap_data.append({
+                        "Name": _n,
+                        "Score": _snap_score_history[_n][_snap_idx],
+                        "Rank": _snap_rank_history[_n][_snap_idx],
+                    })
+                _snap_df = pd.DataFrame(_snap_data).sort_values(["Rank", "Name"]).reset_index(drop=True)
+
+                st.markdown(f"**After: {_snap_game_labels[_snap_idx]}**")
+                st.markdown(f"*Game {_snap_idx + 1} of {len(_snap_slots)}*")
+
+                # Render as HTML table with user highlight
+                _snap_trs = ""
+                for _, _sr in _snap_df.iterrows():
+                    _is_user = user_name and _sr["Name"] == user_name
+                    _row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if _is_user else ""
+                    _snap_trs += (
+                        f'<tr{_row_style}>'
+                        f'<td style="text-align:center;padding:5px 8px;">{int(_sr["Rank"])}</td>'
+                        f'<td style="padding:5px 10px;font-weight:600;">{_sr["Name"]}</td>'
+                        f'<td style="text-align:center;padding:5px 8px;">{int(_sr["Score"])}</td>'
+                        f'</tr>'
+                    )
+                st.markdown(
+                    '<div style="overflow-x:auto;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                    '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
+                    '<th style="padding:6px 8px;text-align:center;border:1px solid #313244;">Rank</th>'
+                    '<th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>'
+                    '<th style="padding:6px 8px;text-align:center;border:1px solid #313244;">Score</th>'
+                    '</tr></thead>'
+                    f'<tbody style="color:#fff;">{_snap_trs}</tbody>'
+                    '</table></div>',
+                    unsafe_allow_html=True
+                )
+
+
     # ── Tab 2: Your Bracket (group) ───────────────────────────────────────────
     with tab_bracket:
         # Submenu buttons
@@ -3174,7 +3310,35 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             )
 
             if sp_name != "— select —":
-                _played_slots = [c for c in range(3, 66) if not is_unplayed(actual_winners[c])]
+                _CHRON_BY_ROUND_SP = {
+                    "R64": ["TCU","Nebraska","Louisville","High Point","Duke","Vanderbilt",
+                            "Michigan St.","Arkansas","VCU","Michigan","Texas","Texas A&M",
+                            "Illinois","Saint Louis","Gonzaga","Houston",
+                            "Kentucky","Texas Tech","Arizona","Virginia","Iowa St.","Alabama",
+                            "Utah St.","Tennessee","Iowa","St. John's","Purdue","UCLA",
+                            "Florida","Kansas","Miami (Fla.)","UConn"],
+                    "R32": ["Michigan","Michigan St.","Duke","Houston","Texas","Illinois","Nebraska","Arkansas",
+                            "Purdue","Iowa St.","St. John's","Tennessee","Iowa","Arizona","UConn","Alabama"],
+                    "S16": ["Purdue","Iowa","Arizona","Illinois","Duke","Michigan","UConn","Tennessee"],
+                    "E8":  ["Illinois","Arizona","Michigan","UConn"],
+                    "F4":  [], "Champ": [],
+                }
+                _ROUND_ORDER_SP = {"R64": 0, "R32": 1, "S16": 2, "E8": 3, "F4": 4, "Champ": 5}
+
+                def _sp_chron_key(c):
+                    _w = actual_winners[c]
+                    _r = get_round_name(c)
+                    _lst = _CHRON_BY_ROUND_SP.get(_r, [])
+                    try:
+                        _pos = _lst.index(_w)
+                    except ValueError:
+                        _pos = 999
+                    return (_ROUND_ORDER_SP.get(_r, 9), _pos)
+
+                _played_slots = sorted(
+                    [c for c in range(3, 66) if not is_unplayed(actual_winners[c])],
+                    key=_sp_chron_key
+                )
 
                 if not _played_slots:
                     st.info("No games played yet.")
