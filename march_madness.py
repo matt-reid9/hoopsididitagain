@@ -5208,9 +5208,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         for _, row in region_df[["Rank", "Name", "Pts", "Correct"]].iterrows():
                             is_user = user_name and row["Name"] == user_name
                             row_style = ' style="background:#3a3000; color:#f5c518; font-weight:bold;"' if is_user else ""
+                            _rk = int(row["Rank"])
+                            _medal = "🏆" if _rk == 1 else ("🥈" if _rk == 2 else ("🥉" if _rk == 3 else str(_rk)))
                             trs += (
                                 f'<tr{row_style}>'
-                                f'<td style="width:28px;text-align:center;">{int(row["Rank"])}</td>'
+                                f'<td style="width:28px;text-align:center;">{_medal}</td>'
                                 f'<td style="max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{row["Name"]}</td>'
                                 f'<td style="width:36px;text-align:right;">{int(row["Pts"])}</td>'
                                 f'<td style="width:44px;text-align:right;">{int(row["Correct"])}</td>'
@@ -5406,9 +5408,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             for row in ranked_wknd:
                 is_user = user_name and row["Name"] == user_name
                 row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
+                _rk = int(row["Rank"])
+                _medal = "🏆" if _rk == 1 else ("🥈" if _rk == 2 else ("🥉" if _rk == 3 else str(_rk)))
                 trs += (
                     f'<tr{row_style}>'
-                    f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                    f'<td style="width:40px;text-align:center;">{_medal}</td>'
                     f'<td style="padding:5px 10px;">{row["Name"]}</td>'
                     f'<td style="width:70px;text-align:center;">{row["Score"]}</td>'
                     f'</tr>'
