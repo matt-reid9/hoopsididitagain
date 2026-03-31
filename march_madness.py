@@ -1336,7 +1336,7 @@ try:
             if pick == winner and not is_unplayed(winner):
                 region = slot_to_region.get(c, "")
                 if region in region_scores:
-                    pts = points_per_game[c]  # sheet already includes seed bonus for played games
+                    pts = points_per_game[c] + seed_map.get(pick, 0)
                     region_scores[region]  += pts
                     region_correct[region] += 1
 
@@ -4112,7 +4112,24 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         _user_tz_str = st.session_state.get("user_tz", "")
 
-        # Imports for timezone-aware date/time handling
+        # Apply date and game query params on first load
+        if "sp_qp_applied" not in st.session_state:
+            st.session_state["sp_qp_applied"] = True
+            try:
+                _qdate = st.query_params.get("date", "")
+                if _qdate and _qdate in TOURN_DATES:
+                    st.session_state["sp_sel_date"] = _qdate
+                _qgame = st.query_params.get("game", "")
+                if _qgame != "" and _qdate:
+                    try:
+                        _qgi = int(_qgame)
+                        st.session_state["sp_expanded_game"] = f"sp_game_{_qdate}_{_qgi}"
+                    except (ValueError, TypeError):
+                        pass
+                st.query_params.pop("date", None)
+                st.query_params.pop("game", None)
+            except Exception:
+                pass
         from datetime import datetime as _dt, date as _date, timezone as _tz_utc, timedelta as _td
         import zoneinfo as _zi
         import streamlit.components.v1 as _sp_components
@@ -4164,6 +4181,17 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     st.rerun()
 
         _sel_date = st.session_state.get("sp_sel_date", _default_date)
+
+        # Read ?game= query param — navigate to date and auto-expand that game
+        try:
+            _qgame = st.query_params.get("game", "")
+            if _qgame and not st.session_state.get("_sp_game_qp_applied"):
+                st.session_state["_sp_game_qp_applied"] = True
+                st.session_state["_sp_expand_game_id"] = _qgame
+                st.query_params.pop("game", None)
+        except Exception:
+            pass
+
         st.markdown("---")
 
         _user_tz_str = st.session_state.get("user_tz", "")
@@ -4533,6 +4561,14 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                 _game_key = f"sp_game_{_sel_date}_{_gi}"
                 _is_expanded = st.session_state.get("sp_expanded_game") == _game_key
+
+                # Auto-expand if this game's ESPN ID matches ?game= param
+                _expand_id = st.session_state.get("_sp_expand_game_id", "")
+                if _expand_id and str(game.get("id", "")) == str(_expand_id):
+                    if not _is_expanded:
+                        st.session_state["sp_expanded_game"] = _game_key
+                        _is_expanded = True
+                    st.session_state.pop("_sp_expand_game_id", None)
 
                 # Card HTML
                 st.markdown(
