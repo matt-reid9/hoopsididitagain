@@ -3302,12 +3302,45 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         elif _sub_yb == "standings-progress":
             st.subheader("📈 Standings Progress")
 
+            _sp_name_lower = {n.lower(): n for n in name_opts}
+
+            # Apply query params on first load
+            if "sp_prog_qp_applied" not in st.session_state:
+                st.session_state["sp_prog_qp_applied"] = True
+                try:
+                    # ?p1= sets the primary player
+                    _qp1 = st.query_params.get("p1", "")
+                    if _qp1:
+                        _m = _sp_name_lower.get(_qp1.lower(), "")
+                        if _m:
+                            st.session_state["sp_prog_name_sel"] = _m
+                    # ?p2=, ?p3=... pre-highlight additional players
+                    _sp_key = "sp_prog_highlighted"
+                    if _sp_key not in st.session_state:
+                        st.session_state[_sp_key] = set()
+                    for _qi in range(2, 11):
+                        _qv = st.query_params.get(f"p{_qi}", "")
+                        if _qv:
+                            _m = _sp_name_lower.get(_qv.lower(), "")
+                            if _m:
+                                st.session_state[_sp_key].add(_m)
+                    for _qk in [f"p{i}" for i in range(1, 11)]:
+                        st.query_params.pop(_qk, None)
+                except Exception:
+                    pass
+
+            # Determine default for primary player selectbox
+            _sp_prog_default = st.session_state.get("sp_prog_name_sel", "")
+            if not _sp_prog_default or _sp_prog_default not in name_opts:
+                _sp_prog_default = user_name if user_name and user_name in name_opts else "— select —"
+
             sp_name = st.selectbox(
                 "Select your name",
                 ["— select —"] + name_opts,
                 key="sp_prog_name",
-                index=(name_opts.index(user_name) + 1) if user_name and user_name in name_opts else 0,
+                index=(name_opts.index(_sp_prog_default) + 1) if _sp_prog_default in name_opts else 0,
             )
+            st.session_state["sp_prog_name_sel"] = sp_name
 
             if sp_name != "— select —":
                 _CHRON_BY_ROUND_SP = {
@@ -3406,15 +3439,15 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     # Zoom toggle
                     _zoom_key = "sp_prog_zoom"
                     if _zoom_key not in st.session_state:
-                        st.session_state[_zoom_key] = "games"
+                        st.session_state[_zoom_key] = "rounds"
                     _z1, _z2 = st.columns(2)
-                    if _z1.button("📊 By Game", key="sp_zoom_games", use_container_width=True,
-                                  type="primary" if st.session_state[_zoom_key] == "games" else "secondary"):
-                        st.session_state[_zoom_key] = "games"
-                        st.rerun()
-                    if _z2.button("📅 By Round", key="sp_zoom_rounds", use_container_width=True,
+                    if _z1.button("📅 By Round", key="sp_zoom_rounds", use_container_width=True,
                                   type="primary" if st.session_state[_zoom_key] == "rounds" else "secondary"):
                         st.session_state[_zoom_key] = "rounds"
+                        st.rerun()
+                    if _z2.button("📊 By Game", key="sp_zoom_games", use_container_width=True,
+                                  type="primary" if st.session_state[_zoom_key] == "games" else "secondary"):
+                        st.session_state[_zoom_key] = "games"
                         st.rerun()
                     _zoom_mode = st.session_state[_zoom_key]
 
