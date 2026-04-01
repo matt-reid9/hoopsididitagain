@@ -5636,7 +5636,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             },
             {
                 "year": 2024,
-                "name": "Tenley McLaddie",
+                "name": "Tenley McCladdie",
                 "image": "https://mrstream.neocities.org/img/BracketCards/2024TenleyMcLaddie.png",
                 "champion_pick": "Purdue",
                 "tournament_champion": "UConn",
@@ -5645,7 +5645,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 "2nd_pick": "UConn",
                 "3rd_name": "Ryan Reyes",
                 "3rd_pick": "UConn",
-                                "description": "Tenley McLaddie pulled off the ultimate \"worst to first\" story in 2024, rebounding from a dead-last ranking on Day 1 to claim the overall title. Her surge began in the second round, and she officially took control of the leaderboard after Alabama's upset win over UNC in the Sweet 16. By the time Purdue punched their ticket to the Championship game, Tenley had officially secured her place as our 2024 winner!",
+                                "description": "Tenley McCladdie pulled off the ultimate \"worst to first\" story in 2024, rebounding from a dead-last ranking on Day 1 to claim the overall title. Her surge began in the second round, and she officially took control of the leaderboard after Alabama's upset win over UNC in the Sweet 16. By the time Purdue punched their ticket to the Championship game, Tenley had officially secured her place as our 2024 winner!",
             },
             {
                 "year": 2025,
@@ -5759,12 +5759,34 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             unsafe_allow_html=True
                         )
                 with txt_col:
+                    # Look up this champion's 2026 current rank and score
+                    _champ_name = champ["name"]
+                    _champ_2026 = next((r for r in results if r["Name"] == _champ_name), None)
+                    _champ_first = _champ_name.split()[0]
+
+                    _pill_2026 = ""
+                    if _champ_2026:
+                        _c26_rank = next(
+                            (r["Current Rank"] for r in final_df.to_dict("records") if r["Name"] == _champ_name),
+                            None
+                        ) if hasattr(final_df, "to_dict") else None
+                        # Get rank from final_df
+                        _c26_row = final_df[final_df["Name"] == _champ_name]
+                        if not _c26_row.empty:
+                            _c26_rank  = int(_c26_row.iloc[0]["Current Rank"])
+                            _c26_score = int(_c26_row.iloc[0]["Current Score"])
+                            _pill_2026 = (
+                                _pill_simple("📊", f"{_champ_first}'s 2026 Rank",  f"#{_c26_rank}",  "") +
+                                _pill_simple("🏅", f"{_champ_first}'s 2026 Score", str(_c26_score), "")
+                            )
+
                     pills = (
                         f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
                         _pill_simple("👑", "Champion",         _champ,   _ncaa_logo(_champ)) +
                         _pill_simple("🎯", f"{_first_name}'s Pick", _pick, _ncaa_logo(_pick), correct=_correct) +
                         (_pill_named("🥈", "2nd Place", _2nd_name, _2nd_pick, _ncaa_logo(_2nd_pick)) if _2nd_name else "<div></div>") +
                         (_pill_named("🥉", "3rd Place", _3rd_name, _3rd_pick, _ncaa_logo(_3rd_pick)) if _3rd_name else "<div></div>") +
+                        _pill_2026 +
                         f'</div>'
                     )
                     st.markdown(pills, unsafe_allow_html=True)
