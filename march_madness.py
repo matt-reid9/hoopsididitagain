@@ -4063,6 +4063,153 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         )
                     st.plotly_chart(fig_r, use_container_width=True, config=PLOTLY_CONFIG)
 
+                # ── Championship Scenarios (Final Four stage only) ────────────
+                _ff_unplayed = [c for c in range(63, 65) if is_unplayed(actual_winners[c])]
+                _champ_unplayed = is_unplayed(actual_winners[65])
+
+                if len(_ff_unplayed) == 2 and _champ_unplayed:
+                    # Both FF games + Championship unplayed — show all 8 scenarios
+                    _ff1_c, _ff2_c = _ff_unplayed[0], _ff_unplayed[1]
+                    _p1a, _p1b = _BRACKET_PARENTS[_ff1_c]
+                    _p2a, _p2b = _BRACKET_PARENTS[_ff2_c]
+                    _ff1_a = actual_winners[_p1a] if not is_unplayed(actual_winners[_p1a]) else None
+                    _ff1_b = actual_winners[_p1b] if not is_unplayed(actual_winners[_p1b]) else None
+                    _ff2_a = actual_winners[_p2a] if not is_unplayed(actual_winners[_p2a]) else None
+                    _ff2_b = actual_winners[_p2b] if not is_unplayed(actual_winners[_p2b]) else None
+
+                    if all([_ff1_a, _ff1_b, _ff2_a, _ff2_b]):
+                        _rg_scores = {r["Name"]: r["Current Score"] for r in results}
+                        _me_name = dna_select
+
+                        def _sim_rank_sc(base_scores, game_awards):
+                            _sc = dict(base_scores)
+                            for _slot, _winner in game_awards:
+                                _pts = points_per_game[_slot] + seed_map.get(_winner, 0)
+                                for _r in results:
+                                    if _r["raw_picks"][_slot] == _winner:
+                                        _sc[_r["Name"]] = _sc[_r["Name"]] + _pts
+                            _sorted = sorted(_sc.items(), key=lambda x: x[1], reverse=True)
+                            return next((i+1 for i,(n,_) in enumerate(_sorted) if n == _me_name), len(results))
+
+                        def _slabel(team):
+                            s = seed_map.get(team, 0)
+                            return f"({s}) {team}" if s else team
+
+                        def _lhtml(team, size=18):
+                            url = espn_logo_url(team) if team else ""
+                            if url:
+                                return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">'
+                            return ""
+
+                        _my_ff1 = u["raw_picks"][_ff1_c] if _ff1_c < len(u["raw_picks"]) else ""
+                        _my_ff2 = u["raw_picks"][_ff2_c] if _ff2_c < len(u["raw_picks"]) else ""
+                        _my_ch  = u["raw_picks"][65] if 65 < len(u["raw_picks"]) else ""
+
+                        _scenarios = []
+                        for _w1 in [_ff1_a, _ff1_b]:
+                            for _w2 in [_ff2_a, _ff2_b]:
+                                for _wc in [_w1, _w2]:
+                                    _rank = _sim_rank_sc(_rg_scores, [(_ff1_c, _w1), (_ff2_c, _w2), (65, _wc)])
+                                    _scenarios.append({"ff1": _w1, "ff2": _w2, "champ": _wc, "rank": _rank})
+
+                        _scenarios.sort(key=lambda x: x["rank"])
+                        _best_possible = _scenarios[0]["rank"]
+                        _worst_possible = _scenarios[-1]["rank"]
+
+                        st.markdown(f"#### 🏆 All Championship Scenarios")
+                        st.caption(f"Every possible path to the championship. Best possible: **#{_best_possible}** · Worst possible: **#{_worst_possible}**")
+
+                        for _sc in _scenarios:
+                            _w1, _w2, _wc = _sc["ff1"], _sc["ff2"], _sc["champ"]
+                            _rank = _sc["rank"]
+                            if _rank == _best_possible:
+                                _border, _rank_color = "#16a34a", "#4ade80"
+                            elif _rank == _worst_possible:
+                                _border, _rank_color = "#dc2626", "#f87171"
+                            else:
+                                _border, _rank_color = "#4b5563", "#e5e7eb"
+
+                            def _tspan(team, my_pick):
+                                _col = "#4ade80" if team == my_pick else "#9ca3af"
+                                _wt = "700" if team == my_pick else "400"
+                                return f'{_lhtml(team)}<span style="color:{_col};font-weight:{_wt};">{_slabel(team)}</span>'
+
+                            st.markdown(
+                                f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;'
+                                f'margin-bottom:6px;background:#1e1e2e;">'
+                                f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+                                f'<div style="font-size:13px;color:#e5e7eb;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'
+                                f'<span style="color:#6b7280;font-size:11px;">FF:</span> {_tspan(_w1,_my_ff1)} '
+                                f'<span style="color:#6b7280;">·</span> {_tspan(_w2,_my_ff2)} '
+                                f'<span style="color:#6b7280;font-size:11px;margin-left:4px;">🏆:</span> {_tspan(_wc,_my_ch)}'
+                                f'</div>'
+                                f'<div style="font-size:18px;font-weight:800;color:{_rank_color};white-space:nowrap;">#{_rank}</div>'
+                                f'</div></div>',
+                                unsafe_allow_html=True
+                            )
+
+                elif len(_ff_unplayed) == 1 and _champ_unplayed:
+                    # One FF game done, one left + Championship — show 4 scenarios
+                    _rem_ff_c = _ff_unplayed[0]
+                    _done_ff_c = 64 if _rem_ff_c == 63 else 63
+                    _known_ff_winner = actual_winners[_done_ff_c]
+                    _pa, _pb = _BRACKET_PARENTS[_rem_ff_c]
+                    _rem_a = actual_winners[_pa] if not is_unplayed(actual_winners[_pa]) else None
+                    _rem_b = actual_winners[_pb] if not is_unplayed(actual_winners[_pb]) else None
+
+                    if _rem_a and _rem_b and not is_unplayed(_known_ff_winner):
+                        _rg_scores = {r["Name"]: r["Current Score"] for r in results}
+                        _me_name = dna_select
+                        _my_ff = u["raw_picks"][_rem_ff_c] if _rem_ff_c < len(u["raw_picks"]) else ""
+                        _my_ch = u["raw_picks"][65] if 65 < len(u["raw_picks"]) else ""
+
+                        _scenarios = []
+                        for _wff in [_rem_a, _rem_b]:
+                            for _wch in [_wff, _known_ff_winner]:
+                                _rank = _sim_rank_sc(_rg_scores, [(_rem_ff_c, _wff), (65, _wch)])
+                                _scenarios.append({"ff": _wff, "champ": _wch, "rank": _rank})
+                        _scenarios.sort(key=lambda x: x["rank"])
+                        _best_p = _scenarios[0]["rank"]
+                        _worst_p = _scenarios[-1]["rank"]
+
+                        st.markdown("#### 🏆 Remaining Scenarios")
+                        st.caption(f"Best possible: **#{_best_p}** · Worst possible: **#{_worst_p}**")
+                        for _sc in _scenarios:
+                            _border = "#16a34a" if _sc["rank"] == _best_p else ("#dc2626" if _sc["rank"] == _worst_p else "#4b5563")
+                            _rc = "#4ade80" if _sc["rank"] == _best_p else ("#f87171" if _sc["rank"] == _worst_p else "#e5e7eb")
+                            st.markdown(
+                                f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
+                                f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                                f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["ff"])}{_slabel(_sc["ff"])} wins FF · {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
+                                f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
+                                f'</div></div>', unsafe_allow_html=True)
+
+                elif not _ff_unplayed and _champ_unplayed:
+                    # Both FF done, just Championship left — show 2 scenarios
+                    _f1 = actual_winners[63]
+                    _f2 = actual_winners[64]
+                    if not is_unplayed(_f1) and not is_unplayed(_f2):
+                        _rg_scores = {r["Name"]: r["Current Score"] for r in results}
+                        _me_name = dna_select
+                        _my_ch = u["raw_picks"][65] if 65 < len(u["raw_picks"]) else ""
+
+                        _scenarios = []
+                        for _wch in [_f1, _f2]:
+                            _rank = _sim_rank_sc(_rg_scores, [(65, _wch)])
+                            _scenarios.append({"champ": _wch, "rank": _rank})
+                        _scenarios.sort(key=lambda x: x["rank"])
+
+                        st.markdown("#### 🏆 Championship Scenarios")
+                        for _sc in _scenarios:
+                            _border = "#16a34a" if _sc["rank"] == _scenarios[0]["rank"] else "#dc2626"
+                            _rc = "#4ade80" if _sc["rank"] == _scenarios[0]["rank"] else "#f87171"
+                            st.markdown(
+                                f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
+                                f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                                f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
+                                f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
+                                f'</div></div>', unsafe_allow_html=True)
+
 
 
     # ── Tab 3: Schedule/Scores ──────────────────────────────────────────────────
