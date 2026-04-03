@@ -3617,11 +3617,32 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         elif _sub_yb == "bracket-dna":
             st.subheader("🧬 Bracket DNA & Probability")
+
+            # Apply ?p1= query param on first load
+            _dna_name_lower = {n.lower(): n for n in name_opts}
+            if "dna_qp_applied" not in st.session_state:
+                st.session_state["dna_qp_applied"] = True
+                try:
+                    _qp1 = st.query_params.get("p1", "")
+                    if _qp1:
+                        _m = _dna_name_lower.get(_qp1.lower(), "")
+                        if _m:
+                            st.session_state["dna_sel"] = _m
+                    st.query_params.pop("p1", None)
+                except Exception:
+                    pass
+
+            _dna_default = st.session_state.get("dna_sel", "")
+            if not _dna_default or _dna_default not in name_opts:
+                _dna_default = user_name if user_name and user_name in name_opts else "— select —"
+
             dna_select = st.selectbox(
                 "Select your name",
                 ["— select —"] + name_opts,
                 key="dna",
+                index=(name_opts.index(_dna_default) + 1) if _dna_default in name_opts else 0,
             )
+            st.session_state["dna_sel"] = dna_select
             if dna_select != "— select —":
                 u = final_df[final_df["Name"] == dna_select].iloc[0]
 
@@ -4055,6 +4076,144 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             uniformtext=dict(minsize=11, mode="show"),
                         )
                     st.plotly_chart(fig_r, use_container_width=True, config=PLOTLY_CONFIG)
+
+                # ── Rooting Guide ─────────────────────────────────────────────
+                st.markdown(f"#### 🙏 {_first_name_dna}'s Rooting Guide")
+                st.caption("For each remaining game, which outcome is best for your standings?")
+
+                # Get all unplayed slots with known contestants
+                _unplayed_slots = []
+                for _c in range(3, 66):
+                    if not is_unplayed(actual_winners[_c]):
+                        continue
+                    # Find the two possible teams from truly_alive in this slot
+                    # Use slot_pick_counts to find the teams picked for this slot
+                    _slot_teams = [t for t in slot_pick_counts.get(_c, {}) if t in all_alive and t not in {"", "nan", "TBD"}]
+                    # Also include the player's own pick if alive
+                    _my_pick = u["raw_picks"][_c] if _c < len(u["raw_picks"]) else ""
+                    if _my_pick and _my_pick in all_alive and _my_pick not in _slot_teams:
+                        _slot_teams.append(_my_pick)
+                    if len(_slot_teams) >= 2:
+                        _unplayed_slots.append((_c, _slot_teams[:2]))
+
+                if not _unplayed_slots:
+                    st.info("No remaining games — tournament complete!")
+                else:
+                    # Build current scores for all participants
+                    _rg_scores = {r["Name"]: r["Current Score"] for r in results}
+                    _me_name = dna_select
+
+                    _rooting_rows = []
+                    for _c, (_ta, _tb) in _unplayed_slots:
+                        _pts_a = points_per_game[_c] + seed_map.get(_ta, 0)
+                        _pts_b = points_per_game[_c] + seed_map.get(_tb, 0)
+                        _my_pick_slot = u["raw_picks"][_c] if _c < len(u["raw_picks"]) else ""
+
+                        # Simulate outcome A: _ta wins
+                        _scores_a = dict(_rg_scores)
+                        for _r in results:
+                            if _r["raw_picks"][_c] == _ta:
+                                _scores_a[_r["Name"]] = _scores_a[_r["Name"]] + _pts_a
+                        _sorted_a = sorted(_scores_a.items(), key=lambda x: x[1], reverse=True)
+                        _rank_a = next((i+1 for i,(n,_) in enumerate(_sorted_a) if n == _me_name), len(results))
+
+                        # Simulate outcome B: _tb wins
+                        _scores_b = dict(_rg_scores)
+                        for _r in results:
+                            if _r["raw_picks"][_c] == _tb:
+                                _scores_b[_r["Name"]] = _scores_b[_r["Name"]] + _pts_b
+                        _sorted_b = sorted(_scores_b.items(), key=lambda x: x[1], reverse=True)
+                        _rank_b = next((i+1 for i,(n,_) in enumerate(_sorted_b) if n == _me_name), len(results))
+
+                        # Determine best outcome
+                        _ta_seed = seed_map.get(_ta, 0)
+                        _tb_seed = seed_map.get(_tb, 0)
+                        _ta_label = f"({_ta_seed}) {_ta}" if _ta_seed else _ta
+                        _tb_label = f"({_tb_seed}) {_tb}" if _tb_seed else _tb
+                        _rnd = get_round_name(_c)
+
+                        if _rank_a < _rank_b:
+                            _root_for = _ta
+                            _root_label = _ta_label
+                            _best_rank = _rank_a
+                            _alt_rank = _rank_b
+                            _picked_winner = (_my_pick_slot == _ta)
+                        elif _rank_b < _rank_a:
+                            _root_for = _tb
+                            _root_label = _tb_label
+                            _best_rank = _rank_b
+                            _alt_rank = _rank_a
+                            _picked_winner = (_my_pick_slot == _tb)
+                        else:
+                            # Tie — outcome doesn't matter
+                            _root_for = None
+                            _root_label = "Either"
+                            _best_rank = _rank_a
+                            _alt_rank = _rank_a
+                            _picked_winner = False
+
+                        _rooting_rows.append({
+                            "slot": _c,
+                            "round": _rnd,
+                            "team_a": _ta, "team_b": _tb,
+                            "ta_label": _ta_label, "tb_label": _tb_label,
+                            "root_for": _root_for,
+                            "root_label": _root_label,
+                            "best_rank": _best_rank,
+                            "alt_rank": _alt_rank,
+                            "my_pick": _my_pick_slot,
+                            "picked_winner": _picked_winner,
+                            "rank_diff": abs(_rank_a - _rank_b),
+                        })
+
+                    # Render as cards
+                    for _rrow in _rooting_rows:
+                        _diff = _rrow["rank_diff"]
+                        _root = _rrow["root_for"]
+                        _my_pick_slot = _rrow["my_pick"]
+                        _picked = _rrow["picked_winner"]
+                        _best_r = _rrow["best_rank"]
+                        _alt_r  = _rrow["alt_rank"]
+                        _rnd_lbl = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}.get(_rrow["round"], _rrow["round"])
+
+                        if _root is None:
+                            _icon = "🤷"
+                            _msg = f"Doesn't matter — you end up <b>#{_best_r}</b> either way"
+                            _border = "#4b5563"
+                        elif _picked:
+                            _icon = "✅"
+                            _msg = f"Root for your pick! Win → <b>#{_best_r}</b>, Lose → <b>#{_alt_r}</b>"
+                            _border = "#16a34a"
+                        else:
+                            # They didn't pick the better team — explain why
+                            _my_seed = seed_map.get(_my_pick_slot, 0)
+                            _my_label = f"({_my_seed}) {_my_pick_slot}" if _my_seed else _my_pick_slot
+                            _icon = "😬"
+                            _msg = (
+                                f"Root for <b>{_rrow['root_label']}</b> — even though you picked "
+                                f"<b>{_my_label}</b>. A {_rrow['root_label'].split(') ')[-1] if ')' in _rrow['root_label'] else _rrow['root_label']} win "
+                                f"hurts others more than you. Win → <b>#{_best_r}</b>, Lose → <b>#{_alt_r}</b>"
+                            )
+                            _border = "#f59e0b"
+
+                        _logo_a = espn_logo_url(_rrow["team_a"]) or ""
+                        _logo_b = espn_logo_url(_rrow["team_b"]) or ""
+                        _logo_root = espn_logo_url(_root) if _root else ""
+                        _logo_a_html = f'<img src="{_logo_a}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _logo_a else ""
+                        _logo_b_html = f'<img src="{_logo_b}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _logo_b else ""
+                        _logo_root_html = f'<img src="{_logo_root}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">' if _logo_root else ""
+
+                        st.markdown(
+                            f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:8px;background:#1e1e2e;">'
+                            f'<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">{_rnd_lbl} · {_rrow["ta_label"]} vs {_rrow["tb_label"]}</div>'
+                            f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+                            f'<span style="font-size:18px;">{_icon}</span>'
+                            f'{_logo_root_html}'
+                            f'<span style="font-size:13px;color:#e5e7eb;">{_msg}</span>'
+                            f'</div>'
+                            f'</div>',
+                            unsafe_allow_html=True
+                        )
 
 
     # ── Tab 3: Schedule/Scores ──────────────────────────────────────────────────
