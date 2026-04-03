@@ -1548,14 +1548,23 @@ try:
             qp1 = st.query_params.get("p1", "")
             qp2 = st.query_params.get("p2", "")
             name_lower = {n.lower(): n for n in name_opts}
-            if qp1:
-                matched = name_lower.get(qp1.lower())
-                if matched:
-                    st.session_state["_h2h_sel_p1"] = matched
-            if qp2:
-                matched = name_lower.get(qp2.lower())
-                if matched:
-                    st.session_state["_h2h_sel_p2"] = matched
+            _tab_slug = st.query_params.get("tab", "")
+            # If navigating to bracket-dna, stash p1 for DNA selectbox
+            if _tab_slug == "bracket-dna":
+                if qp1:
+                    matched = name_lower.get(qp1.lower())
+                    if matched:
+                        st.session_state["dna_sel"] = matched
+                        st.session_state["dna_qp_applied"] = True
+            else:
+                if qp1:
+                    matched = name_lower.get(qp1.lower())
+                    if matched:
+                        st.session_state["_h2h_sel_p1"] = matched
+                if qp2:
+                    matched = name_lower.get(qp2.lower())
+                    if matched:
+                        st.session_state["_h2h_sel_p2"] = matched
         except Exception:
             pass
 
@@ -3618,20 +3627,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         elif _sub_yb == "bracket-dna":
             st.subheader("🧬 Bracket DNA & Probability")
 
-            # Apply ?p1= query param on first load
             _dna_name_lower = {n.lower(): n for n in name_opts}
-            if "dna_qp_applied" not in st.session_state:
-                st.session_state["dna_qp_applied"] = True
-                try:
-                    _qp1 = st.query_params.get("p1", "")
-                    if _qp1:
-                        _m = _dna_name_lower.get(_qp1.lower(), "")
-                        if _m:
-                            st.session_state["dna_sel"] = _m
-                    st.query_params.pop("p1", None)
-                except Exception:
-                    pass
-
             _dna_default = st.session_state.get("dna_sel", "")
             if not _dna_default or _dna_default not in name_opts:
                 _dna_default = user_name if user_name and user_name in name_opts else "— select —"
