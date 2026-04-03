@@ -4153,8 +4153,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                 f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
                                 f'<div style="font-size:13px;color:#e5e7eb;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'
                                 f'<span style="color:#6b7280;font-size:11px;">FF:</span> {_tspan(_w1,_my_ff1)} '
-                                f'<span style="color:#6b7280;">·</span> {_tspan(_w2,_my_ff2)} '
-                                f'<span style="color:#6b7280;font-size:11px;margin-left:4px;">🏆:</span> {_tspan(_wc,_my_ch)}'
+                                f'<span style="color:#6b7280;">vs</span> {_tspan(_w2,_my_ff2)} '
+                                f'<span style="color:#6b7280;font-size:11px;margin-left:4px;">🏆 Champion:</span> {_tspan(_wc,_my_ch)}'
                                 f'</div>'
                                 f'<div style="font-size:18px;font-weight:800;color:{_rank_color};white-space:nowrap;">#{_rank}</div>'
                                 f'</div>'
@@ -4199,7 +4199,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             st.markdown(
                                 f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
                                 f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-                                f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["ff"])}{_slabel(_sc["ff"])} wins FF · {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
+                                f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["ff"])}{_slabel(_sc["ff"])} wins FF vs {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
                                 f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
                                 f'</div>{_tie_html}</div>', unsafe_allow_html=True)
 
@@ -4229,7 +4229,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             st.markdown(
                                 f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
                                 f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-                                f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
+                                f'<span style="font-size:13px;color:#e5e7eb;">🏆 Champion: {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])}</span>'
                                 f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
                                 f'</div>{_tie_html}</div>', unsafe_allow_html=True)
 
