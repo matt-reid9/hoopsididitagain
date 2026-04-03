@@ -4089,7 +4089,12 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                     if _r["raw_picks"][_slot] == _winner:
                                         _sc[_r["Name"]] = _sc[_r["Name"]] + _pts
                             _sorted = sorted(_sc.items(), key=lambda x: x[1], reverse=True)
-                            return next((i+1 for i,(n,_) in enumerate(_sorted) if n == _me_name), len(results))
+                            _me_score = _sc.get(_me_name, 0)
+                            # Best rank = position of first person with this score
+                            _rank = next((i+1 for i,(n,s) in enumerate(_sorted) if s == _me_score), len(results))
+                            # Find all others tied at same score
+                            _tied = [n for n,s in _sc.items() if s == _me_score and n != _me_name]
+                            return _rank, _tied
 
                         def _slabel(team):
                             s = seed_map.get(team, 0)
@@ -4109,8 +4114,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         for _w1 in [_ff1_a, _ff1_b]:
                             for _w2 in [_ff2_a, _ff2_b]:
                                 for _wc in [_w1, _w2]:
-                                    _rank = _sim_rank_sc(_rg_scores, [(_ff1_c, _w1), (_ff2_c, _w2), (65, _wc)])
-                                    _scenarios.append({"ff1": _w1, "ff2": _w2, "champ": _wc, "rank": _rank})
+                                    _rank, _tied = _sim_rank_sc(_rg_scores, [(_ff1_c, _w1), (_ff2_c, _w2), (65, _wc)])
+                                    _scenarios.append({"ff1": _w1, "ff2": _w2, "champ": _wc, "rank": _rank, "tied": _tied})
 
                         _scenarios.sort(key=lambda x: x["rank"])
                         _best_possible = _scenarios[0]["rank"]
@@ -4122,6 +4127,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         for _sc in _scenarios:
                             _w1, _w2, _wc = _sc["ff1"], _sc["ff2"], _sc["champ"]
                             _rank = _sc["rank"]
+                            _tied = _sc["tied"]
                             if _rank == _best_possible:
                                 _border, _rank_color = "#16a34a", "#4ade80"
                             elif _rank == _worst_possible:
@@ -4134,6 +4140,13 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                 _wt = "700" if team == my_pick else "400"
                                 return f'{_lhtml(team)}<span style="color:{_col};font-weight:{_wt};">{_slabel(team)}</span>'
 
+                            _tie_html = ""
+                            if _tied:
+                                _tie_names = ", ".join(n.split()[0] for n in _tied[:3])
+                                if len(_tied) > 3:
+                                    _tie_names += f" +{len(_tied)-3}"
+                                _tie_html = f'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Tie with {_tie_names}</div>'
+
                             st.markdown(
                                 f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;'
                                 f'margin-bottom:6px;background:#1e1e2e;">'
@@ -4144,7 +4157,9 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                 f'<span style="color:#6b7280;font-size:11px;margin-left:4px;">🏆:</span> {_tspan(_wc,_my_ch)}'
                                 f'</div>'
                                 f'<div style="font-size:18px;font-weight:800;color:{_rank_color};white-space:nowrap;">#{_rank}</div>'
-                                f'</div></div>',
+                                f'</div>'
+                                f'{_tie_html}'
+                                f'</div>',
                                 unsafe_allow_html=True
                             )
 
@@ -4166,8 +4181,8 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         _scenarios = []
                         for _wff in [_rem_a, _rem_b]:
                             for _wch in [_wff, _known_ff_winner]:
-                                _rank = _sim_rank_sc(_rg_scores, [(_rem_ff_c, _wff), (65, _wch)])
-                                _scenarios.append({"ff": _wff, "champ": _wch, "rank": _rank})
+                                _rank, _tied = _sim_rank_sc(_rg_scores, [(_rem_ff_c, _wff), (65, _wch)])
+                                _scenarios.append({"ff": _wff, "champ": _wch, "rank": _rank, "tied": _tied})
                         _scenarios.sort(key=lambda x: x["rank"])
                         _best_p = _scenarios[0]["rank"]
                         _worst_p = _scenarios[-1]["rank"]
@@ -4177,12 +4192,16 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         for _sc in _scenarios:
                             _border = "#16a34a" if _sc["rank"] == _best_p else ("#dc2626" if _sc["rank"] == _worst_p else "#4b5563")
                             _rc = "#4ade80" if _sc["rank"] == _best_p else ("#f87171" if _sc["rank"] == _worst_p else "#e5e7eb")
+                            _tie_html = ""
+                            if _sc["tied"]:
+                                _tn = ", ".join(n.split()[0] for n in _sc["tied"][:3])
+                                _tie_html = f'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Tie with {_tn}</div>'
                             st.markdown(
                                 f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
                                 f'<div style="display:flex;justify-content:space-between;align-items:center;">'
                                 f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["ff"])}{_slabel(_sc["ff"])} wins FF · {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
                                 f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
-                                f'</div></div>', unsafe_allow_html=True)
+                                f'</div>{_tie_html}</div>', unsafe_allow_html=True)
 
                 elif not _ff_unplayed and _champ_unplayed:
                     # Both FF done, just Championship left — show 2 scenarios
@@ -4195,20 +4214,24 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
                         _scenarios = []
                         for _wch in [_f1, _f2]:
-                            _rank = _sim_rank_sc(_rg_scores, [(65, _wch)])
-                            _scenarios.append({"champ": _wch, "rank": _rank})
+                            _rank, _tied = _sim_rank_sc(_rg_scores, [(65, _wch)])
+                            _scenarios.append({"champ": _wch, "rank": _rank, "tied": _tied})
                         _scenarios.sort(key=lambda x: x["rank"])
 
                         st.markdown("#### 🏆 Championship Scenarios")
                         for _sc in _scenarios:
                             _border = "#16a34a" if _sc["rank"] == _scenarios[0]["rank"] else "#dc2626"
                             _rc = "#4ade80" if _sc["rank"] == _scenarios[0]["rank"] else "#f87171"
+                            _tie_html = ""
+                            if _sc["tied"]:
+                                _tn = ", ".join(n.split()[0] for n in _sc["tied"][:3])
+                                _tie_html = f'<div style="font-size:11px;color:#9ca3af;margin-top:4px;">Tie with {_tn}</div>'
                             st.markdown(
                                 f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
                                 f'<div style="display:flex;justify-content:space-between;align-items:center;">'
                                 f'<span style="font-size:13px;color:#e5e7eb;">{_lhtml(_sc["champ"])}{_slabel(_sc["champ"])} wins 🏆</span>'
                                 f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
-                                f'</div></div>', unsafe_allow_html=True)
+                                f'</div>{_tie_html}</div>', unsafe_allow_html=True)
 
 
 
