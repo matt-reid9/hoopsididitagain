@@ -1540,7 +1540,7 @@ try:
         if st.session_state.get("_h2h_sel_p1", "— select —") in ("— select —", "") or st.session_state.get("_h2h_sel_p1") not in name_opts:
             st.session_state["_h2h_sel_p1"] = user_name
 
-    # Pre-fill players from query params on every render (params clear after being read)
+    # Pre-fill players from query params — applied once per navigation, then cleared
     try:
         _qp_tab  = st.query_params.get("tab", "")
         _qp_p1   = st.query_params.get("p1", "")
@@ -1552,6 +1552,8 @@ try:
                 if _m:
                     st.session_state["dna_sel"] = _m
                     st.session_state["dna"] = _m
+                # Clear p1 from URL so user can freely change selection
+                st.query_params.pop("p1", None)
             elif _qp_tab == "standings-progress":
                 if _qp_p1:
                     _m = _name_lower_map.get(_qp_p1.lower(), "")
@@ -1566,6 +1568,9 @@ try:
                         _m = _name_lower_map.get(_qv.lower(), "")
                         if _m:
                             st.session_state[_sp_key].add(_m)
+                # Clear params from URL
+                for _qk in [f"p{i}" for i in range(1, 11)]:
+                    st.query_params.pop(_qk, None)
             else:
                 if _qp_p1:
                     _m = _name_lower_map.get(_qp_p1.lower(), "")
@@ -1575,6 +1580,8 @@ try:
                     _m = _name_lower_map.get(_qp_p2.lower(), "")
                     if _m:
                         st.session_state["_h2h_sel_p2"] = _m
+                st.query_params.pop("p1", None)
+                st.query_params.pop("p2", None)
     except Exception:
         pass
 
