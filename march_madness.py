@@ -1540,33 +1540,42 @@ try:
         if st.session_state.get("_h2h_sel_p1", "— select —") in ("— select —", "") or st.session_state.get("_h2h_sel_p1") not in name_opts:
             st.session_state["_h2h_sel_p1"] = user_name
 
-    # Pre-fill Head-to-Head players from ?p1= and ?p2= query params.
-    # Only applied once (on first load) so the user can still change them manually.
-    if "h2h_params_applied" not in st.session_state:
-        st.session_state["h2h_params_applied"] = True
-        try:
-            qp1 = st.query_params.get("p1", "")
-            qp2 = st.query_params.get("p2", "")
-            name_lower = {n.lower(): n for n in name_opts}
-            _tab_slug = st.query_params.get("tab", "")
-            # If navigating to bracket-dna, stash p1 for DNA selectbox
-            if _tab_slug == "bracket-dna":
-                if qp1:
-                    matched = name_lower.get(qp1.lower())
-                    if matched:
-                        st.session_state["dna_sel"] = matched
-                        st.session_state["dna_qp_applied"] = True
+    # Pre-fill players from query params on every render (params clear after being read)
+    try:
+        _qp_tab  = st.query_params.get("tab", "")
+        _qp_p1   = st.query_params.get("p1", "")
+        _qp_p2   = st.query_params.get("p2", "")
+        _name_lower_map = {n.lower(): n for n in name_opts}
+        if _qp_p1 or _qp_p2:
+            if _qp_tab == "bracket-dna" and _qp_p1:
+                _m = _name_lower_map.get(_qp_p1.lower(), "")
+                if _m:
+                    st.session_state["dna_sel"] = _m
+            elif _qp_tab == "standings-progress":
+                if _qp_p1:
+                    _m = _name_lower_map.get(_qp_p1.lower(), "")
+                    if _m:
+                        st.session_state["sp_prog_name_sel"] = _m
+                _sp_key = "sp_prog_highlighted"
+                if _sp_key not in st.session_state:
+                    st.session_state[_sp_key] = set()
+                for _qi in range(2, 11):
+                    _qv = st.query_params.get(f"p{_qi}", "")
+                    if _qv:
+                        _m = _name_lower_map.get(_qv.lower(), "")
+                        if _m:
+                            st.session_state[_sp_key].add(_m)
             else:
-                if qp1:
-                    matched = name_lower.get(qp1.lower())
-                    if matched:
-                        st.session_state["_h2h_sel_p1"] = matched
-                if qp2:
-                    matched = name_lower.get(qp2.lower())
-                    if matched:
-                        st.session_state["_h2h_sel_p2"] = matched
-        except Exception:
-            pass
+                if _qp_p1:
+                    _m = _name_lower_map.get(_qp_p1.lower(), "")
+                    if _m:
+                        st.session_state["_h2h_sel_p1"] = _m
+                if _qp_p2:
+                    _m = _name_lower_map.get(_qp_p2.lower(), "")
+                    if _m:
+                        st.session_state["_h2h_sel_p2"] = _m
+    except Exception:
+        pass
 
     # ─────────────────────────────────────────────────────────────────────────
     # UI
@@ -3312,31 +3321,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("📈 Standings Progress")
 
             _sp_name_lower = {n.lower(): n for n in name_opts}
-
-            # Apply query params on first load
-            if "sp_prog_qp_applied" not in st.session_state:
-                st.session_state["sp_prog_qp_applied"] = True
-                try:
-                    # ?p1= sets the primary player
-                    _qp1 = st.query_params.get("p1", "")
-                    if _qp1:
-                        _m = _sp_name_lower.get(_qp1.lower(), "")
-                        if _m:
-                            st.session_state["sp_prog_name_sel"] = _m
-                    # ?p2=, ?p3=... pre-highlight additional players
-                    _sp_key = "sp_prog_highlighted"
-                    if _sp_key not in st.session_state:
-                        st.session_state[_sp_key] = set()
-                    for _qi in range(2, 11):
-                        _qv = st.query_params.get(f"p{_qi}", "")
-                        if _qv:
-                            _m = _sp_name_lower.get(_qv.lower(), "")
-                            if _m:
-                                st.session_state[_sp_key].add(_m)
-                    for _qk in [f"p{i}" for i in range(1, 11)]:
-                        st.query_params.pop(_qk, None)
-                except Exception:
-                    pass
 
             # Determine default for primary player selectbox
             _sp_prog_default = st.session_state.get("sp_prog_name_sel", "")
