@@ -5454,6 +5454,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         elif _sub_bon == "tiebreaker-scores":
             st.subheader("🎯 Tiebreaker Scores")
+            st.caption("Closest to the total Championship points wins. Also, in the case of any ties in the Standings, the closer score wins!")
 
             # Final score banner
             if final_score is not None:
