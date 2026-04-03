@@ -1546,6 +1546,8 @@ try:
         _qp_p1   = st.query_params.get("p1", "")
         _qp_p2   = st.query_params.get("p2", "")
         _name_lower_map = {n.lower(): n for n in name_opts}
+        # DEBUG
+        st.sidebar.write(f"DEBUG tab={repr(_qp_tab)} p1={repr(_qp_p1)} dna_sel={repr(st.session_state.get('dna_sel',''))}")
         if _qp_p1 or _qp_p2:
             if _qp_tab == "bracket-dna" and _qp_p1:
                 _m = _name_lower_map.get(_qp_p1.lower(), "")
