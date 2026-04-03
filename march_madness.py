@@ -4067,6 +4067,29 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 _ff_unplayed = [c for c in range(63, 65) if is_unplayed(actual_winners[c])]
                 _champ_unplayed = is_unplayed(actual_winners[65])
 
+                def _sim_rank_sc(base_scores, game_awards):
+                    _sc = dict(base_scores)
+                    for _slot, _winner in game_awards:
+                        _pts = points_per_game[_slot] + seed_map.get(_winner, 0)
+                        for _r in results:
+                            if _r["raw_picks"][_slot] == _winner:
+                                _sc[_r["Name"]] = _sc[_r["Name"]] + _pts
+                    _sorted = sorted(_sc.items(), key=lambda x: x[1], reverse=True)
+                    _me_score = _sc.get(dna_select, 0)
+                    _rank = next((i+1 for i,(n,s) in enumerate(_sorted) if s == _me_score), len(results))
+                    _tied = [n for n,s in _sc.items() if s == _me_score and n != dna_select]
+                    return _rank, _tied
+
+                def _slabel(team):
+                    s = seed_map.get(team, 0)
+                    return f"({s}) {team}" if s else team
+
+                def _lhtml(team, size=18):
+                    url = espn_logo_url(team) if team else ""
+                    if url:
+                        return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">'
+                    return ""
+
                 if len(_ff_unplayed) == 2 and _champ_unplayed:
                     # Both FF games + Championship unplayed — show all 8 scenarios
                     _ff1_c, _ff2_c = _ff_unplayed[0], _ff_unplayed[1]
@@ -4080,31 +4103,6 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     if all([_ff1_a, _ff1_b, _ff2_a, _ff2_b]):
                         _rg_scores = {r["Name"]: r["Current Score"] for r in results}
                         _me_name = dna_select
-
-                        def _sim_rank_sc(base_scores, game_awards):
-                            _sc = dict(base_scores)
-                            for _slot, _winner in game_awards:
-                                _pts = points_per_game[_slot] + seed_map.get(_winner, 0)
-                                for _r in results:
-                                    if _r["raw_picks"][_slot] == _winner:
-                                        _sc[_r["Name"]] = _sc[_r["Name"]] + _pts
-                            _sorted = sorted(_sc.items(), key=lambda x: x[1], reverse=True)
-                            _me_score = _sc.get(_me_name, 0)
-                            # Best rank = position of first person with this score
-                            _rank = next((i+1 for i,(n,s) in enumerate(_sorted) if s == _me_score), len(results))
-                            # Find all others tied at same score
-                            _tied = [n for n,s in _sc.items() if s == _me_score and n != _me_name]
-                            return _rank, _tied
-
-                        def _slabel(team):
-                            s = seed_map.get(team, 0)
-                            return f"({s}) {team}" if s else team
-
-                        def _lhtml(team, size=18):
-                            url = espn_logo_url(team) if team else ""
-                            if url:
-                                return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">'
-                            return ""
 
                         _my_ff1 = u["raw_picks"][_ff1_c] if _ff1_c < len(u["raw_picks"]) else ""
                         _my_ff2 = u["raw_picks"][_ff2_c] if _ff2_c < len(u["raw_picks"]) else ""
