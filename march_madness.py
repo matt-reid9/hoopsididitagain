@@ -1546,14 +1546,12 @@ try:
         _qp_p1   = st.query_params.get("p1", "")
         _qp_p2   = st.query_params.get("p2", "")
         _name_lower_map = {n.lower(): n for n in name_opts}
-        # DEBUG
-        _m_test = _name_lower_map.get(_qp_p1.lower(), "NOT FOUND") if _qp_p1 else ""
-        st.write(f"DEBUG tab={repr(_qp_tab)} p1={repr(_qp_p1)} match={repr(_m_test)} name_opts_sample={name_opts[:5]}")
         if _qp_p1 or _qp_p2:
             if _qp_tab == "bracket-dna" and _qp_p1:
                 _m = _name_lower_map.get(_qp_p1.lower(), "")
                 if _m:
                     st.session_state["dna_sel"] = _m
+                    st.session_state["dna"] = _m
             elif _qp_tab == "standings-progress":
                 if _qp_p1:
                     _m = _name_lower_map.get(_qp_p1.lower(), "")
@@ -3615,15 +3613,10 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("🧬 Bracket DNA & Probability")
 
             _dna_name_lower = {n.lower(): n for n in name_opts}
-            _dna_default = st.session_state.get("dna_sel", "")
-            if not _dna_default or _dna_default not in name_opts:
-                _dna_default = user_name if user_name and user_name in name_opts else "— select —"
-
             dna_select = st.selectbox(
                 "Select your name",
                 ["— select —"] + name_opts,
                 key="dna",
-                index=(name_opts.index(_dna_default) + 1) if _dna_default in name_opts else 0,
             )
             st.session_state["dna_sel"] = dna_select
             if dna_select != "— select —":
