@@ -4102,121 +4102,176 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 if not _unplayed_slots:
                     st.info("No remaining games — tournament complete!")
                 else:
-                    # Build current scores for all participants
                     _rg_scores = {r["Name"]: r["Current Score"] for r in results}
                     _me_name = dna_select
+                    _rnd_labels = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}
 
-                    _rooting_rows = []
-                    for _c, _ta, _tb in _unplayed_slots:
-                        _pts_a = points_per_game[_c] + seed_map.get(_ta, 0)
-                        _pts_b = points_per_game[_c] + seed_map.get(_tb, 0)
+                    def _sim_rank(base_scores, game_awards):
+                        """Apply a list of (slot, winner) awards to base_scores, return player's rank."""
+                        _sc = dict(base_scores)
+                        for _slot, _winner in game_awards:
+                            _pts = points_per_game[_slot] + seed_map.get(_winner, 0)
+                            for _r in results:
+                                if _r["raw_picks"][_slot] == _winner:
+                                    _sc[_r["Name"]] = _sc[_r["Name"]] + _pts
+                        _sorted = sorted(_sc.items(), key=lambda x: x[1], reverse=True)
+                        return next((i+1 for i,(n,_) in enumerate(_sorted) if n == _me_name), len(results))
+
+                    def _seed_label(team):
+                        s = seed_map.get(team, 0)
+                        return f"({s}) {team}" if s else team
+
+                    def _logo_html(team, size=20):
+                        url = espn_logo_url(team) if team else ""
+                        if url:
+                            return f'<img src="{url}" style="width:{size}px;height:{size}px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">'
+                        return ""
+
+                    # Check if we're at Final Four (exactly FF + Champ unplayed)
+                    _ff_slots   = [(_c,_ta,_tb) for _c,_ta,_tb in _unplayed_slots if get_round_name(_c) == "F4"]
+                    _champ_slots = [(_c,_ta,_tb) for _c,_ta,_tb in _unplayed_slots if get_round_name(_c) == "Champ"]
+                    _other_slots = [(_c,_ta,_tb) for _c,_ta,_tb in _unplayed_slots if get_round_name(_c) not in ("F4","Champ")]
+
+                    # ── Non-FF/Champ games: show individually ────────────────
+                    for _c, _ta, _tb in _other_slots:
+                        _rank_a = _sim_rank(_rg_scores, [(_c, _ta)])
+                        _rank_b = _sim_rank(_rg_scores, [(_c, _tb)])
                         _my_pick_slot = u["raw_picks"][_c] if _c < len(u["raw_picks"]) else ""
-
-                        # Simulate outcome A: _ta wins
-                        _scores_a = dict(_rg_scores)
-                        for _r in results:
-                            if _r["raw_picks"][_c] == _ta:
-                                _scores_a[_r["Name"]] = _scores_a[_r["Name"]] + _pts_a
-                        _sorted_a = sorted(_scores_a.items(), key=lambda x: x[1], reverse=True)
-                        _rank_a = next((i+1 for i,(n,_) in enumerate(_sorted_a) if n == _me_name), len(results))
-
-                        # Simulate outcome B: _tb wins
-                        _scores_b = dict(_rg_scores)
-                        for _r in results:
-                            if _r["raw_picks"][_c] == _tb:
-                                _scores_b[_r["Name"]] = _scores_b[_r["Name"]] + _pts_b
-                        _sorted_b = sorted(_scores_b.items(), key=lambda x: x[1], reverse=True)
-                        _rank_b = next((i+1 for i,(n,_) in enumerate(_sorted_b) if n == _me_name), len(results))
-
-                        # Determine best outcome
-                        _ta_seed = seed_map.get(_ta, 0)
-                        _tb_seed = seed_map.get(_tb, 0)
-                        _ta_label = f"({_ta_seed}) {_ta}" if _ta_seed else _ta
-                        _tb_label = f"({_tb_seed}) {_tb}" if _tb_seed else _tb
-                        _rnd = get_round_name(_c)
+                        _rnd_lbl = _rnd_labels.get(get_round_name(_c), "")
 
                         if _rank_a < _rank_b:
-                            _root_for = _ta
-                            _root_label = _ta_label
-                            _best_rank = _rank_a
-                            _alt_rank = _rank_b
-                            _picked_winner = (_my_pick_slot == _ta)
+                            _root, _best_r, _alt_r = _ta, _rank_a, _rank_b
                         elif _rank_b < _rank_a:
-                            _root_for = _tb
-                            _root_label = _tb_label
-                            _best_rank = _rank_b
-                            _alt_rank = _rank_a
-                            _picked_winner = (_my_pick_slot == _tb)
+                            _root, _best_r, _alt_r = _tb, _rank_b, _rank_a
                         else:
-                            # Tie — outcome doesn't matter
-                            _root_for = None
-                            _root_label = "Either"
-                            _best_rank = _rank_a
-                            _alt_rank = _rank_a
-                            _picked_winner = False
-
-                        _rooting_rows.append({
-                            "slot": _c,
-                            "round": _rnd,
-                            "team_a": _ta, "team_b": _tb,
-                            "ta_label": _ta_label, "tb_label": _tb_label,
-                            "root_for": _root_for,
-                            "root_label": _root_label,
-                            "best_rank": _best_rank,
-                            "alt_rank": _alt_rank,
-                            "my_pick": _my_pick_slot,
-                            "picked_winner": _picked_winner,
-                            "rank_diff": abs(_rank_a - _rank_b),
-                        })
-
-                    # Render as cards
-                    for _rrow in _rooting_rows:
-                        _diff = _rrow["rank_diff"]
-                        _root = _rrow["root_for"]
-                        _my_pick_slot = _rrow["my_pick"]
-                        _picked = _rrow["picked_winner"]
-                        _best_r = _rrow["best_rank"]
-                        _alt_r  = _rrow["alt_rank"]
-                        _rnd_lbl = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}.get(_rrow["round"], _rrow["round"])
+                            _root, _best_r, _alt_r = None, _rank_a, _rank_a
 
                         if _root is None:
-                            _icon = "🤷"
+                            _icon, _border = "🤷", "#4b5563"
                             _msg = f"Doesn't matter — you end up <b>#{_best_r}</b> either way"
-                            _border = "#4b5563"
-                        elif _picked:
-                            _icon = "✅"
+                        elif _my_pick_slot == _root:
+                            _icon, _border = "✅", "#16a34a"
                             _msg = f"Root for your pick! Win → <b>#{_best_r}</b>, Lose → <b>#{_alt_r}</b>"
-                            _border = "#16a34a"
                         else:
-                            # They didn't pick the better team — explain why
-                            _my_seed = seed_map.get(_my_pick_slot, 0)
-                            _my_label = f"({_my_seed}) {_my_pick_slot}" if _my_seed else _my_pick_slot
-                            _icon = "😬"
-                            _msg = (
-                                f"Root for <b>{_rrow['root_label']}</b> — even though you picked "
-                                f"<b>{_my_label}</b>. A {_rrow['root_label'].split(') ')[-1] if ')' in _rrow['root_label'] else _rrow['root_label']} win "
-                                f"hurts others more than you. Win → <b>#{_best_r}</b>, Lose → <b>#{_alt_r}</b>"
-                            )
-                            _border = "#f59e0b"
-
-                        _logo_a = espn_logo_url(_rrow["team_a"]) or ""
-                        _logo_b = espn_logo_url(_rrow["team_b"]) or ""
-                        _logo_root = espn_logo_url(_root) if _root else ""
-                        _logo_a_html = f'<img src="{_logo_a}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _logo_a else ""
-                        _logo_b_html = f'<img src="{_logo_b}" style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _logo_b else ""
-                        _logo_root_html = f'<img src="{_logo_root}" style="width:22px;height:22px;object-fit:contain;vertical-align:middle;margin-right:4px;" onerror="this.style.display=\'none\'">' if _logo_root else ""
+                            _icon, _border = "😬", "#f59e0b"
+                            _msg = (f"Root for <b>{_seed_label(_root)}</b> — even though you picked "
+                                    f"<b>{_seed_label(_my_pick_slot)}</b>. "
+                                    f"Hurts others more than you. Win → <b>#{_best_r}</b>, Lose → <b>#{_alt_r}</b>")
 
                         st.markdown(
                             f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:8px;background:#1e1e2e;">'
-                            f'<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">{_rnd_lbl} · {_rrow["ta_label"]} vs {_rrow["tb_label"]}</div>'
+                            f'<div style="font-size:11px;color:#6b7280;margin-bottom:4px;">{_rnd_lbl} · {_seed_label(_ta)} vs {_seed_label(_tb)}</div>'
                             f'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
                             f'<span style="font-size:18px;">{_icon}</span>'
-                            f'{_logo_root_html}'
+                            f'{_logo_html(_root)}'
                             f'<span style="font-size:13px;color:#e5e7eb;">{_msg}</span>'
-                            f'</div>'
-                            f'</div>',
-                            unsafe_allow_html=True
-                        )
+                            f'</div></div>', unsafe_allow_html=True)
+
+                    # ── Final Four + Championship: show all 8 combined scenarios ──
+                    if len(_ff_slots) == 2:
+                        st.markdown("#### 🏆 All Championship Scenarios")
+                        st.caption("Every possible path to the championship and what it means for your rank.")
+
+                        _ff1_c, _ff1_a, _ff1_b = _ff_slots[0]
+                        _ff2_c, _ff2_a, _ff2_b = _ff_slots[1]
+                        _champ_c = _champ_slots[0][0] if _champ_slots else 65
+
+                        # All 8 scenarios: (ff1_winner, ff2_winner, champ_winner)
+                        _scenarios = []
+                        for _w1 in [_ff1_a, _ff1_b]:
+                            for _w2 in [_ff2_a, _ff2_b]:
+                                for _wc in [_w1, _w2]:
+                                    _rank = _sim_rank(_rg_scores, [
+                                        (_ff1_c, _w1),
+                                        (_ff2_c, _w2),
+                                        (_champ_c, _wc),
+                                    ])
+                                    _my_ff1 = u["raw_picks"][_ff1_c] if _ff1_c < len(u["raw_picks"]) else ""
+                                    _my_ff2 = u["raw_picks"][_ff2_c] if _ff2_c < len(u["raw_picks"]) else ""
+                                    _my_ch  = u["raw_picks"][_champ_c] if _champ_c < len(u["raw_picks"]) else ""
+                                    _my_correct = sum([_my_ff1 == _w1, _my_ff2 == _w2, _my_ch == _wc])
+                                    _scenarios.append({
+                                        "ff1": _w1, "ff2": _w2, "champ": _wc,
+                                        "rank": _rank, "my_correct": _my_correct,
+                                    })
+
+                        # Sort by best rank first
+                        _scenarios.sort(key=lambda x: (x["rank"], -x["my_correct"]))
+
+                        _best_possible = _scenarios[0]["rank"]
+                        _worst_possible = _scenarios[-1]["rank"]
+
+                        st.markdown(f"**Best possible finish: #{_best_possible} · Worst possible: #{_worst_possible}**")
+
+                        for _si, _sc in enumerate(_scenarios):
+                            _w1, _w2, _wc = _sc["ff1"], _sc["ff2"], _sc["champ"]
+                            _rank = _sc["rank"]
+                            _my_ff1 = u["raw_picks"][_ff1_c] if _ff1_c < len(u["raw_picks"]) else ""
+                            _my_ff2 = u["raw_picks"][_ff2_c] if _ff2_c < len(u["raw_picks"]) else ""
+                            _my_ch  = u["raw_picks"][_champ_c] if _champ_c < len(u["raw_picks"]) else ""
+
+                            # Color by rank relative to best/worst
+                            if _rank == _best_possible:
+                                _border = "#16a34a"
+                                _rank_color = "#4ade80"
+                            elif _rank == _worst_possible:
+                                _border = "#dc2626"
+                                _rank_color = "#f87171"
+                            else:
+                                _border = "#4b5563"
+                                _rank_color = "#e5e7eb"
+
+                            def _team_span(team, my_pick, won=False):
+                                _correct = (team == my_pick)
+                                _color = "#4ade80" if _correct else "#9ca3af"
+                                _weight = "700" if _correct else "400"
+                                _logo = _logo_html(team, 18)
+                                return f'{_logo}<span style="color:{_color};font-weight:{_weight};">{_seed_label(team)}</span>'
+
+                            _ff1_span = _team_span(_w1, _my_ff1)
+                            _ff2_span = _team_span(_w2, _my_ff2)
+                            _ch_span  = _team_span(_wc, _my_ch)
+
+                            st.markdown(
+                                f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;'
+                                f'margin-bottom:6px;background:#1e1e2e;">'
+                                f'<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">'
+                                f'<div style="font-size:13px;color:#e5e7eb;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">'
+                                f'<span style="color:#6b7280;font-size:11px;">FF:</span> {_ff1_span} <span style="color:#6b7280;">·</span> {_ff2_span}'
+                                f'<span style="color:#6b7280;font-size:11px;margin-left:4px;">🏆:</span> {_ch_span}'
+                                f'</div>'
+                                f'<div style="font-size:18px;font-weight:800;color:{_rank_color};white-space:nowrap;">#{_rank}</div>'
+                                f'</div></div>',
+                                unsafe_allow_html=True
+                            )
+
+                    elif len(_ff_slots) == 1 and _champ_slots:
+                        # One FF game left + Champ not yet set: show 4 scenarios
+                        st.markdown("#### 🏆 Remaining Scenarios")
+                        _ff_c, _ffa, _ffb = _ff_slots[0]
+                        _champ_c = _champ_slots[0][0]
+                        # Get the known FF winner (other semi already played)
+                        _known_ff_c = _champ_slots[0][1] if not is_unplayed(actual_winners[_champ_slots[0][1] if len(_champ_slots[0]) > 1 else _champ_c]) else None
+
+                        _scenarios = []
+                        for _wff in [_ffa, _ffb]:
+                            for _wch in [_wff, "??"]:  # champ is one of the FF winners
+                                # Find the other finalist
+                                _other_ff_teams = [t for t in [actual_winners[_ff_c2] for _ff_c2 in [63,64] if _ff_c2 != _ff_c] if not is_unplayed(t)]
+                                for _wch2 in ([_wff] + _other_ff_teams if _other_ff_teams else [_wff]):
+                                    _rank = _sim_rank(_rg_scores, [(_ff_c, _wff), (_champ_c, _wch2)])
+                                    _scenarios.append({"ff": _wff, "champ": _wch2, "rank": _rank})
+
+                        _scenarios.sort(key=lambda x: x["rank"])
+                        for _sc in _scenarios:
+                            _rank = _sc["rank"]
+                            _border = "#16a34a" if _rank == _scenarios[0]["rank"] else "#4b5563"
+                            st.markdown(
+                                f'<div style="border:1px solid {_border};border-radius:10px;padding:10px 14px;margin-bottom:6px;background:#1e1e2e;">'
+                                f'<div style="display:flex;justify-content:space-between;align-items:center;">'
+                                f'<span style="font-size:13px;color:#e5e7eb;">{_logo_html(_sc["ff"])}{_seed_label(_sc["ff"])} wins FF · {_logo_html(_sc["champ"])}{_seed_label(_sc["champ"])} wins 🏆</span>'
+                                f'<span style="font-size:18px;font-weight:800;color:#e5e7eb;">#{_rank}</span>'
+                                f'</div></div>', unsafe_allow_html=True)
 
 
     # ── Tab 3: Schedule/Scores ──────────────────────────────────────────────────
