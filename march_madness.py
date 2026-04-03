@@ -3994,7 +3994,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     for c in range(3, 66)
                     if u["raw_picks"][c] not in {"", "nan", "TBD"}
                     and is_unplayed(actual_winners[c])
-                    and u["raw_picks"][c] in all_alive
+                    and u["raw_picks"][c] in truly_alive
                 ]
                 if all_remaining:
                     st.markdown("#### 🤫 Your 10 Rarest Remaining Picks")
