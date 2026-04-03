@@ -4081,20 +4081,23 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 st.markdown(f"#### 🙏 {_first_name_dna}'s Rooting Guide")
                 st.caption("For each remaining game, which outcome is best for your standings?")
 
-                # Get all unplayed slots with known contestants
+                # Get all unplayed slots with known actual contestants
                 _unplayed_slots = []
                 for _c in range(3, 66):
                     if not is_unplayed(actual_winners[_c]):
                         continue
-                    # Find the two possible teams from truly_alive in this slot
-                    # Use slot_pick_counts to find the teams picked for this slot
-                    _slot_teams = [t for t in slot_pick_counts.get(_c, {}) if t in all_alive and t not in {"", "nan", "TBD"}]
-                    # Also include the player's own pick if alive
-                    _my_pick = u["raw_picks"][_c] if _c < len(u["raw_picks"]) else ""
-                    if _my_pick and _my_pick in all_alive and _my_pick not in _slot_teams:
-                        _slot_teams.append(_my_pick)
-                    if len(_slot_teams) >= 2:
-                        _unplayed_slots.append((_c, _slot_teams[:2]))
+                    _parents = _BRACKET_PARENTS.get(_c)
+                    if _parents is None:
+                        # R1 — contestants come from r1_matchups
+                        _teams = list(r1_matchups.get(_c, ()))
+                    else:
+                        _p1, _p2 = _parents
+                        _t1 = actual_winners[_p1] if not is_unplayed(actual_winners[_p1]) else None
+                        _t2 = actual_winners[_p2] if not is_unplayed(actual_winners[_p2]) else None
+                        _teams = [t for t in [_t1, _t2] if t]
+                    # Only include if we know both contestants
+                    if len(_teams) == 2:
+                        _unplayed_slots.append((_c, _teams[0], _teams[1]))
 
                 if not _unplayed_slots:
                     st.info("No remaining games — tournament complete!")
@@ -4104,7 +4107,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     _me_name = dna_select
 
                     _rooting_rows = []
-                    for _c, (_ta, _tb) in _unplayed_slots:
+                    for _c, _ta, _tb in _unplayed_slots:
                         _pts_a = points_per_game[_c] + seed_map.get(_ta, 0)
                         _pts_b = points_per_game[_c] + seed_map.get(_tb, 0)
                         _my_pick_slot = u["raw_picks"][_c] if _c < len(u["raw_picks"]) else ""
