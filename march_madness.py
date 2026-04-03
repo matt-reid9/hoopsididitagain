@@ -2216,18 +2216,21 @@ try:
     with tab_bracket:
         # Submenu buttons
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
+        # Win Conditions hidden until after the Final Four (re-enables April 16 2026)
+        _show_win_conditions = datetime.now() >= datetime(2026, 4, 16)
         _yb_options = [
             ("bracket",            "🗂️ Bracket"),
             ("bracket-dna",        "🧬 Bracket DNA"),
-            ("win-conditions",     "🔍 Win Conditions"),
+            *([("win-conditions",  "🔍 Win Conditions")] if _show_win_conditions else []),
             ("head-to-head",       "⚔️ Head-to-Head"),
             ("standings-progress", "📈 Standings Progress"),
         ]
-        _yb_row1 = st.columns(5)
+        _yb_ncols = len(_yb_options)
+        _yb_row1 = st.columns(_yb_ncols)
         _yb_row2 = st.columns(1)
         for _i, (_slug, _label) in enumerate(_yb_options):
             _active = _sub_yb == _slug
-            _yb_col = _yb_row1[_i] if _i < 5 else _yb_row2[0]
+            _yb_col = _yb_row1[_i] if _i < _yb_ncols else _yb_row2[0]
             if _yb_col.button(_label, key=f"yb_{_slug}",
                               use_container_width=True,
                               type="primary" if _active else "secondary"):
