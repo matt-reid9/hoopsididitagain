@@ -1340,15 +1340,87 @@ try:
     r1_played   = sum(1 for c in range(3, 35)  if not is_unplayed(actual_winners[c]))
     r2_played   = sum(1 for c in range(35, 51) if not is_unplayed(actual_winners[c]))
     r2_complete = r1_played >= 32 and r2_played >= 16
-    # Use more runs early in the tournament when variance is highest
-    mc_runs = 2000 if not r2_complete else 1000
-    win_probs, top3_probs = run_monte_carlo(
-        names_tuple, picks_matrix,
-        tuple(actual_winners), tuple(points_per_game),
-        tuple(all_alive), tuple(seed_map.items()),
-        r1_contestants,
-        runs=mc_runs,
-    )
+
+    # Count remaining games to decide simulation vs exact enumeration
+    _unplayed_slots = [c for c in range(3, 66) if is_unplayed(actual_winners[c])]
+    _n_unplayed = len(_unplayed_slots)
+
+    if _n_unplayed <= 8:
+        # Exact enumeration — try all 2^n outcomes with equal probability
+        import itertools
+        win_probs  = {n: 0.0 for n in names_tuple}
+        top3_probs = {n: 0.0 for n in names_tuple}
+
+        # Build contestants for each unplayed slot using bracket parent structure
+        _slot_contestants = {}
+        for _c in _unplayed_slots:
+            _parents = _BRACKET_PARENTS.get(_c)
+            if _parents is None:
+                _ta, _tb = r1_matchups.get(_c, ("", ""))
+                _slot_contestants[_c] = [t for t in [_ta, _tb] if t]
+            else:
+                # For unplayed parents, we'll resolve during enumeration
+                _slot_contestants[_c] = None  # resolved dynamically
+
+        _n_outcomes = 0
+        for _outcome_bits in itertools.product([0, 1], repeat=_n_unplayed):
+            # Build simulated winners for this outcome
+            _sim_w = list(actual_winners)
+            for _i, _c in enumerate(_unplayed_slots):
+                _parents = _BRACKET_PARENTS.get(_c)
+                if _parents is None:
+                    _teams = list(r1_matchups.get(_c, ("", "")))
+                else:
+                    _p1, _p2 = _parents
+                    _t1 = _sim_w[_p1]
+                    _t2 = _sim_w[_p2]
+                    _teams = [t for t in [_t1, _t2] if t and not is_unplayed(t)]
+                if len(_teams) >= 2:
+                    _sim_w[_c] = _teams[_outcome_bits[_i] % len(_teams)]
+                elif len(_teams) == 1:
+                    _sim_w[_c] = _teams[0]
+
+            # Score each participant
+            _scored = []
+            for _ni, _nm in enumerate(names_tuple):
+                _pk = picks_matrix[_ni]
+                _s = sum(
+                    tuple(points_per_game)[_c] + seed_map.get(_pk[_c], 0)
+                    for _c in range(3, 66)
+                    if _pk[_c] == _sim_w[_c]
+                )
+                _scored.append((_nm, _s))
+            _scored.sort(key=lambda x: x[1], reverse=True)
+            _top_score = _scored[0][1]
+            _winners_this = [n for n, s in _scored if s == _top_score]
+            _share = 1.0 / len(_winners_this)
+            for _nm in _winners_this:
+                win_probs[_nm] += _share
+
+            _top3_score = _scored[min(2, len(_scored)-1)][1]
+            for _nm, _s in _scored[:3]:
+                top3_probs[_nm] += 1
+            for _nm, _s in _scored[3:]:
+                if _s == _top3_score:
+                    top3_probs[_nm] += 1
+                else:
+                    break
+            _n_outcomes += 1
+
+        # Normalize to percentages
+        if _n_outcomes > 0:
+            win_probs  = {n: v / _n_outcomes * 100 for n, v in win_probs.items()}
+            top3_probs = {n: v / _n_outcomes * 100 for n, v in top3_probs.items()}
+    else:
+        # Monte Carlo simulation for larger numbers of remaining games
+        mc_runs = 2000 if not r2_complete else 1000
+        win_probs, top3_probs = run_monte_carlo(
+            names_tuple, picks_matrix,
+            tuple(actual_winners), tuple(points_per_game),
+            tuple(all_alive), tuple(seed_map.items()),
+            r1_contestants,
+            runs=mc_runs,
+        )
 
     for r in results:
         win_pct  = win_probs.get(r["Name"], 0.0)
