@@ -5730,24 +5730,68 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             if bonus_df.empty:
                 st.info("No participants have opted into the Bonus Pool yet.")
             else:
-                # Compute bonus-pool-specific Monte Carlo probabilities
-                # Build a name->raw_picks lookup from results to guarantee correct ordering
+                # Compute bonus-pool-specific probabilities using exact enumeration
+                # when few games remain, otherwise Monte Carlo
                 _raw_picks_map = {r["Name"]: r["raw_picks"] for r in results}
                 bonus_names  = tuple(bonus_df["Name"].tolist())
                 bonus_picks  = tuple(
                     tuple(_raw_picks_map[n]) for n in bonus_names if n in _raw_picks_map
                 )
-                # Rebuild bonus_names to only include those with picks (should be all)
                 bonus_names = tuple(n for n in bonus_names if n in _raw_picks_map)
-                bonus_win_probs, bonus_top3_probs = run_monte_carlo(
-                    bonus_names, bonus_picks,
-                    tuple(actual_winners), tuple(points_per_game),
-                    tuple(all_alive), tuple(seed_map.items()),
-                    r1_contestants,
-                    top_n=2,
-                )
 
-                # Potential Status: Top 2 instead of Top 3
+                _bp_unplayed = [c for c in range(3, 66) if is_unplayed(actual_winners[c])]
+                if len(_bp_unplayed) <= 8:
+                    import itertools as _itertools
+                    bonus_win_probs  = {n: 0.0 for n in bonus_names}
+                    bonus_top3_probs = {n: 0.0 for n in bonus_names}
+                    _bp_outcomes = 0
+                    for _bits in _itertools.product([0, 1], repeat=len(_bp_unplayed)):
+                        _sim_w = list(actual_winners)
+                        for _i, _c in enumerate(_bp_unplayed):
+                            _par = _BRACKET_PARENTS.get(_c)
+                            if _par is None:
+                                _teams = list(r1_matchups.get(_c, ("", "")))
+                            else:
+                                _p1, _p2 = _par
+                                _teams = [t for t in [_sim_w[_p1], _sim_w[_p2]] if t and not is_unplayed(t)]
+                            if len(_teams) >= 2:
+                                _sim_w[_c] = _teams[_bits[_i] % 2]
+                            elif len(_teams) == 1:
+                                _sim_w[_c] = _teams[0]
+                        _bp_scored = []
+                        for _ni, _nm in enumerate(bonus_names):
+                            _pk = bonus_picks[_ni]
+                            _s = sum(
+                                points_per_game[_c] + seed_map.get(_pk[_c], 0)
+                                for _c in range(3, 66) if _pk[_c] == _sim_w[_c]
+                            )
+                            _bp_scored.append((_nm, _s))
+                        _bp_scored.sort(key=lambda x: x[1], reverse=True)
+                        _top_s = _bp_scored[0][1]
+                        _bp_winners = [n for n, s in _bp_scored if s == _top_s]
+                        for _nm in _bp_winners:
+                            bonus_win_probs[_nm] += 1.0 / len(_bp_winners)
+                        _top2_s = _bp_scored[min(1, len(_bp_scored)-1)][1]
+                        for _nm, _s in _bp_scored[:2]:
+                            bonus_top3_probs[_nm] += 1
+                        for _nm, _s in _bp_scored[2:]:
+                            if _s == _top2_s:
+                                bonus_top3_probs[_nm] += 1
+                            else:
+                                break
+                        _bp_outcomes += 1
+                    if _bp_outcomes > 0:
+                        bonus_win_probs  = {n: v / _bp_outcomes * 100 for n, v in bonus_win_probs.items()}
+                        bonus_top3_probs = {n: v / _bp_outcomes * 100 for n, v in bonus_top3_probs.items()}
+                else:
+                    bonus_win_probs, bonus_top3_probs = run_monte_carlo(
+                        bonus_names, bonus_picks,
+                        tuple(actual_winners), tuple(points_per_game),
+                        tuple(all_alive), tuple(seed_map.items()),
+                        r1_contestants,
+                        top_n=2,
+                    )
+
                 bonus_df["Win %"]   = bonus_df["Name"].map(lambda n: bonus_win_probs.get(n, 0.0))
                 bonus_df["Top 2 %"] = bonus_df["Name"].map(lambda n: bonus_top3_probs.get(n, 0.0))
                 def _bonus_status(row):
@@ -5760,19 +5804,54 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 bonus_df["Potential Status"] = bonus_df.apply(_bonus_status, axis=1)
                 bonus_df["Bonus Rank"] = range(1, len(bonus_df) + 1)
 
-                # Format for display
-                bp_display = bonus_df[["Bonus Rank", "Name", "Current Score", "Potential Score", "Win %", "Top 2 %", "Potential Status"]].copy()
-                bp_display = bp_display.rename(columns={"Bonus Rank": "Rank"})
-                bp_display["Win %"]   = bp_display["Win %"].map("{:.1f}%".format)
-                bp_display["Top 2 %"] = bp_display["Top 2 %"].map("{:.1f}%".format)
-
-                def _bp_highlight(row):
-                    if user_name and row["Name"] == user_name:
-                        return ["background-color:#3a3000;color:#f5c518;font-weight:bold"] * len(row)
-                    return [""] * len(row)
-                styled = bp_display.style.apply(_bp_highlight, axis=1)
-                st.dataframe(styled, use_container_width=True, hide_index=True,
-                             height=min(500, 44 + len(bp_display) * 36))
+                # Render as HTML table with Champion column
+                _bp_trs = ""
+                for _, _brow in bonus_df.iterrows():
+                    _is_user = user_name and _brow["Name"] == user_name
+                    _brow_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if _is_user else ""
+                    _brk = int(_brow["Bonus Rank"])
+                    _medal = "🏆" if _brk == 1 else ("🥈" if _brk == 2 else ("🥉" if _brk == 3 else str(_brk)))
+                    # Champion pick
+                    _bp_picks = _raw_picks_map.get(_brow["Name"], [])
+                    _bp_champ = _bp_picks[65] if len(_bp_picks) > 65 and _bp_picks[65] not in {"", "nan", "TBD"} else ""
+                    if _bp_champ:
+                        _bp_alive = _bp_champ in truly_alive
+                        _bp_style = "color:#22c55e;" if _bp_alive else "color:#ef4444;text-decoration:line-through;"
+                        _bp_logo = espn_logo_url(_bp_champ) or ""
+                        _bp_img = f'<img src="{_bp_logo}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _bp_logo else ""
+                        _bp_champ_html = f'{_bp_img}<span style="font-size:11px;{_bp_style}">{_bp_champ}</span>'
+                    else:
+                        _bp_champ_html = "—"
+                    _bp_status = _brow["Potential Status"]
+                    _bp_trs += (
+                        f'<tr{_brow_style}>'
+                        f'<td style="width:36px;text-align:center;">{_medal}</td>'
+                        f'<td style="padding:5px 10px;font-weight:600;">{_brow["Name"]}</td>'
+                        f'<td style="width:54px;text-align:center;">{int(_brow["Current Score"])}</td>'
+                        f'<td style="width:64px;text-align:center;">{int(_brow["Potential Score"])}</td>'
+                        f'<td style="padding:5px 8px;">{_bp_champ_html}</td>'
+                        f'<td style="width:54px;text-align:center;">{_brow["Win %"]:.1f}%</td>'
+                        f'<td style="width:54px;text-align:center;">{_brow["Top 2 %"]:.1f}%</td>'
+                        f'<td style="width:80px;text-align:center;">{_bp_status}</td>'
+                        f'</tr>'
+                    )
+                st.markdown(
+                    '<div style="overflow-x:auto;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                    '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>'
+                    '<th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Score</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Potential</th>'
+                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Champion</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Win %</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Top 2 %</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Status</th>'
+                    '</tr></thead>'
+                    f'<tbody style="color:#fff;">{_bp_trs}</tbody>'
+                    '</table></div>',
+                    unsafe_allow_html=True
+                )
 
 
         elif _sub_bon == "correct-picks":
