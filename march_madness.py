@@ -600,16 +600,8 @@ def run_monte_carlo(
             contestants.discard("")
             contestants.discard("None")
 
-            # 50% chance to pick from participants' picks, 50% random contestant
-            # This ensures all bracket outcomes can occur in simulation
-            picks_for_slot = [
-                picks_matrix[i][c] for i in range(len(names))
-                if picks_matrix[i][c] in contestants
-            ]
-            if picks_for_slot and random.random() < 0.5:
-                sim_w[c] = random.choice(picks_for_slot)
-            else:
-                sim_w[c] = random.choice(list(contestants)) if contestants else "None"
+            # Pure 50/50: pick randomly from the two actual contestants
+            sim_w[c] = random.choice(list(contestants)) if contestants else "None"
 
         scored = []
         for i, name in enumerate(names):
@@ -681,18 +673,8 @@ def run_h2h_monte_carlo(
                 sim_w[c] = "None"
                 continue
 
-            # Pick winner from actual contestants — bias toward players' picks
-            # so that picks being correct happens at a realistic rate
-            picks_in = [t for t in (p1_picks[c], p2_picks[c]) if t in contestants]
-            if picks_in:
-                # 50% chance of a picked team winning, 50% random
-                if random.random() < 0.5:
-                    winner = random.choice(picks_in)
-                else:
-                    winner = random.choice(list(contestants))
-            else:
-                winner = random.choice(list(contestants))
-            sim_w[c] = winner
+            # Pure 50/50: pick randomly from the two actual contestants
+            sim_w[c] = random.choice(list(contestants)) if contestants else "None"
 
         p1_score = sum(
             pts_list[c] + seed_map.get(p1_picks[c], 0)
@@ -745,15 +727,8 @@ def run_nway_monte_carlo(
             if not contestants:
                 sim_w[c] = "None"
                 continue
-            picks_in = [t for picks in player_picks for t in [picks[c]] if t in contestants]
-            if picks_in:
-                if random.random() < 0.5:
-                    winner = random.choice(picks_in)
-                else:
-                    winner = random.choice(list(contestants))
-            else:
-                winner = random.choice(list(contestants))
-            sim_w[c] = winner
+            # Pure 50/50: pick randomly from the two actual contestants
+            sim_w[c] = random.choice(list(contestants))
 
         scores = []
         for picks in player_picks:
