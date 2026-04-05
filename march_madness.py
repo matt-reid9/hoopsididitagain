@@ -2163,14 +2163,26 @@ try:
                     _win_pct  = _r.get("Win %", 0)
                     _medal = "🏆" if _rank_i == 1 else ("🥈" if _rank_i == 2 else ("🥉" if _rank_i == 3 else str(_rank_i)))
                     _cur_rank = int(_r.get("Current Rank", _rank_i))
+                    # Champion pick
+                    _picks = _r.get("raw_picks", [])
+                    _champ_pick = _picks[65] if len(_picks) > 65 and _picks[65] not in {"", "nan", "TBD"} else ""
+                    if _champ_pick:
+                        _champ_alive = _champ_pick in truly_alive
+                        _champ_style = "color:#22c55e;" if _champ_alive else "color:#ef4444;text-decoration:line-through;"
+                        _logo_url = espn_logo_url(_champ_pick) or ""
+                        _logo_img = f'<img src="{_logo_url}" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;margin-right:3px;" onerror="this.style.display=\'none\'">' if _logo_url else ""
+                        _champ_html = f'{_logo_img}<span style="font-size:11px;{_champ_style}">{_champ_pick}</span>'
+                    else:
+                        _champ_html = "—"
                     _trs += (
                         f'<tr{_row_style}>'
                         f'<td style="width:32px;text-align:center;">{_medal}</td>'
                         f'<td style="padding:5px 10px;font-weight:600;">{_r["Name"]}</td>'
-                        f'<td style="width:60px;text-align:center;">#{_cur_rank}</td>'
-                        f'<td style="width:60px;text-align:center;">{int(_r["Current Score"])}</td>'
-                        f'<td style="width:64px;text-align:center;">{_win_pct:.1f}%</td>'
-                        f'<td style="width:64px;text-align:center;">{_top3_pct:.1f}%</td>'
+                        f'<td style="width:50px;text-align:center;">#{_cur_rank}</td>'
+                        f'<td style="width:50px;text-align:center;">{int(_r["Current Score"])}</td>'
+                        f'<td style="padding:5px 8px;">{_champ_html}</td>'
+                        f'<td style="width:56px;text-align:center;">{_win_pct:.1f}%</td>'
+                        f'<td style="width:56px;text-align:center;">{_top3_pct:.1f}%</td>'
                         f'</tr>'
                     )
                 st.markdown(
@@ -2181,6 +2193,7 @@ try:
                     '<th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>'
                     '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Rank</th>'
                     '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Score</th>'
+                    '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Champion</th>'
                     '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Win %</th>'
                     '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Top 3 %</th>'
                     '</tr></thead>'
