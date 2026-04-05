@@ -449,9 +449,11 @@ def load_all_data():
         pass  # Lucky Team tab is optional; silently skip if unavailable
 
     # defeated_map: winner -> the team they beat in their most recent played game
+    # slot_loser_map: slot -> loser (for per-game upset detection)
     # Built by scanning each played slot and finding which teams were picked there
     # but didn't win — those are the losers.
     defeated_map: dict[str, str] = {}
+    slot_loser_map: dict[int, str] = {}
     for c in range(3, 66):
         w = winners_row[c]
         if is_unplayed(w):
@@ -467,6 +469,7 @@ def load_all_data():
                 1 for i in range(3, len(df_p)) if str(df_p.iloc[i][c]).strip() == t
             ))
             defeated_map[w] = loser
+            slot_loser_map[c] = loser
 
     # Load final score from MasterBracket H43 (row 42, col 7, 0-indexed)
     # Only set if the cell contains a positive number — stays None if blank/invalid
@@ -520,7 +523,7 @@ def load_all_data():
     except Exception:
         pass
 
-    return df_p, winners_row, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, datetime.now().strftime("%I:%M %p"), final_score, tiebreaker_guesses
+    return df_p, winners_row, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, slot_loser_map, team_to_region, datetime.now().strftime("%I:%M %p"), final_score, tiebreaker_guesses
 
 
 # ─── 3. SCORING ───────────────────────────────────────────────────────────────
@@ -1148,7 +1151,7 @@ try:
         st.error("Could not load data. Check that the Google Sheet is publicly accessible.")
         st.stop()
 
-    df_p, actual_winners, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, team_to_region, last_update, final_score, tiebreaker_guesses = data
+    df_p, actual_winners, points_per_game, seed_map, all_alive, all_starting, truly_alive, lucky_map, r1_matchups, defeated_map, slot_loser_map, team_to_region, last_update, final_score, tiebreaker_guesses = data
 
     # ── ESPN logo lookup (shared across tabs) ────────────────────────────────
     ESPN_IDS = {
@@ -1291,8 +1294,8 @@ try:
                     upsets += 1
                     if s > best_s:
                         best_s, best_t = s, p_picks[c]
-                # Correct upset pick: winner seed - loser seed >= 3
-                loser = defeated_map.get(p_picks[c], "")
+                # Correct upset pick: winner seed - loser seed >= 3 (per-slot loser)
+                loser = slot_loser_map.get(c, "")
                 l_seed = seed_map.get(loser, 0)
                 if l_seed > 0 and s > 0 and (s - l_seed) >= 3:
                     upset_correct += 1
@@ -5533,7 +5536,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     if _picks[c] == actual_winners[c] and not is_unplayed(actual_winners[c]):
                         _w = _picks[c]
                         _ws = seed_map.get(_w, 0)
-                        _loser = defeated_map.get(_w, "")
+                        _loser = slot_loser_map.get(c, "")
                         _ls = seed_map.get(_loser, 0)
                         if _ws > 0 and _ls > 0 and (_ws - _ls) >= 3:
                             _upset_teams.append(_w)
