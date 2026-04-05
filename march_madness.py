@@ -1683,6 +1683,7 @@ try:
         "current-standings":    ("standings", "current"),
         "potential-standings":  ("standings", "potential"),
         "snapshot-standings":   ("standings", "snapshot"),
+        "still-alive":          ("standings", "alive"),
     }
 
     try:
@@ -1775,7 +1776,7 @@ try:
 
         # Sub-navigation: Current / Potential / Snapshot
         _std_sub = st.session_state.get("nav_sub_standings", "current")
-        _std_c1, _std_c2, _std_c3 = st.columns(3)
+        _std_c1, _std_c2, _std_c3, _std_c4 = st.columns(4)
         if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
@@ -1784,14 +1785,18 @@ try:
                            type="primary" if _std_sub == "potential" else "secondary"):
             st.session_state["nav_sub_standings"] = "potential"
             st.rerun()
-        if _std_c3.button("📸 Snapshot", key="std_snapshot", use_container_width=True,
+        if _std_c3.button("💚 Still Alive", key="std_alive", use_container_width=True,
+                           type="primary" if _std_sub == "alive" else "secondary"):
+            st.session_state["nav_sub_standings"] = "alive"
+            st.rerun()
+        if _std_c4.button("📸 Snapshot", key="std_snapshot", use_container_width=True,
                            type="primary" if _std_sub == "snapshot" else "secondary"):
             st.session_state["nav_sub_standings"] = "snapshot"
             st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
 
-        if _std_sub == "snapshot":
+        if _std_sub in ("snapshot", "alive"):
             _SNAPSHOT_SECTION = True
         else:
             _SNAPSHOT_SECTION = False
@@ -2139,7 +2144,52 @@ try:
     
                 st.plotly_chart(fig, use_container_width=True, config=PLOTLY_CONFIG)
 
-        if _SNAPSHOT_SECTION:
+        if _std_sub == "alive":
+            st.subheader("💚 Still Alive — Top 3 Contenders")
+            st.caption("Only showing participants who still have a chance to finish in the Top 3.")
+
+            _alive_rows = [r for r in results if r.get("Top 3 %", 0) > 0]
+            _alive_rows.sort(key=lambda r: (-r.get("Top 3 %", 0), -r["Current Score"]))
+
+            if not _alive_rows:
+                st.info("No participants with a Top 3 chance remaining.")
+            else:
+                st.markdown(f"**{len(_alive_rows)} participant{'s' if len(_alive_rows) != 1 else ''} still in contention**")
+                _trs = ""
+                for _rank_i, _r in enumerate(_alive_rows, 1):
+                    _is_user = user_name and _r["Name"] == user_name
+                    _row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if _is_user else ""
+                    _top3_pct = _r.get("Top 3 %", 0)
+                    _win_pct  = _r.get("Win %", 0)
+                    _medal = "🏆" if _rank_i == 1 else ("🥈" if _rank_i == 2 else ("🥉" if _rank_i == 3 else str(_rank_i)))
+                    _cur_rank = int(_r.get("Current Rank", _rank_i))
+                    _trs += (
+                        f'<tr{_row_style}>'
+                        f'<td style="width:32px;text-align:center;">{_medal}</td>'
+                        f'<td style="padding:5px 10px;font-weight:600;">{_r["Name"]}</td>'
+                        f'<td style="width:60px;text-align:center;">#{_cur_rank}</td>'
+                        f'<td style="width:60px;text-align:center;">{int(_r["Current Score"])}</td>'
+                        f'<td style="width:64px;text-align:center;">{_win_pct:.1f}%</td>'
+                        f'<td style="width:64px;text-align:center;">{_top3_pct:.1f}%</td>'
+                        f'</tr>'
+                    )
+                st.markdown(
+                    '<div style="overflow-x:auto;">'
+                    '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                    '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;"></th>'
+                    '<th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Rank</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Score</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Win %</th>'
+                    '<th style="padding:6px 4px;text-align:center;border:1px solid #313244;">Top 3 %</th>'
+                    '</tr></thead>'
+                    f'<tbody style="color:#fff;">{_trs}</tbody>'
+                    '</table></div>',
+                    unsafe_allow_html=True
+                )
+
+        if _SNAPSHOT_SECTION and _std_sub == "snapshot":
             st.subheader("📸 Standings Snapshot")
             st.caption("View the full standings as they stood after any game in the tournament.")
 
