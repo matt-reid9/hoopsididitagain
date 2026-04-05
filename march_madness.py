@@ -1796,7 +1796,7 @@ try:
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
 
-        if _std_sub in ("snapshot", "alive"):
+        if _std_sub == "snapshot":
             _SNAPSHOT_SECTION = True
         else:
             _SNAPSHOT_SECTION = False
@@ -1846,7 +1846,7 @@ try:
         _ff_cols = [59, 60, 61, 62]
 
         with col_left:
-            if not _SNAPSHOT_SECTION and _std_sub == "current":
+            if not _SNAPSHOT_SECTION and _std_sub not in ("alive",) and _std_sub == "current":
                 # ── Current standings: rich HTML table with logos ────────────────
                 cur_df = final_df[["Current Rank", "Name", "Current Score"]].copy()
                 cur_df = cur_df.rename(columns={"Current Rank": "Rank"})
@@ -1976,7 +1976,7 @@ try:
                 )
                 st.caption("💡 Tap a row in Potential view to open a Head-to-Head comparison")
 
-            elif not _SNAPSHOT_SECTION:
+            elif not _SNAPSHOT_SECTION and _std_sub != "alive":
                 # ── Potential standings: existing AgGrid table ───────────────────
                 display_cols = ["Current Rank", "Name", "Current Score",
                                 "Potential Score", "Win %", "Top 3 %", "Potential Status"]
@@ -2060,7 +2060,7 @@ try:
                     st.caption("💡 Tap any row to open a Head-to-Head comparison")
 
         with col_right:
-            if not _SNAPSHOT_SECTION:
+            if not _SNAPSHOT_SECTION and _std_sub != "alive":
                 top10 = final_df.head(10).sort_values("Current Score")
 
                 fig = px.bar(
