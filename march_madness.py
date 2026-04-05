@@ -5524,43 +5524,78 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             st.subheader("😤 Upset Picks — Correctly Predicted Upsets")
             st.caption("An upset is when the winning team's seed is at least 3 higher than the losing team's seed (e.g. a 10 seed beating a 7 seed)")
 
-            upset_rows = sorted(
-                [{"Name": r["Name"], "Upset Picks": r.get("Upset Correct", 0)} for r in results],
-                key=lambda x: x["Upset Picks"], reverse=True
-            )
+            # Build per-participant upset team lists
+            _upset_data = []
+            for r in results:
+                _picks = r["raw_picks"]
+                _upset_teams = []
+                for c in range(3, 66):
+                    if _picks[c] == actual_winners[c] and not is_unplayed(actual_winners[c]):
+                        _w = _picks[c]
+                        _ws = seed_map.get(_w, 0)
+                        _loser = defeated_map.get(_w, "")
+                        _ls = seed_map.get(_loser, 0)
+                        if _ws > 0 and _ls > 0 and (_ws - _ls) >= 3:
+                            _upset_teams.append(_w)
+                _upset_data.append({
+                    "Name": r["Name"],
+                    "Upset Picks": len(_upset_teams),
+                    "Teams": _upset_teams,
+                })
+
+            _upset_data.sort(key=lambda x: x["Upset Picks"], reverse=True)
+
             # Assign ranks (tied players share the same rank)
             ranked = []
             rank = 1
-            for i, row in enumerate(upset_rows):
-                if i > 0 and row["Upset Picks"] < upset_rows[i-1]["Upset Picks"]:
+            for i, row in enumerate(_upset_data):
+                if i > 0 and row["Upset Picks"] < _upset_data[i-1]["Upset Picks"]:
                     rank = i + 1
-                ranked.append({"Rank": rank, "Name": row["Name"], "Upset Picks": row["Upset Picks"]})
+                ranked.append({**row, "Rank": rank})
 
             trs = ""
             for row in ranked:
                 is_user = user_name and row["Name"] == user_name
                 row_style = ' style="background:#3a3000; color:#f5c518; font-weight:bold;"' if is_user else ""
+                _rk = row["Rank"]
+                _medal = "🏆" if _rk == 1 else ("🥈" if _rk == 2 else ("🥉" if _rk == 3 else str(_rk)))
+                # Build logo row for each upset team
+                _logos_html = ""
+                for _team in row["Teams"]:
+                    _url = espn_logo_url(_team) or ""
+                    _seed = seed_map.get(_team, 0)
+                    _tip = f"({_seed}) {_team}"
+                    if _url:
+                        _logos_html += (
+                            f'<img src="{_url}" title="{_tip}" '
+                            f'style="width:20px;height:20px;object-fit:contain;vertical-align:middle;margin-right:2px;" '
+                            f'onerror="this.style.display=\'none\'">'
+                        )
+                    else:
+                        _logos_html += f'<span style="font-size:10px;margin-right:4px;">{_tip}</span>'
+                if not _logos_html:
+                    _logos_html = '<span style="color:#6b7280;font-size:11px;">—</span>'
                 trs += (
                     f'<tr{row_style}>'
-                    f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
+                    f'<td style="width:36px;text-align:center;">{_medal}</td>'
                     f'<td style="padding:4px 8px;">{row["Name"]}</td>'
-                    f'<td style="width:80px;text-align:center;">{row["Upset Picks"]}</td>'
+                    f'<td style="width:64px;text-align:center;">{row["Upset Picks"]}</td>'
+                    f'<td style="padding:4px 8px;">{_logos_html}</td>'
                     f'</tr>'
                 )
-            st.markdown(f"""
-            <table style="border-collapse:collapse;width:100%;max-width:480px;font-size:13px;">
-              <thead>
-                <tr style="background:#1e1e2e;color:#fff;">
-                  <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
-                  <th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Name</th>
-                  <th style="width:80px;padding:6px 4px;text-align:center;border:1px solid #313244;">Correct Upsets</th>
-                </tr>
-              </thead>
-              <tbody style="color:#fff;">
-                {trs}
-              </tbody>
-            </table>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                '<div style="overflow-x:auto;">'
+                '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                '<thead><tr style="background:#1e1e2e;color:#fff;">'
+                '<th style="width:36px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>'
+                '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Name</th>'
+                '<th style="width:64px;padding:6px 4px;text-align:center;border:1px solid #313244;">Upsets</th>'
+                '<th style="padding:6px 8px;text-align:left;border:1px solid #313244;">Teams</th>'
+                '</tr></thead>'
+                f'<tbody style="color:#fff;">{trs}</tbody>'
+                '</table></div>',
+                unsafe_allow_html=True
+            )
 
         elif _sub_bon == "tiebreaker-scores":
             st.subheader("🎯 Tiebreaker Scores")
