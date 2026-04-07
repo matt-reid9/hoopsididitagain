@@ -471,11 +471,11 @@ def load_all_data():
             defeated_map[w] = loser
             slot_loser_map[c] = loser
 
-    # Load final score from MasterBracket H43 (row 42, col 7, 0-indexed)
+    # Load final score from MasterBracket H43 (row 43, col 7, 0-indexed = iloc[42, 7])
     # Only set if the cell contains a positive number — stays None if blank/invalid
     final_score = None
     try:
-        h43_val = str(df_seeds.iloc[40, 7]).strip() if len(df_seeds) > 40 and len(df_seeds.columns) > 7 else ""
+        h43_val = str(df_seeds.iloc[42, 7]).strip() if len(df_seeds) > 42 and len(df_seeds.columns) > 7 else ""
         if h43_val and h43_val.lower() not in ("nan", "", "none"):
             parsed = safe_int(h43_val)
             if parsed > 0:
@@ -5627,11 +5627,16 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             if not tiebreaker_guesses:
                 st.info("No tiebreaker guesses found. Make sure the TiebreakerScores sheet is accessible.")
             else:
-                # Build rows — include diff only if final score is known
+                # Build rows — include signed diff only if final score is known
                 tb_rows = []
                 for name, guess in tiebreaker_guesses.items():
-                    diff = abs(guess - final_score) if final_score is not None else None
-                    tb_rows.append({"Name": name, "guess": guess, "diff": diff})
+                    if final_score is not None:
+                        signed_diff = guess - final_score  # positive = over, negative = under
+                        abs_diff = abs(signed_diff)
+                    else:
+                        signed_diff = None
+                        abs_diff = None
+                    tb_rows.append({"Name": name, "guess": guess, "signed_diff": signed_diff, "diff": abs_diff})
 
                 if final_score is not None:
                     tb_rows.sort(key=lambda x: x["diff"])
@@ -5647,23 +5652,48 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             rank = i + 1
                         ranked_tb.append({"Rank": rank, "Name": row["Name"],
                                           "Tiebreaker Score": row["guess"],
-                                          "Difference": row["diff"]})
+                                          "signed_diff": row["signed_diff"],
+                                          "diff": row["diff"]})
                     else:
                         ranked_tb.append({"Rank": "—", "Name": row["Name"],
                                           "Tiebreaker Score": row["guess"],
-                                          "Difference": "TBD"})
+                                          "signed_diff": None,
+                                          "diff": None})
 
                 trs = ""
                 for row in ranked_tb:
                     is_user = user_name and row["Name"] == user_name
-                    row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"' if is_user else ""
-                    diff_str = f'+{row["Difference"]}' if isinstance(row["Difference"], int) and row["Difference"] >= 0 else str(row["Difference"])
+                    is_first = row["Rank"] == 1 and final_score is not None
+                    if is_first and not is_user:
+                        row_style = ' style="background:#14532d;color:#4ade80;font-weight:bold;"'
+                    elif is_user:
+                        row_style = ' style="background:#3a3000;color:#f5c518;font-weight:bold;"'
+                    else:
+                        row_style = ""
+                    # Rank cell: trophy for 1st
+                    _rk = row["Rank"]
+                    _rank_cell = "🏆" if is_first else (str(_rk) if _rk != "—" else "—")
+                    # Name with trophy prefix for 1st
+                    _name_display = row["Name"]
+                    # Signed diff string
+                    if row["signed_diff"] is None:
+                        diff_str = "TBD"
+                        diff_color = "#9ca3af"
+                    elif row["signed_diff"] > 0:
+                        diff_str = f'+{row["signed_diff"]}'
+                        diff_color = "#f87171"  # over = red
+                    elif row["signed_diff"] < 0:
+                        diff_str = f'{row["signed_diff"]}'
+                        diff_color = "#60a5fa"  # under = blue
+                    else:
+                        diff_str = "Exact!"
+                        diff_color = "#4ade80"  # exact = green
                     trs += (
                         f'<tr{row_style}>'
-                        f'<td style="width:40px;text-align:center;">{row["Rank"]}</td>'
-                        f'<td style="padding:5px 10px;">{row["Name"]}</td>'
+                        f'<td style="width:40px;text-align:center;">{_rank_cell}</td>'
+                        f'<td style="padding:5px 10px;">{_name_display}</td>'
                         f'<td style="width:110px;text-align:center;">{row["Tiebreaker Score"]}</td>'
-                        f'<td style="width:90px;text-align:center;">{diff_str}</td>'
+                        f'<td style="width:90px;text-align:center;color:{diff_color};font-weight:600;">{diff_str}</td>'
                         f'</tr>'
                     )
                 st.markdown(f"""
@@ -5673,7 +5703,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                       <th style="width:40px;padding:6px 4px;text-align:center;border:1px solid #313244;">#</th>
                       <th style="padding:6px 10px;text-align:left;border:1px solid #313244;">Name</th>
                       <th style="width:110px;padding:6px 4px;text-align:center;border:1px solid #313244;">Tiebreaker Score</th>
-                      <th style="width:90px;padding:6px 4px;text-align:center;border:1px solid #313244;">Difference</th>
+                      <th style="width:90px;padding:6px 4px;text-align:center;border:1px solid #313244;">+/−</th>
                     </tr>
                   </thead>
                   <tbody style="color:#fff;">
