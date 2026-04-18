@@ -2132,106 +2132,79 @@ try:
                     st.rerun()
 
             import streamlit.components.v1 as _rc_components
-            _rc_components.html(f"""
+            _rc_components.html("""
             <script>
-            (function() {{
+            (function() {
                 var startX = null;
-                var animating = false;
 
-                function getSlideEl() {{
+                function getSlideEl() {
                     return window.parent.document.getElementById("recap-slide-content");
-                }}
+                }
 
-                function findBtn(text) {{
+                function findBtn(text) {
                     var btns = window.parent.document.querySelectorAll("button");
-                    for (var b of btns) {{
+                    for (var b of btns) {
                         if (b.innerText.trim() === text && !b.disabled) return b;
-                    }}
+                    }
                     return null;
-                }}
+                }
 
-                function setSlideParam(idx) {{
-                    // Set ?slide=N in parent URL to trigger Streamlit rerun
-                    var url = new URL(window.parent.location.href);
-                    url.searchParams.set("slide", idx);
-                    window.parent.history.pushState({{}}, "", url.toString());
-                    // Trigger Streamlit rerun by dispatching popstate
-                    window.parent.dispatchEvent(new PopStateEvent("popstate"));
-                }}
-
-                function animateOut(direction, callback) {{
-                    var el = getSlideEl();
-                    if (!el) {{ callback(); return; }}
-                    el.style.transition = "transform 0.18s ease, opacity 0.18s ease";
-                    el.style.transform = direction === "left" ? "translateX(-50px)" : "translateX(50px)";
-                    el.style.opacity = "0.2";
-                    setTimeout(callback, 170);
-                }}
-
-                function goViaPrevNext(direction) {{
-                    if (animating) return;
-                    animating = true;
-                    var btnText = direction === "left" ? "Next →" : "← Prev";
-                    animateOut(direction, function() {{
-                        var btn = findBtn(btnText);
-                        if (btn) btn.click();
-                        animating = false;
-                    }});
-                }}
-
-                // Dot click handlers
-                function attachDots() {{
+                function attachDots() {
                     var dotsEl = window.parent.document.getElementById("recap-dots");
                     if (!dotsEl || dotsEl._dotsAdded) return;
                     dotsEl._dotsAdded = true;
-                    dotsEl.addEventListener("click", function(e) {{
+                    dotsEl.addEventListener("click", function(e) {
                         var span = e.target.closest("span[data-slide]");
                         if (!span) return;
                         var idx = parseInt(span.getAttribute("data-slide"));
-                        var dir = idx > {_slide_idx} ? "left" : "right";
-                        animateOut(dir, function() {{
-                            setSlideParam(idx);
-                        }});
-                    }});
-                }}
+                        var url = new URL(window.parent.location.href);
+                        url.searchParams.set("slide", idx);
+                        window.parent.history.pushState({}, "", url.toString());
+                        window.parent.dispatchEvent(new PopStateEvent("popstate"));
+                    });
+                }
 
-                // Swipe handlers
-                function addSwipe(el) {{
+                function addSwipe(el) {
                     if (!el || el._swipeAdded) return;
                     el._swipeAdded = true;
-                    el.addEventListener("touchstart", function(e) {{
+
+                    el.addEventListener("touchstart", function(e) {
                         startX = e.touches[0].clientX;
-                    }}, {{passive: true}});
-                    el.addEventListener("touchmove", function(e) {{
+                        el.style.transition = "none";
+                    }, {passive: true});
+
+                    el.addEventListener("touchmove", function(e) {
                         if (startX === null) return;
                         var dx = e.touches[0].clientX - startX;
-                        el.style.transition = "none";
-                        el.style.transform = "translateX(" + (dx * 0.4) + "px)";
-                        el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 400));
-                    }}, {{passive: true}});
-                    el.addEventListener("touchend", function(e) {{
+                        el.style.transform = "translateX(" + (dx * 0.35) + "px)";
+                        el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 500));
+                    }, {passive: true});
+
+                    el.addEventListener("touchend", function(e) {
                         if (startX === null) return;
                         var dx = e.changedTouches[0].clientX - startX;
                         startX = null;
-                        if (Math.abs(dx) < 50) {{
-                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
-                            el.style.transform = "translateX(0)";
-                            el.style.opacity = "1";
-                            return;
-                        }}
-                        goViaPrevNext(dx < 0 ? "left" : "right");
-                    }});
-                }}
 
-                function tryAttach() {{
+                        // Reset visual state immediately
+                        el.style.transform = "translateX(0)";
+                        el.style.opacity = "1";
+
+                        if (Math.abs(dx) < 50) return;
+
+                        var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
+                        if (btn) btn.click();
+                    });
+                }
+
+                function tryAttach() {
                     var el = getSlideEl();
                     if (el) addSwipe(el);
                     attachDots();
-                }}
+                }
                 tryAttach();
-                var obs = new MutationObserver(function() {{ tryAttach(); }});
-                obs.observe(window.parent.document.body, {{childList: true, subtree: true}});
-            }})();
+                var obs = new MutationObserver(function() { tryAttach(); });
+                obs.observe(window.parent.document.body, {childList: true, subtree: true});
+            })();
             </script>
             """, height=0)
 
