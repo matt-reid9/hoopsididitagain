@@ -2125,7 +2125,6 @@ try:
             <script>
             (function() {{
                 var startX = null;
-                var committed = false;
 
                 function getSlideEl() {{
                     return window.parent.document.getElementById("recap-slide-content");
@@ -2139,7 +2138,6 @@ try:
                     return null;
                 }}
 
-                // Dots — click Prev/Next the right number of times
                 function attachDots() {{
                     var dotsEl = window.parent.document.getElementById("recap-dots");
                     if (!dotsEl || dotsEl._dotsAdded) return;
@@ -2150,23 +2148,17 @@ try:
                         var target = parseInt(span.getAttribute("data-slide"));
                         var current = {_slide_idx};
                         if (target === current) return;
-                        var steps = Math.abs(target - current);
-                        var btnText = target > current ? "Next →" : "← Prev";
-                        // Click synchronously in a loop — each click triggers rerun
-                        // so just click once; user can tap again if needed
-                        var btn = findBtn(btnText);
+                        var btn = findBtn(target > current ? "Next →" : "← Prev");
                         if (btn) btn.click();
                     }});
                 }}
 
-                // Swipe
                 function addSwipe(el) {{
                     if (!el || el._swipeAdded) return;
                     el._swipeAdded = true;
 
                     el.addEventListener("touchstart", function(e) {{
                         startX = e.touches[0].clientX;
-                        committed = false;
                         el.style.transition = "none";
                     }}, {{passive: true}});
 
@@ -2175,9 +2167,6 @@ try:
                         var dx = e.touches[0].clientX - startX;
                         el.style.transform = "translateX(" + (dx * 0.4) + "px)";
                         el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 350));
-                        if (!committed && Math.abs(dx) >= 50) {{
-                            committed = true;
-                        }}
                     }}, {{passive: true}});
 
                     el.addEventListener("touchend", function(e) {{
@@ -2185,24 +2174,26 @@ try:
                         var dx = e.changedTouches[0].clientX - startX;
                         startX = null;
 
-                        if (!committed) {{
+                        if (Math.abs(dx) < 50) {{
                             el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
                             el.style.transform = "translateX(0)";
                             el.style.opacity = "1";
                             return;
                         }}
 
-                        // Slide out in swipe direction, then click
-                        var dir = dx < 0 ? -1 : 1;
-                        var outX = dir * -window.parent.innerWidth * 0.6;
-                        el.style.transition = "transform 0.22s ease, opacity 0.22s ease";
-                        el.style.transform = "translateX(" + outX + "px)";
-                        el.style.opacity = "0";
-
-                        setTimeout(function() {{
-                            var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
-                            if (btn) btn.click();
-                        }}, 200);
+                        // Click button FIRST, then animate out
+                        var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
+                        if (btn) {{
+                            btn.click();
+                            // Brief exit animation (Streamlit will replace the element anyway)
+                            el.style.transition = "transform 0.15s ease, opacity 0.15s ease";
+                            el.style.transform = "translateX(" + (dx < 0 ? -80 : 80) + "px)";
+                            el.style.opacity = "0.1";
+                        }} else {{
+                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+                            el.style.transform = "translateX(0)";
+                            el.style.opacity = "1";
+                        }}
                     }});
                 }}
 
