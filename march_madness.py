@@ -2090,20 +2090,28 @@ try:
                 unsafe_allow_html=True
             )
 
-            # Dots — clickable via hidden st.buttons + JS
-            _dot_cols = st.columns(_n_slides)
-            for _di in range(_n_slides):
-                with _dot_cols[_di]:
-                    _dot_active = _di == _slide_idx
-                    if st.button(
-                        "●" if _dot_active else "○",
-                        key=f"recap_dot_{_di}",
-                        use_container_width=True,
-                        type="primary" if _dot_active else "secondary",
-                        help=_slides[_di][0],
-                    ):
-                        st.session_state["recap_slide"] = _di
+            # Check for dot navigation via query param
+            try:
+                _dot_nav = st.query_params.get("slide", "")
+                if _dot_nav != "":
+                    st.query_params.pop("slide", None)
+                    _target = int(_dot_nav)
+                    if 0 <= _target < _n_slides:
+                        st.session_state["recap_slide"] = _target
                         st.rerun()
+            except Exception:
+                pass
+
+            _dot_html = "".join(
+                f'<span data-slide="{_di}" '
+                f'style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{"#f5c518" if _di == _slide_idx else "#4b5563"};'
+                f'margin:0 4px;cursor:pointer;vertical-align:middle;"></span>'
+                for _di in range(_n_slides)
+            )
+            st.markdown(
+                f'<div id="recap-dots" style="text-align:center;margin:8px 0 4px;">{_dot_html}</div>',
+                unsafe_allow_html=True
+            )
 
             # Prev / Next buttons
             _btn_prev, _btn_mid, _btn_next = st.columns([1, 2, 1])
@@ -2123,41 +2131,107 @@ try:
                     st.session_state["recap_slide"] = _slide_idx + 1
                     st.rerun()
 
-            # Swipe support via JS
             import streamlit.components.v1 as _rc_components
-            _rc_components.html("""
+            _rc_components.html(f"""
             <script>
-            (function() {
+            (function() {{
                 var startX = null;
-                var threshold = 50;
-                function findSlideEl() {
+                var animating = false;
+
+                function getSlideEl() {{
                     return window.parent.document.getElementById("recap-slide-content");
-                }
-                function addSwipe(el) {
+                }}
+
+                function findBtn(text) {{
+                    var btns = window.parent.document.querySelectorAll("button");
+                    for (var b of btns) {{
+                        if (b.innerText.trim() === text && !b.disabled) return b;
+                    }}
+                    return null;
+                }}
+
+                function setSlideParam(idx) {{
+                    // Set ?slide=N in parent URL to trigger Streamlit rerun
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.set("slide", idx);
+                    window.parent.history.pushState({{}}, "", url.toString());
+                    // Trigger Streamlit rerun by dispatching popstate
+                    window.parent.dispatchEvent(new PopStateEvent("popstate"));
+                }}
+
+                function animateOut(direction, callback) {{
+                    var el = getSlideEl();
+                    if (!el) {{ callback(); return; }}
+                    el.style.transition = "transform 0.18s ease, opacity 0.18s ease";
+                    el.style.transform = direction === "left" ? "translateX(-50px)" : "translateX(50px)";
+                    el.style.opacity = "0.2";
+                    setTimeout(callback, 170);
+                }}
+
+                function goViaPrevNext(direction) {{
+                    if (animating) return;
+                    animating = true;
+                    var btnText = direction === "left" ? "Next →" : "← Prev";
+                    animateOut(direction, function() {{
+                        var btn = findBtn(btnText);
+                        if (btn) btn.click();
+                        animating = false;
+                    }});
+                }}
+
+                // Dot click handlers
+                function attachDots() {{
+                    var dotsEl = window.parent.document.getElementById("recap-dots");
+                    if (!dotsEl || dotsEl._dotsAdded) return;
+                    dotsEl._dotsAdded = true;
+                    dotsEl.addEventListener("click", function(e) {{
+                        var span = e.target.closest("span[data-slide]");
+                        if (!span) return;
+                        var idx = parseInt(span.getAttribute("data-slide"));
+                        var dir = idx > {_slide_idx} ? "left" : "right";
+                        animateOut(dir, function() {{
+                            setSlideParam(idx);
+                        }});
+                    }});
+                }}
+
+                // Swipe handlers
+                function addSwipe(el) {{
                     if (!el || el._swipeAdded) return;
                     el._swipeAdded = true;
-                    el.addEventListener("touchstart", function(e) { startX = e.touches[0].clientX; }, {passive:true});
-                    el.addEventListener("touchend", function(e) {
+                    el.addEventListener("touchstart", function(e) {{
+                        startX = e.touches[0].clientX;
+                    }}, {{passive: true}});
+                    el.addEventListener("touchmove", function(e) {{
+                        if (startX === null) return;
+                        var dx = e.touches[0].clientX - startX;
+                        el.style.transition = "none";
+                        el.style.transform = "translateX(" + (dx * 0.4) + "px)";
+                        el.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 400));
+                    }}, {{passive: true}});
+                    el.addEventListener("touchend", function(e) {{
                         if (startX === null) return;
                         var dx = e.changedTouches[0].clientX - startX;
                         startX = null;
-                        if (Math.abs(dx) < threshold) return;
-                        // Find Prev/Next buttons in parent
-                        var btns = window.parent.document.querySelectorAll("button");
-                        for (var b of btns) {
-                            var txt = b.innerText.trim();
-                            if (dx < 0 && txt === "Next →" && !b.disabled) { b.click(); break; }
-                            if (dx > 0 && txt === "← Prev" && !b.disabled) { b.click(); break; }
-                        }
-                    });
-                }
-                function tryAttach() {
-                    var el = findSlideEl();
+                        if (Math.abs(dx) < 50) {{
+                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+                            el.style.transform = "translateX(0)";
+                            el.style.opacity = "1";
+                            return;
+                        }}
+                        goViaPrevNext(dx < 0 ? "left" : "right");
+                    }});
+                }}
+
+                function tryAttach() {{
+                    var el = getSlideEl();
                     if (el) addSwipe(el);
-                    else setTimeout(tryAttach, 300);
-                }
+                    attachDots();
+                }}
                 tryAttach();
-            })();
+                var obs = new MutationObserver(function() {{ tryAttach(); }});
+                obs.observe(window.parent.document.body, {{childList: true, subtree: true}});
+            }})();
             </script>
             """, height=0)
 
