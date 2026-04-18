@@ -1643,7 +1643,13 @@ try:
         _qp_p1   = st.query_params.get("p1", "")
         _qp_p2   = st.query_params.get("p2", "")
         _name_lower_map = {n.lower(): n for n in name_opts}
-        if _qp_p1 or _qp_p2:
+        if _qp_tab == "my-recap" and _qp_p1:
+            _m = _name_lower_map.get(_qp_p1.lower(), "")
+            if _m:
+                st.session_state["recap_my_name"] = _m
+                st.session_state["nav_sub_recap"] = "mine"
+            st.query_params.pop("p1", None)
+        elif _qp_p1 or _qp_p2:
             if _qp_tab == "bracket-dna" and _qp_p1:
                 _m = _name_lower_map.get(_qp_p1.lower(), "")
                 if _m:
@@ -1710,6 +1716,8 @@ try:
     # Map old slugs to new group + subpage
     SLUG_TO_GROUP = {
         "recap":           ("recap", None),
+        "pool-highlights": ("recap", "highlights"),
+        "my-recap":        ("recap", "mine"),
         "standings":       ("standings", None),
         "bracket":         ("your-bracket", "bracket"),
         "win-conditions":  ("your-bracket", "win-conditions"),
@@ -1760,12 +1768,12 @@ try:
 
     GROUP_TAB_INDEX = {
         "recap":           0,
-        "standings":       1,
-        "your-bracket":    2,
-        "scores":          3,
+        "hall-of-champs":  1,
+        "standings":       2,
+        "your-bracket":    3,
         "bonus":           4,
         "fun-stats":       5,
-        "hall-of-champs":  6,
+        "scores":          6,
     }
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
@@ -1791,8 +1799,8 @@ try:
         # Keep ?tab= in the URL so it can be bookmarked/shared
 
     # Top-level tabs
-    tab_recap, tab_standings, tab_bracket, tab_scores, tab_bonus, tab_fun, tab_hoc = st.tabs([
-        "🎊 Pool Recap", "🏆 Standings", "🗂️ Your Bracket", "📺 Schedule/Scores", "🎲 Bonus Games", "🎉 Fun Stats", "👑 Hall of Champions",
+    tab_recap, tab_hoc, tab_standings, tab_bracket, tab_bonus, tab_fun, tab_scores = st.tabs([
+        "🎊 Pool Recap", "👑 Hall of Champions", "🏆 Standings", "🗂️ Your Bracket", "🎲 Bonus Games", "🎉 Fun Stats", "📺 Schedule/Scores",
     ])
 
     import streamlit.components.v1 as _components
