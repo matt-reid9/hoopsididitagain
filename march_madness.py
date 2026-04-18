@@ -7424,6 +7424,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             "Penn State":                    "penn-st",
             "Purdue":                        "purdue",
             "Michigan":                      "michigan",
+            "Arizona":                       "arizona",
         }
         def _ncaa_logo(school, size=28):
             slug = NCAA_LOGO_SLUGS.get(school)
