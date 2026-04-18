@@ -1968,7 +1968,7 @@ try:
                 f'<div style="font-size:11px;color:#00274C;letter-spacing:2px;text-transform:uppercase;margin:4px 0;font-weight:700;">Pool Champion</div>' +
                 f'<div style="font-size:28px;font-weight:900;color:#00274C;">{_hl(_champ_name)}</div>' +
                 f'<div style="font-size:15px;color:#00274C;font-weight:600;">{_champ_score} pts</div>' +
-                f'<div style="margin-top:10px;"><img src="https://mrstream.neocities.org/img/BracketCards/2026ChrisCard.png" style="width:100%;max-width:320px;border-radius:10px;object-fit:contain;" onerror="this.style.display:none"></div>' +
+                f'<div style="margin-top:10px;"><img src="https://mrstream.neocities.org/img/BracketCards/2026ChrisCard.png" style="width:85%;max-width:260px;border-radius:10px;object-fit:contain;" onerror="this.style.display:none"></div>' +
                 f'</div></div>'
             )
             _slides.append(("🏆 Pool Champion", _s1))
@@ -7380,7 +7380,20 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 "2nd_pick": "Florida",
                 "3rd_name": "Sarah Keo",
                 "3rd_pick": "Duke",
-                                "description": "History was made in 2025 as Alana Davis became our first-ever two-time champion, reclaiming the crown she first wore nearly a decade prior. Her bold pick of Houston over Gonzaga in the second round proved to be the winning move in a massive field of 65 participants. She navigated a tense Final Four with ice in her veins, proving that her 2016 victory was definitely no fluke!",
+                "description": "History was made in 2025 as Alana Davis became our first-ever two-time champion, reclaiming the crown she first wore nearly a decade prior. Her bold pick of Houston over Gonzaga in the second round proved to be the winning move in a massive field of 65 participants. She navigated a tense Final Four with ice in her veins, proving that her 2016 victory was definitely no fluke!",
+            },
+            {
+                "year": 2026,
+                "name": "Chris Harmantzis",
+                "image": "https://mrstream.neocities.org/img/BracketCards/2026ChrisCard.png",
+                "champion_pick": "Michigan",
+                "tournament_champion": "Michigan",
+                "alma_mater": "Michigan",
+                "2nd_name": "Matt Reid",
+                "2nd_pick": "Arizona",
+                "3rd_name": "Dylan Grassl",
+                "3rd_pick": "Michigan",
+                "description": "Chris Harmantzis pulled off one of the most dramatic comebacks in pool history, climbing all the way from 63rd place mid-way through the First Round to claim the 2026 title. He spent most of the tournament outside the Top 10 of the standings, but his Michigan pick kept him alive. When the Wolverines defeated UConn 69-63 in the Championship game, Chris rocketed past the field and snatched the crown from Matt Reid and Dylan Grassl at the very last moment. Chris' faith in Michigan helped prove the Championship pick can be the difference-maker, while cementing himself as our first non-festival champion and the 10th champion of Hoops, I Did It Again.",
             },
         ]
 
@@ -7410,6 +7423,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
             "Kentucky":                      "kentucky",
             "Penn State":                    "penn-st",
             "Purdue":                        "purdue",
+            "Michigan":                      "michigan",
         }
         def _ncaa_logo(school, size=28):
             slug = NCAA_LOGO_SLUGS.get(school)
