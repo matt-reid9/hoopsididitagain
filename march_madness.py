@@ -2471,7 +2471,7 @@ track.addEventListener('touchend',function(e){{
                         f'</div>'
                     ))
 
-                    # Slide 2: Points by Round with rank (full names)
+                    # Slide 2: Journey Through the Standings + Points by Round
                     _rnd_cells = ""
                     for _rn, _, _ in _round_defs:
                         _rv = _rpts[_rn]; _rr = _rrank[_rn]
@@ -2484,10 +2484,11 @@ track.addEventListener('touchend',function(e){{
                             f'<div style="font-size:10px;color:{_rank_col};">#{_rr}</div>'
                             f'</div>'
                         )
-                    _my_slides.append(("📊 Points by Round",
+                    _my_slides.append(("📈 Journey Through the Standings",
                         f'<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:18px;">'
                         f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:10px;text-align:center;">📊 Points by Round <span style="font-size:10px;">(rank among {_ps})</span></div>'
                         f'<div style="display:flex;flex-wrap:wrap;gap:5px;">{_rnd_cells}</div>'
+                        f'<div style="font-size:11px;color:#6b7280;text-align:center;margin-top:10px;">📈 Rank chart shown below ↓</div>'
                         f'</div>'
                     ))
 
@@ -2803,6 +2804,8 @@ track.addEventListener('touchend',function(e){{
                     _mn_titles_js  = "[" + ",".join('"' + t.replace('"','\\"') + '"' for t,_ in _my_slides) + "]"
                     _mn_inner      = "".join(f'<div class="slide">{h}</div>' for _,h in _my_slides)
                     _mn_dots       = "".join(f'<span class="dot" data-i="{i}"></span>' for i in range(_mn_slides))
+                    # Index of the journey slide (always slide 2, index 1)
+                    _journey_slide_idx = 1
 
                     import streamlit.components.v1 as _cv1b
                     _cv1b.html(f"""<!DOCTYPE html><html><head>
@@ -2869,6 +2872,109 @@ track.addEventListener('touchend',function(e){{
 }});
 </script></body></html>""", height=900, scrolling=False)
 
+                    # ── Standings progress chart (always shown below slideshow) ─
+                    _CHRON_MR = {
+                        "R64": ["TCU","Nebraska","Louisville","High Point","Duke","Vanderbilt",
+                                "Michigan St.","Arkansas","VCU","Michigan","Texas","Texas A&M",
+                                "Illinois","Saint Louis","Gonzaga","Houston",
+                                "Kentucky","Texas Tech","Arizona","Virginia","Iowa St.","Alabama",
+                                "Utah St.","Tennessee","Iowa","St. John's","Purdue","UCLA",
+                                "Florida","Kansas","Miami (Fla.)","UConn"],
+                        "R32": ["Michigan","Michigan St.","Duke","Houston","Texas","Illinois","Nebraska","Arkansas",
+                                "Purdue","Iowa St.","St. John's","Tennessee","Iowa","Arizona","UConn","Alabama"],
+                        "S16": ["Purdue","Iowa","Arizona","Illinois","Duke","Michigan","UConn","Tennessee"],
+                        "E8":  ["Illinois","Arizona","Michigan","UConn"],
+                        "F4":  [], "Champ": [],
+                    }
+                    _RO_MR = {"R64":0,"R32":1,"S16":2,"E8":3,"F4":4,"Champ":5}
+                    def _mr_chron_key(c):
+                        _w = actual_winners[c]; _r = get_round_name(c)
+                        _lst = _CHRON_MR.get(_r, [])
+                        try: _pos = _lst.index(_w)
+                        except ValueError: _pos = 999
+                        return (_RO_MR.get(_r, 9), _pos)
+                    _mr_played = sorted([c for c in range(3,66) if not is_unplayed(actual_winners[c])], key=_mr_chron_key)
+
+                    if _mr_played:
+                        _all_picks_mr = {r["Name"]: r["raw_picks"] for r in results}
+                        _names_mr = list(_all_picks_mr.keys())
+                        _running_mr = {n:0 for n in _names_mr}
+                        _rank_hist_mr = {n:[] for n in _names_mr}
+                        _round_short_mr = {"R64":"R1","R32":"R2","S16":"S16","E8":"E8","F4":"FF","Champ":"🏆"}
+                        _slot_rnds_mr = [get_round_name(c) for c in _mr_played]
+                        _seen_rnds_mr = list(dict.fromkeys(_slot_rnds_mr))
+                        n_rnds_mr = len(_seen_rnds_mr)
+                        _rnd_counts_mr = {rn: _slot_rnds_mr.count(rn) for rn in _seen_rnds_mr}
+
+                        for _c in _mr_played:
+                            _winner = actual_winners[_c]
+                            _pts_c = points_per_game[_c] + seed_map.get(_winner, 0)
+                            for _n in _names_mr:
+                                if _c < len(_all_picks_mr[_n]) and _all_picks_mr[_n][_c] == _winner:
+                                    _running_mr[_n] += _pts_c
+                            _scores_mr = sorted([(n, _running_mr[n]) for n in _names_mr], key=lambda x: x[1], reverse=True)
+                            _prev_sc_mr, _prev_rk_mr = None, 0
+                            _rank_map_mr = {}
+                            for _ri_mr, (_n_mr, _sc_mr) in enumerate(_scores_mr):
+                                if _sc_mr != _prev_sc_mr:
+                                    _prev_rk_mr = _ri_mr + 1; _prev_sc_mr = _sc_mr
+                                _rank_map_mr[_n_mr] = _prev_rk_mr
+                            for _n in _names_mr:
+                                _rank_hist_mr[_n].append(_rank_map_mr[_n])
+
+                        # X positions (by round)
+                        _x_mr = []
+                        for _gi, _rn in enumerate(_slot_rnds_mr):
+                            _ri = _seen_rnds_mr.index(_rn)
+                            _gc = sum(1 for r in _slot_rnds_mr[:_gi] if r == _rn)
+                            _frac = (_gc + 0.5) / _rnd_counts_mr[_rn]
+                            _x_mr.append((_ri + _frac) / n_rnds_mr)
+
+                        fig_mr = go.Figure()
+                        # Grey background players
+                        for _n in _names_mr:
+                            if _n == _mn: continue
+                            fig_mr.add_trace(go.Scatter(x=_x_mr, y=_rank_hist_mr[_n], mode="lines",
+                                line=dict(color="rgba(100,100,120,0.15)", width=1),
+                                showlegend=False, hoverinfo="skip"))
+                        # User line — gold
+                        if _mn in _rank_hist_mr:
+                            _ur = _rank_hist_mr[_mn]
+                            fig_mr.add_trace(go.Scatter(x=_x_mr, y=_ur, mode="lines+markers",
+                                line=dict(color="#f5c518", width=3),
+                                marker=dict(size=6, color="#f5c518", line=dict(color="#fff", width=1)),
+                                name=_mn, hovertemplate="<b>"+_mn+"</b><br>#%{y}<extra></extra>"))
+
+                        # Round boundary lines + labels
+                        _shapes_mr, _annots_mr = [], []
+                        for _ri, _rn in enumerate(_seen_rnds_mr):
+                            _bx = _ri / n_rnds_mr
+                            if _ri > 0:
+                                _shapes_mr.append(dict(type="line", x0=_bx, x1=_bx,
+                                    y0=0.5, y1=len(_names_mr)+0.5, xref="x", yref="y",
+                                    line=dict(color="rgba(255,255,255,0.15)", width=1, dash="dot")))
+                            _cx = (_ri + 0.5) / n_rnds_mr
+                            _annots_mr.append(dict(x=_cx, y=0.3,
+                                text=_round_short_mr.get(_rn, _rn),
+                                showarrow=False, font=dict(size=11, color="rgba(255,255,255,0.5)"),
+                                xanchor="center", yanchor="bottom", xref="x", yref="y"))
+
+                        _cur_rank_mr = _rank_hist_mr[_mn][-1] if _rank_hist_mr.get(_mn) else "?"
+                        fig_mr.update_layout(
+                            dragmode=False,
+                            title=dict(text=f"{_mn.split()[0]}'s Rank Journey — Finished #{_cur_rank_mr}", font=dict(size=14)),
+                            yaxis=dict(autorange="reversed", range=[len(_names_mr)+1, 0],
+                                       title="Rank", tickmode="linear", dtick=10,
+                                       gridcolor="rgba(255,255,255,0.05)"),
+                            xaxis=dict(showticklabels=False, showgrid=False, range=[-0.01, 1.01]),
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            height=320, margin=dict(l=0, r=0, t=40, b=10),
+                            shapes=_shapes_mr, annotations=_annots_mr,
+                            showlegend=False,
+                        )
+                        st.plotly_chart(fig_mr, use_container_width=True, config={"displayModeBar": False})
+
+    # ── Tab 1: Standings ──────────────────────────────────────────────────────
     with tab_standings:
         st.subheader("Live Standings")
 
