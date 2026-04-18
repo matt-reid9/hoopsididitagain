@@ -116,6 +116,33 @@ st.markdown("""
     readonly: readonly;
   }
 
+  /* ── Recap slideshow dot buttons ── */
+  #recap-dot-row button {
+    min-height: unset !important;
+    height: 14px !important;
+    width: 14px !important;
+    padding: 0 !important;
+    font-size: 8px !important;
+    border-radius: 50% !important;
+    line-height: 1 !important;
+    min-width: unset !important;
+  }
+
+  /* ── Fix page-level scrolling — the whole page should scroll as one ── */
+  section[data-testid="stMain"] {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  div[data-testid="stAppViewBlockContainer"] {
+    overflow: visible !important;
+    height: auto !important;
+  }
+  div[data-testid="stMainBlockContainer"] {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
   /* ── Collapse zero/minimal-height JS-only iframes ── */
   iframe[height="0"], iframe[height="1"] {
     display: none !important;
@@ -2078,14 +2105,14 @@ try:
             )
             _slides.append(("💰 Bonus Pool", _s9))
 
-            # ── Pure client-side slideshow via components.html ───────────────
+            # ── Iframe slideshow (all slides client-side, no Streamlit reruns) ─
             _n_slides = len(_slides)
             if "recap_slide" not in st.session_state:
                 st.session_state["recap_slide"] = 0
             _initial_idx = st.session_state["recap_slide"] % _n_slides
 
             _titles_js = "[" + ",".join(
-                '"' + t.replace('"', '\\"') + '"' for t, _ in _slides
+                '"' + t.replace('"', '\\"'). replace("&", "&amp;") + '"' for t, _ in _slides
             ) + "]"
             _slides_inner = "".join(
                 f'<div class="slide">{html}</div>'
@@ -2097,21 +2124,22 @@ try:
             )
 
             import streamlit.components.v1 as _cv1
-            _cv1.html(f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+            _cv1.html(f"""<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{{box-sizing:border-box;margin:0;padding:0;}}
-body{{background:#0e1117;color:#fff;font-family:sans-serif;padding:4px;overflow-x:hidden;}}
-#title{{text-align:center;font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:4px;}}
-#counter{{text-align:center;font-size:11px;color:#6b7280;margin-bottom:8px;}}
-#wrap{{overflow:hidden;width:100%;}}
+html,body{{background:#0e1117;color:#fff;font-family:sans-serif;overflow:hidden;}}
+#title{{text-align:center;font-size:13px;color:#9ca3af;font-weight:600;padding:4px 0 2px;}}
+#counter{{text-align:center;font-size:11px;color:#6b7280;margin-bottom:6px;}}
+#wrap{{width:100%;overflow:hidden;}}
 #track{{display:flex;will-change:transform;}}
 .slide{{min-width:100%;padding:0 2px;}}
-#dots{{text-align:center;margin:10px 0 6px;}}
+#dots{{text-align:center;margin:8px 0 4px;}}
 .dot{{display:inline-block;width:10px;height:10px;border-radius:50%;background:#4b5563;
      margin:0 4px;cursor:pointer;vertical-align:middle;transition:background 0.2s;}}
-#nav{{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}}
+#nav{{display:flex;align-items:center;justify-content:space-between;padding:4px 0 6px;}}
 .btn{{background:#1e1e2e;border:1px solid #374151;color:#e5e7eb;
-     padding:8px 18px;border-radius:8px;cursor:pointer;font-size:14px;}}
+     padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;}}
 .btn:disabled{{opacity:0.3;cursor:default;}}
 #navcount{{font-size:12px;color:#6b7280;}}
 img{{max-width:100%;}}
@@ -2121,17 +2149,17 @@ img{{max-width:100%;}}
 <div id="wrap"><div id="track">{_slides_inner}</div></div>
 <div id="dots">{_dots_inner}</div>
 <div id="nav">
-  <button class="btn" id="btn-prev">← Prev</button>
+  <button class="btn" id="bp">← Prev</button>
   <span id="navcount"></span>
-  <button class="btn" id="btn-next">Next →</button>
+  <button class="btn" id="bn">Next →</button>
 </div>
 <script>
-var TITLES={_titles_js}, N={_n_slides}, cur={_initial_idx};
-var track=document.getElementById('track');
-var dots=document.querySelectorAll('.dot');
-var prev=document.getElementById('btn-prev');
-var next=document.getElementById('btn-next');
-var startX=null,startY=null,sw=false;
+var T={_titles_js},N={_n_slides},cur={_initial_idx};
+var track=document.getElementById('track'),
+    dots=document.querySelectorAll('.dot'),
+    bp=document.getElementById('bp'),
+    bn=document.getElementById('bn');
+var sx=null,sy=null,sw=false;
 
 function goTo(i,anim){{
   if(i<0||i>=N)return;
@@ -2139,29 +2167,31 @@ function goTo(i,anim){{
   track.style.transition=(anim===false)?'none':'transform 0.3s ease';
   track.style.transform='translateX('+(-cur*100)+'%)';
   dots.forEach(function(d,j){{d.style.background=j===cur?'#f5c518':'#4b5563';}});
-  document.getElementById('title').textContent=TITLES[cur];
+  document.getElementById('title').textContent=T[cur];
   document.getElementById('counter').textContent=(cur+1)+' / '+N;
   document.getElementById('navcount').textContent=(cur+1)+' of '+N;
-  prev.disabled=cur===0; next.disabled=cur===N-1;
+  bp.disabled=cur===0; bn.disabled=cur===N-1;
 }}
 goTo(cur,false);
-prev.onclick=function(){{goTo(cur-1);}};
-next.onclick=function(){{goTo(cur+1);}};
+bp.onclick=function(){{goTo(cur-1);}};
+bn.onclick=function(){{goTo(cur+1);}};
 dots.forEach(function(d){{d.onclick=function(){{goTo(+d.dataset.i);}};}});
-track.addEventListener('touchstart',function(e){{startX=e.touches[0].clientX;startY=e.touches[0].clientY;sw=true;track.style.transition='none';}},{{passive:true}});
+track.addEventListener('touchstart',function(e){{
+  sx=e.touches[0].clientX;sy=e.touches[0].clientY;sw=true;
+  track.style.transition='none';
+}},{{passive:true}});
 track.addEventListener('touchmove',function(e){{
-  if(!sw||startX===null)return;
-  var dx=e.touches[0].clientX-startX,dy=e.touches[0].clientY-startY;
+  if(!sw||sx===null)return;
+  var dx=e.touches[0].clientX-sx,dy=e.touches[0].clientY-sy;
   if(Math.abs(dy)>Math.abs(dx)){{sw=false;return;}}
   track.style.transform='translateX(calc('+(-cur*100)+'% + '+dx+'px))';
 }},{{passive:true}});
 track.addEventListener('touchend',function(e){{
-  if(!sw||startX===null)return;
-  var dx=e.changedTouches[0].clientX-startX;startX=null;sw=false;
+  if(!sw||sx===null)return;
+  var dx=e.changedTouches[0].clientX-sx;sx=null;sw=false;
   goTo(Math.abs(dx)>50?(dx<0?cur+1:cur-1):cur);
 }});
 </script></body></html>""", height=700, scrolling=False)
-
 
         elif _recap_sub == "mine":
             st.subheader("🪞 My Tournament Recap")
