@@ -116,8 +116,18 @@ st.markdown("""
     readonly: readonly;
   }
 
-  /* ── Expanders ── */
-  details summary { font-size: 14px; }
+  /* ── Collapse zero/minimal-height JS-only iframes ── */
+  iframe[height="0"], iframe[height="1"] {
+    display: none !important;
+  }
+
+  /* ── Slideshow iframe: natural height, no overflow stealing ── */
+  div[data-testid="stIFrame"]:has(iframe:not([height="0"]):not([height="1"])):not(:has(iframe[width="980px"])) iframe {
+    min-width: unset !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -2068,146 +2078,90 @@ try:
             )
             _slides.append(("💰 Bonus Pool", _s9))
 
-            # ── Slideshow navigation ──────────────────────────────────────────
+            # ── Pure client-side slideshow via components.html ───────────────
             _n_slides = len(_slides)
             if "recap_slide" not in st.session_state:
                 st.session_state["recap_slide"] = 0
-            _slide_idx = st.session_state["recap_slide"] % _n_slides
+            _initial_idx = st.session_state["recap_slide"] % _n_slides
 
-            _slide_title, _slide_html = _slides[_slide_idx]
-
-            st.markdown(
-                f'<div style="text-align:center;margin-bottom:8px;">' +
-                f'<span style="font-size:13px;color:#9ca3af;font-weight:600;">{_slide_title}</span><br>' +
-                f'<span style="font-size:11px;color:#6b7280;">{_slide_idx + 1} / {_n_slides}</span>' +
-                f'</div>',
-                unsafe_allow_html=True
+            _titles_js = "[" + ",".join(
+                '"' + t.replace('"', '\\"') + '"' for t, _ in _slides
+            ) + "]"
+            _slides_inner = "".join(
+                f'<div class="slide">{html}</div>'
+                for _, html in _slides
+            )
+            _dots_inner = "".join(
+                f'<span class="dot" data-i="{i}"></span>'
+                for i in range(_n_slides)
             )
 
-            # Slide content
-            st.markdown(
-                f'<div id="recap-slide-content" style="min-height:280px;">{_slide_html}</div>',
-                unsafe_allow_html=True
-            )
+            import streamlit.components.v1 as _cv1
+            _cv1.html(f"""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{box-sizing:border-box;margin:0;padding:0;}}
+body{{background:#0e1117;color:#fff;font-family:sans-serif;padding:4px;overflow-x:hidden;}}
+#title{{text-align:center;font-size:13px;color:#9ca3af;font-weight:600;margin-bottom:4px;}}
+#counter{{text-align:center;font-size:11px;color:#6b7280;margin-bottom:8px;}}
+#wrap{{overflow:hidden;width:100%;}}
+#track{{display:flex;will-change:transform;}}
+.slide{{min-width:100%;padding:0 2px;}}
+#dots{{text-align:center;margin:10px 0 6px;}}
+.dot{{display:inline-block;width:10px;height:10px;border-radius:50%;background:#4b5563;
+     margin:0 4px;cursor:pointer;vertical-align:middle;transition:background 0.2s;}}
+#nav{{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}}
+.btn{{background:#1e1e2e;border:1px solid #374151;color:#e5e7eb;
+     padding:8px 18px;border-radius:8px;cursor:pointer;font-size:14px;}}
+.btn:disabled{{opacity:0.3;cursor:default;}}
+#navcount{{font-size:12px;color:#6b7280;}}
+img{{max-width:100%;}}
+</style></head><body>
+<div id="title"></div>
+<div id="counter"></div>
+<div id="wrap"><div id="track">{_slides_inner}</div></div>
+<div id="dots">{_dots_inner}</div>
+<div id="nav">
+  <button class="btn" id="btn-prev">← Prev</button>
+  <span id="navcount"></span>
+  <button class="btn" id="btn-next">Next →</button>
+</div>
+<script>
+var TITLES={_titles_js}, N={_n_slides}, cur={_initial_idx};
+var track=document.getElementById('track');
+var dots=document.querySelectorAll('.dot');
+var prev=document.getElementById('btn-prev');
+var next=document.getElementById('btn-next');
+var startX=null,startY=null,sw=false;
 
-            # Dots
-            _dot_html = "".join(
-                f'<span data-slide="{_di}" '
-                f'style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{"#f5c518" if _di == _slide_idx else "#4b5563"};'
-                f'margin:0 4px;cursor:pointer;vertical-align:middle;"></span>'
-                for _di in range(_n_slides)
-            )
-            st.markdown(
-                f'<div id="recap-dots" style="text-align:center;margin:8px 0 4px;">{_dot_html}</div>',
-                unsafe_allow_html=True
-            )
+function goTo(i,anim){{
+  if(i<0||i>=N)return;
+  cur=i;
+  track.style.transition=(anim===false)?'none':'transform 0.3s ease';
+  track.style.transform='translateX('+(-cur*100)+'%)';
+  dots.forEach(function(d,j){{d.style.background=j===cur?'#f5c518':'#4b5563';}});
+  document.getElementById('title').textContent=TITLES[cur];
+  document.getElementById('counter').textContent=(cur+1)+' / '+N;
+  document.getElementById('navcount').textContent=(cur+1)+' of '+N;
+  prev.disabled=cur===0; next.disabled=cur===N-1;
+}}
+goTo(cur,false);
+prev.onclick=function(){{goTo(cur-1);}};
+next.onclick=function(){{goTo(cur+1);}};
+dots.forEach(function(d){{d.onclick=function(){{goTo(+d.dataset.i);}};}});
+track.addEventListener('touchstart',function(e){{startX=e.touches[0].clientX;startY=e.touches[0].clientY;sw=true;track.style.transition='none';}},{{passive:true}});
+track.addEventListener('touchmove',function(e){{
+  if(!sw||startX===null)return;
+  var dx=e.touches[0].clientX-startX,dy=e.touches[0].clientY-startY;
+  if(Math.abs(dy)>Math.abs(dx)){{sw=false;return;}}
+  track.style.transform='translateX(calc('+(-cur*100)+'% + '+dx+'px))';
+}},{{passive:true}});
+track.addEventListener('touchend',function(e){{
+  if(!sw||startX===null)return;
+  var dx=e.changedTouches[0].clientX-startX;startX=null;sw=false;
+  goTo(Math.abs(dx)>50?(dx<0?cur+1:cur-1):cur);
+}});
+</script></body></html>""", height=700, scrolling=False)
 
-            # Prev / Next buttons
-            _btn_prev, _btn_mid, _btn_next = st.columns([1, 2, 1])
-            with _btn_prev:
-                if st.button("← Prev", key="recap_prev", use_container_width=True,
-                             disabled=_slide_idx == 0):
-                    st.session_state["recap_slide"] = _slide_idx - 1
-                    st.rerun()
-            with _btn_mid:
-                st.markdown(
-                    f'<div style="text-align:center;padding-top:6px;font-size:12px;color:#6b7280;">{_slide_idx+1} of {_n_slides}</div>',
-                    unsafe_allow_html=True
-                )
-            with _btn_next:
-                if st.button("Next →", key="recap_next", use_container_width=True,
-                             disabled=_slide_idx == _n_slides - 1):
-                    st.session_state["recap_slide"] = _slide_idx + 1
-                    st.rerun()
-
-            import streamlit.components.v1 as _rc_components
-            _rc_components.html(f"""
-            <script>
-            (function() {{
-                var startX = null;
-
-                function getSlideEl() {{
-                    return window.parent.document.getElementById("recap-slide-content");
-                }}
-
-                function findBtn(text) {{
-                    var btns = window.parent.document.querySelectorAll("button");
-                    for (var b of btns) {{
-                        if (b.innerText.trim() === text && !b.disabled) return b;
-                    }}
-                    return null;
-                }}
-
-                function attachDots() {{
-                    var dotsEl = window.parent.document.getElementById("recap-dots");
-                    if (!dotsEl || dotsEl._dotsAdded) return;
-                    dotsEl._dotsAdded = true;
-                    dotsEl.addEventListener("click", function(e) {{
-                        var span = e.target.closest("span[data-slide]");
-                        if (!span) return;
-                        var target = parseInt(span.getAttribute("data-slide"));
-                        var current = {_slide_idx};
-                        if (target === current) return;
-                        var btn = findBtn(target > current ? "Next →" : "← Prev");
-                        if (btn) btn.click();
-                    }});
-                }}
-
-                function addSwipe(el) {{
-                    if (!el || el._swipeAdded) return;
-                    el._swipeAdded = true;
-
-                    el.addEventListener("touchstart", function(e) {{
-                        startX = e.touches[0].clientX;
-                        el.style.transition = "none";
-                    }}, {{passive: true}});
-
-                    el.addEventListener("touchmove", function(e) {{
-                        if (startX === null) return;
-                        var dx = e.touches[0].clientX - startX;
-                        el.style.transform = "translateX(" + (dx * 0.4) + "px)";
-                        el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 350));
-                    }}, {{passive: true}});
-
-                    el.addEventListener("touchend", function(e) {{
-                        if (startX === null) return;
-                        var dx = e.changedTouches[0].clientX - startX;
-                        startX = null;
-
-                        if (Math.abs(dx) < 50) {{
-                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
-                            el.style.transform = "translateX(0)";
-                            el.style.opacity = "1";
-                            return;
-                        }}
-
-                        // Click button FIRST, then animate out
-                        var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
-                        if (btn) {{
-                            btn.click();
-                            // Brief exit animation (Streamlit will replace the element anyway)
-                            el.style.transition = "transform 0.15s ease, opacity 0.15s ease";
-                            el.style.transform = "translateX(" + (dx < 0 ? -80 : 80) + "px)";
-                            el.style.opacity = "0.1";
-                        }} else {{
-                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
-                            el.style.transform = "translateX(0)";
-                            el.style.opacity = "1";
-                        }}
-                    }});
-                }}
-
-                function tryAttach() {{
-                    var el = getSlideEl();
-                    if (el) addSwipe(el);
-                    attachDots();
-                }}
-                tryAttach();
-                var obs = new MutationObserver(function() {{ tryAttach(); }});
-                obs.observe(window.parent.document.body, {{childList: true, subtree: true}});
-            }})();
-            </script>
-            """, height=0)
 
         elif _recap_sub == "mine":
             st.subheader("🪞 My Tournament Recap")
