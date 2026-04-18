@@ -2090,18 +2090,7 @@ try:
                 unsafe_allow_html=True
             )
 
-            # Check for dot navigation via query param
-            try:
-                _dot_nav = st.query_params.get("slide", "")
-                if _dot_nav != "":
-                    st.query_params.pop("slide", None)
-                    _target = int(_dot_nav)
-                    if 0 <= _target < _n_slides:
-                        st.session_state["recap_slide"] = _target
-                        st.rerun()
-            except Exception:
-                pass
-
+            # Dots
             _dot_html = "".join(
                 f'<span data-slide="{_di}" '
                 f'style="display:inline-block;width:10px;height:10px;border-radius:50%;background:{"#f5c518" if _di == _slide_idx else "#4b5563"};'
@@ -2132,79 +2121,100 @@ try:
                     st.rerun()
 
             import streamlit.components.v1 as _rc_components
-            _rc_components.html("""
+            _rc_components.html(f"""
             <script>
-            (function() {
+            (function() {{
                 var startX = null;
+                var committed = false;
 
-                function getSlideEl() {
+                function getSlideEl() {{
                     return window.parent.document.getElementById("recap-slide-content");
-                }
+                }}
 
-                function findBtn(text) {
+                function findBtn(text) {{
                     var btns = window.parent.document.querySelectorAll("button");
-                    for (var b of btns) {
+                    for (var b of btns) {{
                         if (b.innerText.trim() === text && !b.disabled) return b;
-                    }
+                    }}
                     return null;
-                }
+                }}
 
-                function attachDots() {
+                // Dots — click Prev/Next the right number of times
+                function attachDots() {{
                     var dotsEl = window.parent.document.getElementById("recap-dots");
                     if (!dotsEl || dotsEl._dotsAdded) return;
                     dotsEl._dotsAdded = true;
-                    dotsEl.addEventListener("click", function(e) {
+                    dotsEl.addEventListener("click", function(e) {{
                         var span = e.target.closest("span[data-slide]");
                         if (!span) return;
-                        var idx = parseInt(span.getAttribute("data-slide"));
-                        var url = new URL(window.parent.location.href);
-                        url.searchParams.set("slide", idx);
-                        window.parent.history.pushState({}, "", url.toString());
-                        window.parent.dispatchEvent(new PopStateEvent("popstate"));
-                    });
-                }
+                        var target = parseInt(span.getAttribute("data-slide"));
+                        var current = {_slide_idx};
+                        if (target === current) return;
+                        var steps = Math.abs(target - current);
+                        var btnText = target > current ? "Next →" : "← Prev";
+                        // Click synchronously in a loop — each click triggers rerun
+                        // so just click once; user can tap again if needed
+                        var btn = findBtn(btnText);
+                        if (btn) btn.click();
+                    }});
+                }}
 
-                function addSwipe(el) {
+                // Swipe
+                function addSwipe(el) {{
                     if (!el || el._swipeAdded) return;
                     el._swipeAdded = true;
 
-                    el.addEventListener("touchstart", function(e) {
+                    el.addEventListener("touchstart", function(e) {{
                         startX = e.touches[0].clientX;
+                        committed = false;
                         el.style.transition = "none";
-                    }, {passive: true});
+                    }}, {{passive: true}});
 
-                    el.addEventListener("touchmove", function(e) {
+                    el.addEventListener("touchmove", function(e) {{
                         if (startX === null) return;
                         var dx = e.touches[0].clientX - startX;
-                        el.style.transform = "translateX(" + (dx * 0.35) + "px)";
-                        el.style.opacity = String(Math.max(0.4, 1 - Math.abs(dx) / 500));
-                    }, {passive: true});
+                        el.style.transform = "translateX(" + (dx * 0.4) + "px)";
+                        el.style.opacity = String(Math.max(0.3, 1 - Math.abs(dx) / 350));
+                        if (!committed && Math.abs(dx) >= 50) {{
+                            committed = true;
+                        }}
+                    }}, {{passive: true}});
 
-                    el.addEventListener("touchend", function(e) {
+                    el.addEventListener("touchend", function(e) {{
                         if (startX === null) return;
                         var dx = e.changedTouches[0].clientX - startX;
                         startX = null;
 
-                        // Reset visual state immediately
-                        el.style.transform = "translateX(0)";
-                        el.style.opacity = "1";
+                        if (!committed) {{
+                            el.style.transition = "transform 0.2s ease, opacity 0.2s ease";
+                            el.style.transform = "translateX(0)";
+                            el.style.opacity = "1";
+                            return;
+                        }}
 
-                        if (Math.abs(dx) < 50) return;
+                        // Slide out in swipe direction, then click
+                        var dir = dx < 0 ? -1 : 1;
+                        var outX = dir * -window.parent.innerWidth * 0.6;
+                        el.style.transition = "transform 0.22s ease, opacity 0.22s ease";
+                        el.style.transform = "translateX(" + outX + "px)";
+                        el.style.opacity = "0";
 
-                        var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
-                        if (btn) btn.click();
-                    });
-                }
+                        setTimeout(function() {{
+                            var btn = dx < 0 ? findBtn("Next →") : findBtn("← Prev");
+                            if (btn) btn.click();
+                        }}, 200);
+                    }});
+                }}
 
-                function tryAttach() {
+                function tryAttach() {{
                     var el = getSlideEl();
                     if (el) addSwipe(el);
                     attachDots();
-                }
+                }}
                 tryAttach();
-                var obs = new MutationObserver(function() { tryAttach(); });
-                obs.observe(window.parent.document.body, {childList: true, subtree: true});
-            })();
+                var obs = new MutationObserver(function() {{ tryAttach(); }});
+                obs.observe(window.parent.document.body, {{childList: true, subtree: true}});
+            }})();
             </script>
             """, height=0)
 
