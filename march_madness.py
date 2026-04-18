@@ -1662,6 +1662,7 @@ try:
     # ── Grouped tab navigation ────────────────────────────────────────────────
     # Map old slugs to new group + subpage
     SLUG_TO_GROUP = {
+        "recap":           ("recap", None),
         "standings":       ("standings", None),
         "bracket":         ("your-bracket", "bracket"),
         "win-conditions":  ("your-bracket", "win-conditions"),
@@ -1702,7 +1703,7 @@ try:
 
     # Set session state defaults
     if "nav_group" not in st.session_state:
-        st.session_state["nav_group"] = group
+        st.session_state["nav_group"] = "recap"
     if "nav_sub_your-bracket" not in st.session_state:
         st.session_state["nav_sub_your-bracket"] = "bracket"
     if "nav_sub_fun-stats" not in st.session_state:
@@ -1711,12 +1712,13 @@ try:
         st.session_state["nav_sub_bonus"] = "lucky-team"
 
     GROUP_TAB_INDEX = {
-        "standings":       0,
-        "your-bracket":    1,
-        "scores":          2,
-        "bonus":           3,
-        "fun-stats":       4,
-        "hall-of-champs":  5,
+        "recap":           0,
+        "standings":       1,
+        "your-bracket":    2,
+        "scores":          3,
+        "bonus":           4,
+        "fun-stats":       5,
+        "hall-of-champs":  6,
     }
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
@@ -1742,8 +1744,8 @@ try:
         # Keep ?tab= in the URL so it can be bookmarked/shared
 
     # Top-level tabs
-    tab_standings, tab_bracket, tab_scores, tab_bonus, tab_fun, tab_hoc = st.tabs([
-        "🏆 Standings", "🗂️ Your Bracket", "📺 Schedule/Scores", "🎲 Bonus Games", "🎉 Fun Stats", "👑 Hall of Champions",
+    tab_recap, tab_standings, tab_bracket, tab_scores, tab_bonus, tab_fun, tab_hoc = st.tabs([
+        "🎊 Pool Recap", "🏆 Standings", "🗂️ Your Bracket", "📺 Schedule/Scores", "🎲 Bonus Games", "🎉 Fun Stats", "👑 Hall of Champions",
     ])
 
     import streamlit.components.v1 as _components
@@ -1772,6 +1774,447 @@ try:
             </script>""",
             height=1,
         )
+
+
+    # ── Tab 0: Pool Recap ─────────────────────────────────────────────────────
+    with tab_recap:
+        _recap_sub = st.session_state.get("nav_sub_recap", "highlights")
+        _rc1, _rc2 = st.columns(2)
+        if _rc1.button("🏆 Pool Highlights", key="recap_highlights", use_container_width=True,
+                        type="primary" if _recap_sub == "highlights" else "secondary"):
+            st.session_state["nav_sub_recap"] = "highlights"
+            st.rerun()
+        if _rc2.button("🪞 My Recap", key="recap_mine", use_container_width=True,
+                        type="primary" if _recap_sub == "mine" else "secondary"):
+            st.session_state["nav_sub_recap"] = "mine"
+            st.rerun()
+        st.divider()
+        _recap_sub = st.session_state.get("nav_sub_recap", "highlights")
+
+        def _recap_card(icon, label, value, sub="", c1="#1e1e2e", c2="#313244", extra_html=""):
+            return (
+                f'<div style="background:linear-gradient(135deg,{c1},{c2});border-radius:16px;padding:20px 18px;margin-bottom:12px;text-align:center;">' +
+                f'<div style="font-size:26px;margin-bottom:6px;">{icon}</div>' +
+                f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">{label}</div>' +
+                f'<div style="font-size:20px;font-weight:800;color:#fff;line-height:1.2;">{value}</div>' +
+                (f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">{sub}</div>' if sub else "") +
+                (f'<div style="margin-top:8px;display:flex;flex-wrap:wrap;justify-content:center;gap:2px;">{extra_html}</div>' if extra_html else "") +
+                '</div>'
+            )
+
+        if _recap_sub == "highlights":
+            st.subheader("🎊 2026 Pool Highlights")
+
+            _top3 = final_df.head(3)
+            _champ_name  = _top3.iloc[0]["Name"]  if len(_top3) > 0 else "—"
+            _champ_score = int(_top3.iloc[0]["Current Score"]) if len(_top3) > 0 else 0
+            _2nd_name    = _top3.iloc[1]["Name"]  if len(_top3) > 1 else "—"
+            _2nd_score   = int(_top3.iloc[1]["Current Score"]) if len(_top3) > 1 else 0
+            _3rd_name    = _top3.iloc[2]["Name"]  if len(_top3) > 2 else "—"
+            _3rd_score   = int(_top3.iloc[2]["Current Score"]) if len(_top3) > 2 else 0
+
+            _tb_winner, _tb_diff_val, _tb_guess_val = "—", None, None
+            _tb_2nd_name, _tb_2nd_diff, _tb_2nd_guess = "—", None, None
+            if final_score and tiebreaker_guesses:
+                _tb_sorted = sorted(tiebreaker_guesses.items(), key=lambda x: abs(x[1] - final_score))
+                _tb_winner = _tb_sorted[0][0]
+                _tb_guess_val = _tb_sorted[0][1]
+                _tb_diff_val = _tb_guess_val - final_score
+                if len(_tb_sorted) > 1:
+                    _tb_2nd_name  = _tb_sorted[1][0]
+                    _tb_2nd_guess = _tb_sorted[1][1]
+                    _tb_2nd_diff  = _tb_2nd_guess - final_score
+
+            _bp_df2 = final_df[final_df["Bonus Pool"] == True].copy() if "Bonus Pool" in final_df.columns else pd.DataFrame()
+            _bp_winner = _bp_df2.iloc[0]["Name"] if not _bp_df2.empty else "—"
+            _bp_score2  = int(_bp_df2.iloc[0]["Current Score"]) if not _bp_df2.empty else 0
+            _bp_2nd_name  = _bp_df2.iloc[1]["Name"] if len(_bp_df2) > 1 else "—"
+            _bp_2nd_score = int(_bp_df2.iloc[1]["Current Score"]) if len(_bp_df2) > 1 else 0
+
+            _upset_sorted2 = sorted(results, key=lambda r: r.get("Upset Correct", 0), reverse=True)
+            _upset_count2 = _upset_sorted2[0].get("Upset Correct", 0) if _upset_sorted2 else 0
+            _upset_winners2 = [r["Name"] for r in _upset_sorted2 if r.get("Upset Correct", 0) == _upset_count2]
+            _upset_teams_map = {}
+            for r in _upset_sorted2:
+                if r["Name"] in _upset_winners2:
+                    _pk = r["raw_picks"]
+                    _uts = []
+                    for c in range(3, 66):
+                        if c < len(_pk) and _pk[c] == actual_winners[c] and not is_unplayed(actual_winners[c]):
+                            _w2 = _pk[c]; _ws2 = seed_map.get(_w2, 0)
+                            _lo2 = slot_loser_map.get(c, ""); _ls2 = seed_map.get(_lo2, 0)
+                            if _ws2 > 0 and _ls2 > 0 and (_ws2 - _ls2) >= 3:
+                                _uts.append(_w2)
+                    _upset_teams_map[r["Name"]] = list(dict.fromkeys(_uts))
+
+            _correct_sorted2 = sorted(results, key=lambda r: sum(
+                1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
+            ), reverse=True)
+            _correct_count2 = sum(1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and _correct_sorted2[0]["raw_picks"][c] == actual_winners[c]) if _correct_sorted2 else 0
+            _correct_winners2 = [r["Name"] for r in _correct_sorted2 if sum(
+                1 for c in range(3, 66) if not is_unplayed(actual_winners[c]) and r["raw_picks"][c] == actual_winners[c]
+            ) == _correct_count2]
+
+            def _wknd_pts2(r, col_end):
+                _pk = r["raw_picks"]
+                return sum(points_per_game[c] + seed_map.get(_pk[c], 0) for c in range(3, col_end)
+                           if not is_unplayed(actual_winners[c]) and _pk[c] == actual_winners[c])
+            _fw_sorted2 = sorted(results, key=lambda r: _wknd_pts2(r, 51), reverse=True)
+            _fw_winner2 = _fw_sorted2[0]["Name"] if _fw_sorted2 else "—"
+            _fw_score2  = _wknd_pts2(_fw_sorted2[0], 51) if _fw_sorted2 else 0
+            _sw_sorted2 = sorted(results, key=lambda r: _wknd_pts2(r, 63), reverse=True)
+            _sw_winner2 = _sw_sorted2[0]["Name"] if _sw_sorted2 else "—"
+            _sw_score2  = _wknd_pts2(_sw_sorted2[0], 63) if _sw_sorted2 else 0
+
+            _region_ff_team = {}
+            for _ec in range(59, 63):
+                _ew = actual_winners[_ec] if _ec < len(actual_winners) and not is_unplayed(actual_winners[_ec]) else None
+                if _ew:
+                    _er = slot_to_region.get(_ec, "")
+                    if _er:
+                        _region_ff_team[_er] = _ew
+
+            _reg_tied_winners = {}
+            for _reg2 in ["East", "West", "South", "Midwest"]:
+                _rgs = sorted(results, key=lambda r: r.get(f"{_reg2} Score", 0), reverse=True)
+                if _rgs:
+                    _top_score = _rgs[0].get(f"{_reg2} Score", 0)
+                    _tied = [r["Name"] for r in _rgs if r.get(f"{_reg2} Score", 0) == _top_score]
+                    _reg_tied_winners[_reg2] = (_tied, int(_top_score))
+
+            _tc = actual_winners[65] if len(actual_winners) > 65 and not is_unplayed(actual_winners[65]) else "TBD"
+            _tc_seed = seed_map.get(_tc, 0)
+            _tc_logo = espn_logo_url(_tc) or ""
+            _tc_logo_html = (f'<img src="{_tc_logo}" style="width:44px;height:44px;object-fit:contain;vertical-align:middle;margin-right:10px;" onerror="this.style.display:none">') if _tc_logo else ""
+            _lw = [p for t, ps in lucky_map.items() for p in ps if t == _tc]
+
+            def _join_names(names):
+                if len(names) == 1: return names[0]
+                return ", ".join(names[:-1]) + ", and " + names[-1]
+
+            def _hl(name):
+                if user_name and name == user_name:
+                    return f'<span style="color:#f5c518;font-weight:900;">{name}</span>'
+                return name
+
+            def _hl_names(names):
+                highlighted = [_hl(n) for n in names]
+                if len(highlighted) == 1: return highlighted[0]
+                return ", ".join(highlighted[:-1]) + ", and " + highlighted[-1]
+
+            def _img(team, size=22):
+                u = espn_logo_url(team) or ""
+                return f'<img src="{u}" title="{team}" style="width:{size}px;height:{size}px;object-fit:contain;" onerror="this.style.display:none">' if u else ""
+
+            # ── Build slide HTML list ─────────────────────────────────────────
+            _slides = []
+
+            # Slide 1: Tournament + Pool champion
+            _s1 = (
+                f'<div style="text-align:center;">' +
+                f'<div style="background:linear-gradient(135deg,#1a1a2e,#0f3460);border-radius:16px;padding:20px;margin-bottom:12px;">' +
+                f'<div style="font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">2026 Tournament Champion</div>' +
+                f'<div style="display:flex;align-items:center;justify-content:center;">{_tc_logo_html}<span style="font-size:24px;font-weight:900;color:#f5c518;">({_tc_seed}) {_tc}</span></div>' +
+                f'</div>' +
+                f'<div style="background:linear-gradient(135deg,#78350f,#b45309);border-radius:16px;padding:20px;">' +
+                f'<div style="font-size:32px;">🏆</div>' +
+                f'<div style="font-size:11px;color:#fde68a;letter-spacing:2px;text-transform:uppercase;margin:4px 0;">Pool Champion</div>' +
+                f'<div style="font-size:28px;font-weight:900;color:#fff;">{_hl(_champ_name)}</div>' +
+                f'<div style="font-size:15px;color:#fde68a;">{_champ_score} pts</div>' +
+                f'</div></div>'
+            )
+            _slides.append(("🏆 Pool Champion", _s1))
+
+            # Slide 2: 2nd & 3rd place
+            _s2 = (
+                f'<div style="display:flex;flex-direction:column;gap:12px;text-align:center;">' +
+                f'<div style="background:#374151;border-radius:14px;padding:18px;"><div style="font-size:28px;">🥈</div><div style="font-size:10px;color:#9ca3af;text-transform:uppercase;margin:4px 0;">2nd Place</div><div style="font-size:20px;font-weight:800;color:#e5e7eb;">{_hl(_2nd_name)}</div><div style="font-size:13px;color:#9ca3af;">{_2nd_score} pts</div></div>' +
+                f'<div style="background:#374151;border-radius:14px;padding:18px;"><div style="font-size:28px;">🥉</div><div style="font-size:10px;color:#9ca3af;text-transform:uppercase;margin:4px 0;">3rd Place</div><div style="font-size:20px;font-weight:800;color:#e5e7eb;">{_hl(_3rd_name)}</div><div style="font-size:13px;color:#9ca3af;">{_3rd_score} pts</div></div>' +
+                f'</div>'
+            )
+            _slides.append(("🥈 2nd & 3rd Place", _s2))
+
+            # Slide 3: Lucky Team
+            if _lw:
+                _lt_logo_url = espn_logo_url(_tc) or ""
+                _lt_logo = _img(_tc, 32)
+                _s3 = (
+                    f'<div style="background:linear-gradient(135deg,#14532d,#166534);border-radius:16px;padding:24px;text-align:center;">' +
+                    f'<div style="font-size:32px;margin-bottom:6px;">🍀</div>' +
+                    f'<div style="font-size:11px;color:#86efac;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Lucky Team Winner</div>' +
+                    f'<div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">{_hl_names(_lw)}</div>' +
+                    f'<div style="font-size:12px;color:#86efac;margin-top:6px;">Lucky Team: ({_tc_seed}) {_tc}</div>' +
+                    f'<div style="margin-top:10px;display:flex;justify-content:center;">{_lt_logo}</div>' +
+                    f'</div>'
+                )
+                _slides.append(("🍀 Lucky Team", _s3))
+
+            # Slide 4: Upset Queens & Kings
+            _upset_names_str = _hl_names(_upset_winners2)
+            _per_player_logos = ""
+            for _un in _upset_winners2:
+                _uteams = _upset_teams_map.get(_un, [])
+                _u_logos = "".join(_img(_ut) for _ut in _uteams if espn_logo_url(_ut))
+                if _u_logos:
+                    _per_player_logos += f'<div style="margin-top:8px;text-align:center;"><span style="font-size:11px;color:#d8b4fe;">{_un.split()[0]}:</span> <span style="display:inline-flex;flex-wrap:wrap;justify-content:center;gap:2px;">{_u_logos}</span></div>'
+            _s4 = (
+                f'<div style="background:linear-gradient(135deg,#4a1942,#6b21a8);border-radius:16px;padding:24px;text-align:center;">' +
+                f'<div style="font-size:32px;margin-bottom:6px;">😤</div>' +
+                f'<div style="font-size:11px;color:#d8b4fe;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Upset Queens &amp; Kings</div>' +
+                f'<div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">{_upset_names_str}</div>' +
+                f'<div style="font-size:12px;color:#d8b4fe;margin-top:4px;">{_upset_count2} correct upset picks</div>' +
+                _per_player_logos +
+                f'</div>'
+            )
+            _slides.append(("😤 Upset Queens & Kings", _s4))
+
+            # Slide 5: Most Correct Picks
+            _s5 = (
+                f'<div style="background:linear-gradient(135deg,#14532d,#166534);border-radius:16px;padding:24px;text-align:center;">' +
+                f'<div style="font-size:32px;margin-bottom:6px;">✅</div>' +
+                f'<div style="font-size:11px;color:#86efac;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Most Correct Picks</div>' +
+                f'<div style="font-size:22px;font-weight:800;color:#fff;line-height:1.2;">{_hl_names(_correct_winners2)}</div>' +
+                f'<div style="font-size:12px;color:#86efac;margin-top:4px;">{_correct_count2} correct picks</div>' +
+                f'</div>'
+            )
+            _slides.append(("✅ Most Correct Picks", _s5))
+
+            # Slide 6: Tiebreaker — winner + grouped by proximity
+            _tb_sub = f'Guessed {_tb_guess_val} · {"+" if _tb_diff_val and _tb_diff_val >= 0 else ""}{_tb_diff_val if _tb_diff_val is not None else "—"} off' if _tb_winner != "—" else ""
+
+            # Group all guessers by absolute distance from final score
+            _tb_groups = {}  # abs_diff -> list of (name, signed_diff, guess)
+            if final_score and tiebreaker_guesses:
+                for _tbn, _tbg in tiebreaker_guesses.items():
+                    _abd = abs(_tbg - final_score)
+                    _snd = _tbg - final_score
+                    _tb_groups.setdefault(_abd, []).append((_tbn, _snd, _tbg))
+
+            _winner_abs = abs(_tb_diff_val) if _tb_diff_val is not None else None
+
+            def _tb_sign_str(signed_diff):
+                if signed_diff is None: return ""
+                if signed_diff == 0: return "Exactly Correct! 🎯"
+                p = "+" if signed_diff > 0 else ""
+                return f'{p}{signed_diff} off'
+
+            _s6_parts = ['<div style="display:flex;flex-direction:column;gap:10px;text-align:center;">']
+
+            # Winner pill — large, green
+            _s6_parts.append(
+                f'<div style="background:linear-gradient(135deg,#064e3b,#065f46);border-radius:16px;padding:22px;">'
+                f'<div style="font-size:28px;margin-bottom:4px;">🎯</div>'
+                f'<div style="font-size:11px;color:#6ee7b7;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Tiebreaker Champion</div>'
+                f'<div style="font-size:28px;font-weight:900;color:#fff;">{_hl(_tb_winner)}</div>'
+                + (f'<div style="font-size:14px;color:#6ee7b7;margin-top:5px;">Guessed {_tb_guess_val} · {_tb_sign_str(_tb_diff_val)}</div>' if _tb_guess_val else "") +
+                f'</div>'
+            )
+
+            # Proximity pills — grey, just distance label + names + guesses
+            _prox_labels = {1: "1 point off", 2: "2 points off", 3: "3 points off"}
+            for _d in [1, 2, 3]:
+                if _winner_abs is not None and _d == _winner_abs:
+                    continue
+                _group = _tb_groups.get(_d, [])
+                if not _group:
+                    continue
+                _names_in_group = _hl_names([g[0] for g in _group])
+                _guesses_str = ", ".join(f'{_hl(g[0].split()[0])}: {g[2]}' for g in _group)
+                _s6_parts.append(
+                    f'<div style="background:linear-gradient(135deg,#1f2937,#374151);border-radius:14px;padding:14px;">'
+                    f'<div style="font-size:10px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">{_prox_labels[_d]}</div>'
+                    f'<div style="font-size:16px;font-weight:700;color:#e5e7eb;">{_names_in_group}</div>'
+                    f'<div style="font-size:11px;color:#9ca3af;margin-top:3px;">{_guesses_str}</div>'
+                    f'</div>'
+                )
+
+            _s6_parts.append('</div>')
+            _s6 = "".join(_s6_parts)
+            _slides.append(("🎯 Tiebreaker", _s6))
+
+            # Slide 7: Weekend Leaders
+            _s7 = (
+                f'<div style="display:flex;flex-direction:column;gap:12px;text-align:center;">' +
+                f'<div style="background:linear-gradient(135deg,#0c4a6e,#075985);border-radius:14px;padding:18px;"><div style="font-size:28px;">♓</div><div style="font-size:10px;color:#7dd3fc;text-transform:uppercase;margin:4px 0;">1st Weekend Leader</div><div style="font-size:20px;font-weight:800;color:#fff;">{_hl(_fw_winner2)}</div><div style="font-size:12px;color:#7dd3fc;">{_fw_score2} pts through R2</div></div>' +
+                f'<div style="background:linear-gradient(135deg,#0f172a,#1e3a5f);border-radius:14px;padding:18px;"><div style="font-size:28px;">♈</div><div style="font-size:10px;color:#93c5fd;text-transform:uppercase;margin:4px 0;">2nd Weekend Leader</div><div style="font-size:20px;font-weight:800;color:#fff;">{_hl(_sw_winner2)}</div><div style="font-size:12px;color:#93c5fd;">{_sw_score2} pts through E8</div></div>' +
+                f'</div>'
+            )
+            _slides.append(("♓♈ Weekend Leaders", _s7))
+
+            # Slide 8: Regional Champions
+            _reg_html = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:center;">'
+            for _rreg in ["East", "West", "South", "Midwest"]:
+                _tied_names, _rrscore = _reg_tied_winners.get(_rreg, (["—"], 0))
+                _rr_ff = _region_ff_team.get(_rreg, "")
+                _rr_logo_html = _img(_rr_ff, 32) if _rr_ff else '<div style="font-size:22px;">🏅</div>'
+                _reg_html += (
+                    f'<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:12px;padding:12px;">' +
+                    _rr_logo_html +
+                    f'<div style="font-size:9px;color:#9ca3af;text-transform:uppercase;margin:4px 0 2px;">{_rreg}</div>' +
+                    f'<div style="font-size:12px;font-weight:800;color:#fff;line-height:1.3;">{_join_names(_tied_names)}</div>' +
+                    f'<div style="font-size:11px;color:#9ca3af;">{_rrscore} pts</div>' +
+                    '</div>'
+                )
+            _reg_html += '</div>'
+            _slides.append(("🗺️ Regional Champions", _reg_html))
+
+            # Slide 9: Bonus Pool
+            _s9 = (
+                f'<div style="display:flex;flex-direction:column;gap:12px;text-align:center;">' +
+                f'<div style="font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">💰 Bonus Pool</div>' +
+                f'<div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:14px;padding:18px;"><div style="font-size:28px;">🏆</div><div style="font-size:10px;color:#a5b4fc;text-transform:uppercase;margin:4px 0;">1st Place</div><div style="font-size:20px;font-weight:800;color:#fff;">{_hl(_bp_winner)}</div><div style="font-size:12px;color:#a5b4fc;">{_bp_score2} pts</div></div>' +
+                f'<div style="background:linear-gradient(135deg,#1e1b4b,#312e81);border-radius:14px;padding:18px;"><div style="font-size:28px;">🥈</div><div style="font-size:10px;color:#a5b4fc;text-transform:uppercase;margin:4px 0;">2nd Place</div><div style="font-size:20px;font-weight:800;color:#e5e7eb;">{_hl(_bp_2nd_name)}</div><div style="font-size:12px;color:#a5b4fc;">{_bp_2nd_score} pts</div></div>' +
+                f'</div>'
+            )
+            _slides.append(("💰 Bonus Pool", _s9))
+
+            # ── Slideshow navigation ──────────────────────────────────────────
+            _n_slides = len(_slides)
+            if "recap_slide" not in st.session_state:
+                st.session_state["recap_slide"] = 0
+            _slide_idx = st.session_state["recap_slide"] % _n_slides
+
+            _slide_title, _slide_html = _slides[_slide_idx]
+
+            st.markdown(
+                f'<div style="text-align:center;margin-bottom:8px;">' +
+                f'<span style="font-size:13px;color:#9ca3af;font-weight:600;">{_slide_title}</span><br>' +
+                f'<span style="font-size:11px;color:#6b7280;">{_slide_idx + 1} / {_n_slides}</span>' +
+                f'</div>',
+                unsafe_allow_html=True
+            )
+
+            # Slide content
+            st.markdown(
+                f'<div id="recap-slide-content" style="min-height:280px;">{_slide_html}</div>',
+                unsafe_allow_html=True
+            )
+
+            # Dots — clickable via hidden st.buttons + JS
+            _dot_cols = st.columns(_n_slides)
+            for _di in range(_n_slides):
+                with _dot_cols[_di]:
+                    _dot_active = _di == _slide_idx
+                    if st.button(
+                        "●" if _dot_active else "○",
+                        key=f"recap_dot_{_di}",
+                        use_container_width=True,
+                        type="primary" if _dot_active else "secondary",
+                        help=_slides[_di][0],
+                    ):
+                        st.session_state["recap_slide"] = _di
+                        st.rerun()
+
+            # Prev / Next buttons
+            _btn_prev, _btn_mid, _btn_next = st.columns([1, 2, 1])
+            with _btn_prev:
+                if st.button("← Prev", key="recap_prev", use_container_width=True,
+                             disabled=_slide_idx == 0):
+                    st.session_state["recap_slide"] = _slide_idx - 1
+                    st.rerun()
+            with _btn_mid:
+                st.markdown(
+                    f'<div style="text-align:center;padding-top:6px;font-size:12px;color:#6b7280;">{_slide_idx+1} of {_n_slides}</div>',
+                    unsafe_allow_html=True
+                )
+            with _btn_next:
+                if st.button("Next →", key="recap_next", use_container_width=True,
+                             disabled=_slide_idx == _n_slides - 1):
+                    st.session_state["recap_slide"] = _slide_idx + 1
+                    st.rerun()
+
+            # Swipe support via JS
+            import streamlit.components.v1 as _rc_components
+            _rc_components.html("""
+            <script>
+            (function() {
+                var startX = null;
+                var threshold = 50;
+                function findSlideEl() {
+                    return window.parent.document.getElementById("recap-slide-content");
+                }
+                function addSwipe(el) {
+                    if (!el || el._swipeAdded) return;
+                    el._swipeAdded = true;
+                    el.addEventListener("touchstart", function(e) { startX = e.touches[0].clientX; }, {passive:true});
+                    el.addEventListener("touchend", function(e) {
+                        if (startX === null) return;
+                        var dx = e.changedTouches[0].clientX - startX;
+                        startX = null;
+                        if (Math.abs(dx) < threshold) return;
+                        // Find Prev/Next buttons in parent
+                        var btns = window.parent.document.querySelectorAll("button");
+                        for (var b of btns) {
+                            var txt = b.innerText.trim();
+                            if (dx < 0 && txt === "Next →" && !b.disabled) { b.click(); break; }
+                            if (dx > 0 && txt === "← Prev" && !b.disabled) { b.click(); break; }
+                        }
+                    });
+                }
+                function tryAttach() {
+                    var el = findSlideEl();
+                    if (el) addSwipe(el);
+                    else setTimeout(tryAttach, 300);
+                }
+                tryAttach();
+            })();
+            </script>
+            """, height=0)
+
+        elif _recap_sub == "mine":
+            st.subheader("🪞 My Tournament Recap")
+            _mn = st.selectbox("Select your name", ["— select —"] + name_opts, key="recap_my_name",
+                index=(name_opts.index(user_name) + 1) if user_name and user_name in name_opts else 0)
+            if _mn != "— select —":
+                _mr_df = final_df[final_df["Name"] == _mn]
+                _mr = next((r for r in results if r["Name"] == _mn), None)
+                if not _mr_df.empty and _mr:
+                    _mr_row = _mr_df.iloc[0]
+                    _mr_rank = int(_mr_row["Current Rank"])
+                    _mr_score = int(_mr_row["Current Score"])
+                    _mr_picks = _mr["raw_picks"]
+                    _ps = len(results)
+                    _pct = round(((_ps - _mr_rank) / _ps) * 100)
+                    _mrcp = _mr_picks[65] if len(_mr_picks) > 65 and _mr_picks[65] not in {"","nan","TBD"} else "—"
+                    _cc = (_mrcp == actual_winners[65]) if not is_unplayed(actual_winners[65]) else False
+                    _rpts = {}
+                    for _rn, _rs, _re in [("R1",3,35),("R2",35,51),("S16",51,59),("E8",59,63),("FF",63,65),("🏆",65,66)]:
+                        _rpts[_rn] = sum(points_per_game[c]+seed_map.get(_mr_picks[c],0) for c in range(_rs,_re) if c<len(_mr_picks) and _mr_picks[c]==actual_winners[c] and not is_unplayed(actual_winners[c]))
+                    _cpl = [{"team":_mr_picks[c],"count":slot_pick_counts.get(c,{}).get(_mr_picks[c],0)} for c in range(3,66) if c<len(_mr_picks) and _mr_picks[c]==actual_winners[c] and not is_unplayed(actual_winners[c])]
+                    _rarest2 = min(_cpl, key=lambda x: x["count"]) if _cpl else None
+                    _upl = []
+                    for c in range(3,66):
+                        if c<len(_mr_picks) and _mr_picks[c]==actual_winners[c] and not is_unplayed(actual_winners[c]):
+                            _w2=_mr_picks[c]; _ws2=seed_map.get(_w2,0); _lo2=slot_loser_map.get(c,""); _ls2=seed_map.get(_lo2,0)
+                            if _ws2>0 and _ls2>0 and (_ws2-_ls2)>=3:
+                                _upl.append({"team":_w2,"seed":_ws2,"loser":_lo2,"loser_seed":_ls2,"diff":_ws2-_ls2})
+                    _bu2 = max(_upl, key=lambda x: x["diff"]) if _upl else None
+                    _mtb = tiebreaker_guesses.get(_mn)
+                    _mtbd = (_mtb - final_score) if _mtb and final_score else None
+
+                    _rb_bg = "linear-gradient(135deg,#78350f,#b45309)" if _mr_rank==1 else "linear-gradient(135deg,#1e1e2e,#374151)"
+                    _rbc = "#f5c518" if _mr_rank==1 else "#fff"
+                    st.markdown(f'<div style="background:{_rb_bg};border-radius:20px;padding:22px;text-align:center;margin-bottom:12px;"><div style="font-size:11px;color:#9ca3af;letter-spacing:2px;text-transform:uppercase;">Final Standing</div><div style="font-size:48px;font-weight:900;color:{_rbc};line-height:1;">#{_mr_rank}</div><div style="font-size:14px;color:#9ca3af;">out of {_ps} · {_mr_score} pts · top {100-_pct}%</div></div>', unsafe_allow_html=True)
+                    _cpbg = "#14532d" if _cc else "#450a0a"
+                    _cpi = "🎉" if _cc else "😔"
+                    _cpm = f"You called it! {_mrcp} won it all!" if _cc else f"You picked {_mrcp} — they fell short."
+                    _cpl_url = espn_logo_url(_mrcp) or "" if _mrcp != "—" else ""
+                    _cpl_img = f'<img src="{_cpl_url}" style="width:28px;height:28px;object-fit:contain;vertical-align:middle;margin-right:8px;" onerror="this.style.display:none">' if _cpl_url else ""
+                    st.markdown(f'<div style="background:{_cpbg};border-radius:16px;padding:15px;margin-bottom:10px;"><div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:5px;">{_cpi} Championship Pick</div><div style="display:flex;align-items:center;">{_cpl_img}<span style="font-size:17px;font-weight:700;color:#fff;">{_mrcp}</span></div><div style="font-size:12px;color:#9ca3af;margin-top:4px;">{_cpm}</div></div>', unsafe_allow_html=True)
+                    st.markdown('<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:15px;margin-bottom:10px;"><div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:8px;">📊 Points by Round</div><div style="display:flex;flex-wrap:wrap;gap:5px;">' + "".join(f'<div style="flex:1;min-width:44px;background:#374151;border-radius:9px;padding:8px 4px;text-align:center;"><div style="font-size:10px;color:#9ca3af;">{_rn}</div><div style="font-size:16px;font-weight:800;color:#f5c518;">{_rpts[_rn]}</div></div>' for _rn in ["R1","R2","S16","E8","FF","🏆"]) + '</div></div>', unsafe_allow_html=True)
+                    if _rarest2:
+                        _ru = espn_logo_url(_rarest2["team"]) or ""
+                        _ri2 = f'<img src="{_ru}" style="width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:7px;" onerror="this.style.display:none">' if _ru else ""
+                        st.markdown(f'<div style="background:linear-gradient(135deg,#0c4a6e,#0369a1);border-radius:16px;padding:15px;margin-bottom:10px;"><div style="font-size:11px;color:#7dd3fc;text-transform:uppercase;margin-bottom:5px;">🤫 Rarest Correct Pick</div><div style="display:flex;align-items:center;">{_ri2}<span style="font-size:16px;font-weight:700;color:#fff;">{_rarest2["team"]}</span></div><div style="font-size:12px;color:#7dd3fc;margin-top:3px;">Only {_rarest2["count"]} of {_ps} people had this</div></div>', unsafe_allow_html=True)
+                    if _bu2:
+                        _bu2u = espn_logo_url(_bu2["team"]) or ""
+                        _bu2i = f'<img src="{_bu2u}" style="width:24px;height:24px;object-fit:contain;vertical-align:middle;margin-right:7px;" onerror="this.style.display:none">' if _bu2u else ""
+                        st.markdown(f'<div style="background:linear-gradient(135deg,#4a1942,#7c3aed);border-radius:16px;padding:15px;margin-bottom:10px;"><div style="font-size:11px;color:#d8b4fe;text-transform:uppercase;margin-bottom:5px;">😤 Biggest Upset Called</div><div style="display:flex;align-items:center;">{_bu2i}<span style="font-size:16px;font-weight:700;color:#fff;">({_bu2["seed"]}) {_bu2["team"]}</span></div><div style="font-size:12px;color:#d8b4fe;margin-top:3px;">def. ({_bu2["loser_seed"]}) {_bu2["loser"]} · {_bu2["diff"]}-seed upset</div></div>', unsafe_allow_html=True)
+                    if _mtb and final_score:
+                        _ts2 = "+" if _mtbd >= 0 else ""
+                        _tb_bg2 = "#14532d" if abs(_mtbd) <= 3 else "#1e1e2e"
+                        st.markdown(f'<div style="background:{_tb_bg2};border:1px solid #374151;border-radius:16px;padding:15px;margin-bottom:10px;"><div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:5px;">🎯 Tiebreaker Guess</div><div style="font-size:20px;font-weight:800;color:#fff;">{_mtb}</div><div style="font-size:12px;color:#9ca3af;margin-top:3px;">Final score was {final_score} · {_ts2}{_mtbd} off</div></div>', unsafe_allow_html=True)
+                    st.markdown('<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:15px;"><div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:8px;">🗺️ Regional Breakdown</div><div style="display:flex;flex-wrap:wrap;gap:5px;">' + "".join(f'<div style="flex:1;min-width:66px;background:#374151;border-radius:9px;padding:9px;text-align:center;"><div style="font-size:10px;color:#9ca3af;">{_reg}</div><div style="font-size:16px;font-weight:800;color:#4fc3f7;">{int(_mr.get(f"{_reg} Score",0))}</div></div>' for _reg in ["East","West","South","Midwest"]) + '</div></div>', unsafe_allow_html=True)
 
     # ── Tab 1: Standings ──────────────────────────────────────────────────────
     with tab_standings:
