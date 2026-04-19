@@ -1899,6 +1899,8 @@ try:
                         "ff_show_standings_progress": True,
                         "ff_show_pool_recap": True,
                         "ff_show_hoops_pool": True,
+                        "ff_show_potential_standings": True,
+                        "ff_show_still_alive": True,
                     }
                     _ff_labels = {
                         "ff_show_win_conditions": "🔍 Win Conditions tab",
@@ -1907,6 +1909,8 @@ try:
                         "ff_show_standings_progress": "📈 Standings Progress tab",
                         "ff_show_pool_recap": "🎊 Pool Recap tab",
                         "ff_show_hoops_pool": "🏀 Hoops, She Did It Again section",
+                        "ff_show_potential_standings": "🔮 Potential Standings tab",
+                        "ff_show_still_alive": "💚 Still Alive tab",
                     }
                     for _ffk, _ffd in _ff_defaults.items():
                         _cur_val = st.session_state.get(_ffk, _ffd)
@@ -2089,6 +2093,8 @@ token_uri = "https://oauth2.googleapis.com/token"
     _ff_standings_progress = st.session_state.get("ff_show_standings_progress", True)
     _ff_pool_recap         = st.session_state.get("ff_show_pool_recap", True)
     _ff_hoops_pool         = st.session_state.get("ff_show_hoops_pool", True)
+    _ff_potential          = st.session_state.get("ff_show_potential_standings", True)
+    _ff_still_alive        = st.session_state.get("ff_show_still_alive", True)
 
 
     if user_name:
@@ -2175,24 +2181,24 @@ token_uri = "https://oauth2.googleapis.com/token"
         "scores":          6,
     }
 
-    # ── Navigation tracking (runs after nav_group is set) ────────────────────
-    if st.session_state.get("modal_done"):
-        _tab_labels = {
-            "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-            "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-            "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats", "scores": "📺 Schedule/Scores",
-        }
-        _nav_now  = st.session_state.get("nav_group", "recap")
-        _sub_now  = (
-            st.session_state.get(f"nav_sub_{_nav_now}", "") or
-            st.session_state.get("nav_sub_recap", "") if _nav_now == "recap" else ""
-        )
-        _nav_key  = f"{_nav_now}/{_sub_now}" if _sub_now else _nav_now
-        _prev_key = st.session_state.get("_last_logged_nav", "")
-        if _nav_key != _prev_key:
-            _tab_label = _tab_labels.get(_nav_now, _nav_now)
-            _detail = f"{_tab_label} › {_sub_now}" if _sub_now else _tab_label
-            _log_event("navigate", _detail, user_name or "anonymous")
+    # ── Navigation tracking ───────────────────────────────────────────────────
+    # st.tabs() doesn't trigger a Python rerun on click, so we can't detect
+    # tab switches directly. Instead we log on the next rerun that happens
+    # inside a tab (sub-nav click, selectbox, button, etc.) using a helper
+    # that fires whenever the active tab/sub-page combination changes.
+    def _track_nav(tab_name, sub_name=""):
+        """Call at the top of each tab block and on every sub-nav button click."""
+        if not st.session_state.get("modal_done"):
+            return
+        _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
+        if _nav_key != st.session_state.get("_last_logged_nav", ""):
+            _label = {
+                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
+                "scores": "📺 Schedule/Scores",
+            }.get(tab_name, tab_name)
+            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
@@ -2256,6 +2262,7 @@ token_uri = "https://oauth2.googleapis.com/token"
             st.info("🎊 Pool Recap is currently disabled by the admin.")
         if _ff_pool_recap:
             _recap_sub = st.session_state.get("nav_sub_recap", "highlights")
+            _track_nav("recap", _recap_sub)
             _rc1, _rc2 = st.columns(2)
             if _rc1.button("🏆 Pool Highlights", key="recap_highlights", use_container_width=True,
                             type="primary" if _recap_sub == "highlights" else "secondary"):
@@ -3406,24 +3413,40 @@ token_uri = "https://oauth2.googleapis.com/token"
 
     # ── Tab 1: Standings ──────────────────────────────────────────────────────
     with tab_standings:
+        _std_sub = st.session_state.get("nav_sub_standings", "current")
+        _track_nav("standings", _std_sub)
         st.subheader("Live Standings")
 
         # Sub-navigation: Current / Potential / Snapshot
         _std_sub = st.session_state.get("nav_sub_standings", "current")
-        _std_c1, _std_c2, _std_c3, _std_c4 = st.columns(4)
-        if _std_c1.button("📊 Current", key="std_current", use_container_width=True,
+        # If current sub is disabled, fall back to current
+        if _std_sub == "potential" and not _ff_potential:
+            st.session_state["nav_sub_standings"] = "current"
+            _std_sub = "current"
+        if _std_sub == "alive" and not _ff_still_alive:
+            st.session_state["nav_sub_standings"] = "current"
+            _std_sub = "current"
+        _std_btn_count = 2 + (1 if _ff_potential else 0) + (1 if _ff_still_alive else 0)
+        _std_cols = st.columns(_std_btn_count)
+        _std_col_idx = 0
+        if _std_cols[_std_col_idx].button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
             st.rerun()
-        if _std_c2.button("🔮 Potential", key="std_potential", use_container_width=True,
-                           type="primary" if _std_sub == "potential" else "secondary"):
-            st.session_state["nav_sub_standings"] = "potential"
-            st.rerun()
-        if _std_c3.button("💚 Still Alive", key="std_alive", use_container_width=True,
-                           type="primary" if _std_sub == "alive" else "secondary"):
-            st.session_state["nav_sub_standings"] = "alive"
-            st.rerun()
-        if _std_c4.button("📸 Snapshot", key="std_snapshot", use_container_width=True,
+        _std_col_idx += 1
+        if _ff_potential:
+            if _std_cols[_std_col_idx].button("🔮 Potential", key="std_potential", use_container_width=True,
+                               type="primary" if _std_sub == "potential" else "secondary"):
+                st.session_state["nav_sub_standings"] = "potential"
+                st.rerun()
+            _std_col_idx += 1
+        if _ff_still_alive:
+            if _std_cols[_std_col_idx].button("💚 Still Alive", key="std_alive", use_container_width=True,
+                               type="primary" if _std_sub == "alive" else "secondary"):
+                st.session_state["nav_sub_standings"] = "alive"
+                st.rerun()
+            _std_col_idx += 1
+        if _std_cols[_std_col_idx].button("📸 Snapshot", key="std_snapshot", use_container_width=True,
                            type="primary" if _std_sub == "snapshot" else "secondary"):
             st.session_state["nav_sub_standings"] = "snapshot"
             st.rerun()
@@ -3965,6 +3988,7 @@ token_uri = "https://oauth2.googleapis.com/token"
 
     # ── Tab 2: Your Bracket (group) ───────────────────────────────────────────
     with tab_bracket:
+        _track_nav("your-bracket", st.session_state.get("nav_sub_your-bracket", "bracket"))
         # Submenu buttons
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
         # Win Conditions hidden until after the Final Four (re-enables April 16 2026)
@@ -5979,6 +6003,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
     # ── Tab 3: Schedule/Scores ──────────────────────────────────────────────────
     with tab_scores:
+        _track_nav("scores")
         st.subheader("📺 Schedule / Scores")
         # Inject a unique marker + CSS to force 2-col date buttons on mobile
         st.markdown("""
@@ -6583,6 +6608,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
     # ── Tab 5: Fun Stats (group) ──────────────────────────────────────────────
     with tab_fun:
+        _track_nav("fun-stats", st.session_state.get("nav_sub_fun-stats", ""))
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
         _fun_options = [
             ("bracket-busters",   "💥 Bracket Busters"),
@@ -6946,6 +6972,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
     # ── Tab 4: Bonus Games (group) ────────────────────────────────────────────
     with tab_bonus:
+        _track_nav("bonus", st.session_state.get("nav_sub_bonus", ""))
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
         _bon_options = [
             *([("lucky-team",         "🍀 Lucky Team")] if _ff_lucky_team else []),
@@ -7688,6 +7715,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
         # ── Tab 5: Hall of Champions ─────────────────────────────────────────────
     with tab_hoc:
+        _track_nav("hall-of-champs")
         st.subheader("👑 Hall of Champions")
         st.caption("A record of every pool champion and the tournament that crowned them.")
         st.markdown("")
