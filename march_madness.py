@@ -7830,7 +7830,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                 "2nd_pick": "Kentucky",
                 "3rd_name": "Tenley McCladdie",
                 "3rd_pick": "Duke",
-                                "description": "2019 saw rookie Armando Zamudio take the crown from a New York high-rise, creating some legendary workplace tension along the way! The tournament was defined by Virginia's high-drama, controversial win over Auburn, which paved the way for Armando to clinch the title over Dylan Grassl and Tenley. Though he retired after 2021, Armando's championship run remains a classic pool legend.",
+                "description": "2019 saw rookie Armando Zamudio take the crown from a New York high-rise, creating some legendary workplace tension along the way! The tournament was defined by Virginia's high-drama, controversial win over Auburn, which paved the way for Armando to clinch the title over Dylan Grassl and Tenley. He went on a hiatus after the 2021 tournament, but came back in 2026 with a top 10 finish.",
             },
             {
                 "year": 2021,
