@@ -186,6 +186,69 @@ def _get_gspread_client():
 
 LOG_SHEET_URL = "https://docs.google.com/spreadsheets/d/1upPGbX6BqGnf-7o81HE7pvm33NxYFTDwx3MfJJTji28/edit"
 
+_FF_DEFAULTS = {
+    "ff_show_win_conditions":      True,
+    "ff_show_lucky_team":          True,
+    "ff_show_bonus_pool":          True,
+    "ff_show_standings_progress":  True,
+    "ff_show_pool_recap":          True,
+    "ff_show_hoops_pool":          True,
+    "ff_show_potential_standings": True,
+    "ff_show_still_alive":         True,
+}
+
+def _get_ff_sheet():
+    try:
+        _gc = _get_gspread_client()
+        if not _gc:
+            return None
+        _sheet_id = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
+        _wb = _gc.open_by_key(_sheet_id)
+        try:
+            return _wb.worksheet("FeatureFlags")
+        except Exception:
+            _ws = _wb.add_worksheet("FeatureFlags", rows=20, cols=2)
+            _ws.append_row(["Flag", "Value"])
+            for _k, _v in _FF_DEFAULTS.items():
+                _ws.append_row([_k, str(_v)])
+            return _ws
+    except Exception:
+        return None
+
+@st.cache_data(ttl=30, show_spinner=False)
+def _read_flags():
+    """Read feature flags from Google Sheet. Falls back to defaults."""
+    try:
+        _gc = _get_gspread_client()
+        if not _gc:
+            return dict(_FF_DEFAULTS)
+        _sheet_id = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
+        _wb = _gc.open_by_key(_sheet_id)
+        _ws = _wb.worksheet("FeatureFlags")
+        _rows = _ws.get_all_values()
+        _flags = dict(_FF_DEFAULTS)
+        for _row in _rows[1:]:
+            if len(_row) >= 2 and _row[0] in _flags:
+                _flags[_row[0]] = _row[1].strip().lower() not in ("false", "0", "no")
+        return _flags
+    except Exception:
+        return dict(_FF_DEFAULTS)
+
+def _write_flags(flags_dict):
+    """Write all feature flags to Google Sheet."""
+    try:
+        _ws = _get_ff_sheet()
+        if not _ws:
+            return
+        _ws.resize(rows=1)
+        _ws.resize(rows=20)
+        _ws.append_row(["Flag", "Value"])
+        for _k, _v in flags_dict.items():
+            _ws.append_row([_k, str(_v)])
+        _read_flags.clear()
+    except Exception:
+        pass
+
 def _get_log_sheet():
     """Return the ActivityLog worksheet, creating it if needed."""
     try:
@@ -1891,32 +1954,24 @@ try:
 
                 # ── Feature Flags ─────────────────────────────────────────────
                 with _adm_tabs[3]:
-                    st.markdown("Toggle features on/off for all users.")
-                    _ff_defaults = {
-                        "ff_show_win_conditions": True,
-                        "ff_show_lucky_team": True,
-                        "ff_show_bonus_pool": True,
-                        "ff_show_standings_progress": True,
-                        "ff_show_pool_recap": True,
-                        "ff_show_hoops_pool": True,
-                        "ff_show_potential_standings": True,
-                        "ff_show_still_alive": True,
-                    }
+                    st.markdown("Toggle features on/off for **all users** — saved to Google Sheet, takes effect within 30 seconds.")
+                    _cur_flags = _read_flags()
                     _ff_labels = {
-                        "ff_show_win_conditions": "🔍 Win Conditions tab",
-                        "ff_show_lucky_team": "🍀 Lucky Team section",
-                        "ff_show_bonus_pool": "💰 Bonus Pool section",
-                        "ff_show_standings_progress": "📈 Standings Progress tab",
-                        "ff_show_pool_recap": "🎊 Pool Recap tab",
-                        "ff_show_hoops_pool": "🏀 Hoops, She Did It Again section",
+                        "ff_show_win_conditions":      "🔍 Win Conditions tab",
+                        "ff_show_lucky_team":          "🍀 Lucky Team section",
+                        "ff_show_bonus_pool":          "💰 Bonus Pool section",
+                        "ff_show_standings_progress":  "📈 Standings Progress tab",
+                        "ff_show_pool_recap":          "🎊 Pool Recap tab",
+                        "ff_show_hoops_pool":          "🏀 Hoops, She Did It Again section",
                         "ff_show_potential_standings": "🔮 Potential Standings tab",
-                        "ff_show_still_alive": "💚 Still Alive tab",
+                        "ff_show_still_alive":         "💚 Still Alive tab",
                     }
-                    for _ffk, _ffd in _ff_defaults.items():
-                        _cur_val = st.session_state.get(_ffk, _ffd)
-                        _new_val = st.toggle(_ff_labels[_ffk], value=_cur_val, key=f"adm_{_ffk}")
-                        if _new_val != _cur_val:
-                            st.session_state[_ffk] = _new_val
+                    _new_flags = {}
+                    for _ffk, _ffl in _ff_labels.items():
+                        _new_flags[_ffk] = st.toggle(_ffl, value=_cur_flags.get(_ffk, True), key=f"adm_{_ffk}")
+                    if st.button("💾 Save Feature Flags", key="adm_ff_save", type="primary"):
+                        _write_flags(_new_flags)
+                        st.success("✅ Saved! Changes will be visible to all users within 30 seconds.")
 
                 # ── Usage ─────────────────────────────────────────────────────
                 with _adm_tabs[4]:
@@ -2087,14 +2142,16 @@ token_uri = "https://oauth2.googleapis.com/token"
         getattr(st, _ann_type)(_ann_text)
 
     # ── Feature flag reads (used throughout app) ──────────────────────────────
-    _ff_win_conditions     = st.session_state.get("ff_show_win_conditions", True)
-    _ff_lucky_team         = st.session_state.get("ff_show_lucky_team", True)
-    _ff_bonus_pool         = st.session_state.get("ff_show_bonus_pool", True)
-    _ff_standings_progress = st.session_state.get("ff_show_standings_progress", True)
-    _ff_pool_recap         = st.session_state.get("ff_show_pool_recap", True)
-    _ff_hoops_pool         = st.session_state.get("ff_show_hoops_pool", True)
-    _ff_potential          = st.session_state.get("ff_show_potential_standings", True)
-    _ff_still_alive        = st.session_state.get("ff_show_still_alive", True)
+    # ── Feature flag reads (sourced from Google Sheet, TTL 30s) ──────────────
+    _flags = _read_flags()
+    _ff_win_conditions     = _flags.get("ff_show_win_conditions", True)
+    _ff_lucky_team         = _flags.get("ff_show_lucky_team", True)
+    _ff_bonus_pool         = _flags.get("ff_show_bonus_pool", True)
+    _ff_standings_progress = _flags.get("ff_show_standings_progress", True)
+    _ff_pool_recap         = _flags.get("ff_show_pool_recap", True)
+    _ff_hoops_pool         = _flags.get("ff_show_hoops_pool", True)
+    _ff_potential          = _flags.get("ff_show_potential_standings", True)
+    _ff_still_alive        = _flags.get("ff_show_still_alive", True)
 
 
     if user_name:
