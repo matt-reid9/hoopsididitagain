@@ -1928,6 +1928,42 @@ try:
                 with _adm_tabs[4]:
                     st.markdown("**📈 Activity Log**")
 
+                    # ── Debug: show what secrets are available ─────────────
+                    with st.expander("🔧 Debug Info", expanded=True):
+                        try:
+                            _all_secret_keys = list(st.secrets.keys())
+                            st.write("Top-level secret keys found:", _all_secret_keys)
+                        except Exception as _se:
+                            st.write("Could not read secrets:", _se)
+                        try:
+                            _gsa = st.secrets.get("gcp_service_account", {})
+                            st.write("gcp_service_account keys:", list(dict(_gsa).keys()) if _gsa else "NOT FOUND")
+                        except Exception as _se2:
+                            st.write("Error reading gcp_service_account:", _se2)
+                        try:
+                            import gspread
+                            st.write("gspread version:", gspread.__version__)
+                        except Exception as _se3:
+                            st.write("gspread import error:", _se3)
+                        try:
+                            from google.oauth2.service_account import Credentials
+                            st.write("google-auth: OK")
+                        except Exception as _se4:
+                            st.write("google-auth import error:", _se4)
+                        # Try connecting directly
+                        _get_gspread_client.clear()
+                        _gc_test = _get_gspread_client()
+                        st.write("gspread client:", "✅ Connected" if _gc_test else "❌ None returned")
+                        if _gc_test:
+                            try:
+                                _sheet_id_t = SHEET_URL.split("/d/")[1].split("/")[0]
+                                _wb_t = _gc_test.open_by_key(_sheet_id_t)
+                                st.write("Spreadsheet opened:", _wb_t.title)
+                                _ws_names = [ws.title for ws in _wb_t.worksheets()]
+                                st.write("Worksheets:", _ws_names)
+                            except Exception as _we:
+                                st.write("Spreadsheet error:", _we)
+
                     _rc_btn, _rr_btn = st.columns([3,1])
                     with _rr_btn:
                         if st.button("🔄 Refresh", key="adm_refresh_log"):
