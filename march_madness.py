@@ -7775,8 +7775,97 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
         _track_nav("hall-of-champs")
         st.subheader("👑 Hall of Champions")
         st.caption("A record of every pool champion and the tournament that crowned them.")
-        st.markdown("")
 
+        # ── Scrolling champion cards banner ───────────────────────────────────
+        import streamlit.components.v1 as _hoc_cv
+        _hoc_cv.html("""<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:#0a0a0f;overflow:hidden;font-family:'DM Sans',sans-serif;width:100%;height:320px;}
+:root{--gold:#FFCB05;--card-h:240px;--card-w:180px;--gap:18px;}
+.wrap{position:relative;overflow:hidden;height:calc(var(--card-h) + 52px);padding:8px 0;}
+.wrap::before,.wrap::after{content:'';position:absolute;top:0;bottom:0;width:80px;z-index:5;pointer-events:none;}
+.wrap::before{left:0;background:linear-gradient(90deg,#0a0a0f 0%,transparent 100%);}
+.wrap::after{right:0;background:linear-gradient(270deg,#0a0a0f 0%,transparent 100%);}
+.track{display:flex;gap:var(--gap);padding:4px 60px;width:max-content;}
+.card{flex-shrink:0;width:var(--card-w);text-align:center;cursor:pointer;}
+.card-img{width:var(--card-w);height:var(--card-h);
+  display:flex;align-items:center;justify-content:center;background:#0a0a0f;
+  transition:transform 0.25s;padding:4px;}
+.card:hover .card-img{transform:translateY(-4px) scale(1.03);}
+.card img{width:auto;height:100%;max-width:100%;object-fit:contain;display:block;
+  border-radius:10px;
+  border:1px solid rgba(255,203,5,0.2);
+  box-shadow:0 4px 16px rgba(0,0,0,0.7);
+  transition:box-shadow 0.25s,transform 0.25s;}
+.card:hover img{box-shadow:0 6px 28px rgba(0,0,0,0.9),0 0 0 2px var(--gold),0 0 20px rgba(255,203,5,0.25);transform:scale(1.04);}
+.card:hover img{transform:scale(1.04);}
+.card-label{margin-top:6px;font-size:11px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:0.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.card-year{font-family:'Bebas Neue',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;}
+</style>
+</head><body>
+<div class="wrap" id="wrap">
+  <div class="track" id="track"></div>
+</div>
+<script>
+const champions=[
+  {year:"2026",name:"Chris Harmantzis", img:"https://mrstream.neocities.org/img/BracketCards/2026ChrisCard.png"},
+  {year:"2025",name:"Alana Davis",       img:"https://mrstream.neocities.org/img/BracketCards/2025AlanaDavis.png"},
+  {year:"2024",name:"Tenley McCladdie",  img:"https://mrstream.neocities.org/img/BracketCards/2024TenleyMcLaddie.png"},
+  {year:"2023",name:"Lauren Froman",     img:"https://mrstream.neocities.org/img/BracketCards/2023LaurenFroman.png"},
+  {year:"2022",name:"James Sawaya",      img:"https://mrstream.neocities.org/img/BracketCards/2022JamesSawaya.png"},
+  {year:"2021",name:"Priya Gupta",       img:"https://mrstream.neocities.org/img/BracketCards/2021PriyaGupta.png"},
+  {year:"2019",name:"Armando Zamudio",   img:"https://mrstream.neocities.org/img/BracketCards/2019ArmandoZamudio.png"},
+  {year:"2018",name:"Jaymi Lynne",       img:"https://mrstream.neocities.org/img/BracketCards/2018JaymiLynne.png"},
+  {year:"2017",name:"Sarah Keo",         img:"https://mrstream.neocities.org/img/BracketCards/2017SarahKeo.png"},
+  {year:"2016",name:"Alana Davis",       img:"https://mrstream.neocities.org/img/BracketCards/2016AlanaDavis.png"},
+];
+
+function card(c, idx) {
+  return `<div class="card" data-year="${c.year}" data-idx="${idx}">
+    <div class="card-img"><img src="${c.img}" alt="${c.name}" loading="eager"></div>
+    <div class="card-label"><span class="card-year">${c.year}</span> · ${c.name}</div>
+  </div>`;
+}
+
+const track = document.getElementById('track');
+// Render 3 copies for seamless loop
+track.innerHTML = [...champions,...champions,...champions].map((c,i)=>card(c,i%champions.length)).join('');
+
+// Click → scroll parent page to anchor
+document.querySelectorAll('.card').forEach(el => {
+  el.addEventListener('click', () => {
+    const year = el.dataset.year;
+    const anchor = window.parent.document.getElementById('hoc-' + year);
+    if (anchor) anchor.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+});
+
+// Manual animation using requestAnimationFrame (more reliable than CSS in iframes)
+const cardW = 180 + 18; // card-w + gap
+const totalW = cardW * champions.length; // width of one full set
+let pos = 0;
+let paused = false;
+const wrap = document.getElementById('wrap');
+wrap.addEventListener('mouseenter', () => paused = true);
+wrap.addEventListener('mouseleave', () => paused = false);
+
+function animate() {
+  if (!paused) {
+    pos += 0.6; // px per frame — adjust for speed
+    if (pos >= totalW) pos -= totalW;
+    track.style.transform = 'translateX(-' + pos + 'px)';
+  }
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body></html>""", height=315)
+
+        st.markdown("")
         # ── Champion entries — add new years here ──────────────────────────
         # Each entry: year, champion name, image path or URL, description
         CHAMPIONS = [
@@ -7989,7 +8078,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
 
             with st.container():
                 st.markdown(
-                    f'<div style="font-size:36px;font-weight:800;color:#f5c518;margin-bottom:12px;">' +
+                    f'<div id="hoc-{champ["year"]}" style="font-size:36px;font-weight:800;color:#f5c518;margin-bottom:12px;">' +
                     f'👑 {champ["year"]} — {champ["name"]}</div>',
                     unsafe_allow_html=True
                 )
