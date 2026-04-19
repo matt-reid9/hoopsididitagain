@@ -184,13 +184,15 @@ def _get_gspread_client():
     except Exception:
         return None
 
+LOG_SHEET_URL = "https://docs.google.com/spreadsheets/d/1upPGbX6BqGnf-7o81HE7pvm33NxYFTDwx3MfJJTji28/edit"
+
 def _get_log_sheet():
     """Return the ActivityLog worksheet, creating it if needed."""
     try:
         _gc = _get_gspread_client()
         if not _gc:
             return None
-        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _sheet_id = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
         _wb = _gc.open_by_key(_sheet_id)
         try:
             _ws = _wb.worksheet("ActivityLog")
@@ -225,7 +227,7 @@ def _read_log():
         _gc = _get_gspread_client()
         if not _gc:
             return []
-        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _sheet_id = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
         _wb = _gc.open_by_key(_sheet_id)
         _ws = _wb.worksheet("ActivityLog")
         _rows = _ws.get_all_values()
@@ -242,7 +244,7 @@ def _clear_log():
         _gc = _get_gspread_client()
         if not _gc:
             return
-        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _sheet_id = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
         _wb = _gc.open_by_key(_sheet_id)
         _ws = _wb.worksheet("ActivityLog")
         _ws.resize(rows=1)
@@ -1956,13 +1958,13 @@ try:
                         st.write("gspread client:", "✅ Connected" if _gc_test else "❌ None returned")
                         if _gc_test:
                             try:
-                                _sheet_id_t = SHEET_URL.split("/d/")[1].split("/")[0]
+                                _sheet_id_t = LOG_SHEET_URL.split("/d/")[1].split("/")[0]
                                 _wb_t = _gc_test.open_by_key(_sheet_id_t)
-                                st.write("Spreadsheet opened:", _wb_t.title)
+                                st.write("Log spreadsheet opened:", _wb_t.title)
                                 _ws_names = [ws.title for ws in _wb_t.worksheets()]
                                 st.write("Worksheets:", _ws_names)
                             except Exception as _we:
-                                st.write("Spreadsheet error:", _we)
+                                st.write("Log spreadsheet error:", _we)
 
                     _rc_btn, _rr_btn = st.columns([3,1])
                     with _rr_btn:
