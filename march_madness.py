@@ -1803,18 +1803,6 @@ try:
     except Exception:
         pass
 
-    # ── Page navigation tracking ──────────────────────────────────────────────
-    _current_nav = st.session_state.get("nav_group", "recap")
-    _prev_nav = st.session_state.get("_last_logged_nav", "")
-    if _current_nav != _prev_nav and st.session_state.get("modal_done"):
-        _tab_labels = {
-            "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-            "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-            "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats", "scores": "📺 Schedule/Scores",
-        }
-        _log_event("navigate", _tab_labels.get(_current_nav, _current_nav), user_name or "anonymous")
-        st.session_state["_last_logged_nav"] = _current_nav
-
     # ── Admin Panel ──────────────────────────────────────────────────────────
     _admin_param = st.query_params.get("admin", "")
     if _admin_param == "1":
@@ -2186,6 +2174,26 @@ token_uri = "https://oauth2.googleapis.com/token"
         "fun-stats":       5,
         "scores":          6,
     }
+
+    # ── Navigation tracking (runs after nav_group is set) ────────────────────
+    if st.session_state.get("modal_done"):
+        _tab_labels = {
+            "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+            "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+            "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats", "scores": "📺 Schedule/Scores",
+        }
+        _nav_now  = st.session_state.get("nav_group", "recap")
+        _sub_now  = (
+            st.session_state.get(f"nav_sub_{_nav_now}", "") or
+            st.session_state.get("nav_sub_recap", "") if _nav_now == "recap" else ""
+        )
+        _nav_key  = f"{_nav_now}/{_sub_now}" if _sub_now else _nav_now
+        _prev_key = st.session_state.get("_last_logged_nav", "")
+        if _nav_key != _prev_key:
+            _tab_label = _tab_labels.get(_nav_now, _nav_now)
+            _detail = f"{_tab_label} › {_sub_now}" if _sub_now else _tab_label
+            _log_event("navigate", _detail, user_name or "anonymous")
+            st.session_state["_last_logged_nav"] = _nav_key
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
     # link works even if the app is already open.
