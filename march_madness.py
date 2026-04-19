@@ -155,6 +155,106 @@ if "admin_page_loads" not in st.session_state:
 st.session_state["admin_page_loads"] += 1
 if "admin_tab_visits" not in st.session_state:
     st.session_state["admin_tab_visits"] = {}
+if "activity_session_logged" not in st.session_state:
+    st.session_state["activity_session_logged"] = False
+
+# ── Activity logging ──────────────────────────────────────────────────────────
+import json, os
+
+# ── Activity logging via Google Sheets ───────────────────────────────────────
+# Writes to an "ActivityLog" sheet in the same Google Sheet as pool data.
+# Requires a service account — see secrets.toml for setup instructions.
+_gspread_client = None
+
+@st.cache_resource(show_spinner=False)
+def _get_gspread_client():
+    """Return an authenticated gspread client using service account from secrets."""
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+        _creds_dict = dict(st.secrets.get("gcp_service_account", {}))
+        if not _creds_dict:
+            return None
+        _scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        _creds = Credentials.from_service_account_info(_creds_dict, scopes=_scopes)
+        return gspread.authorize(_creds)
+    except Exception:
+        return None
+
+def _get_log_sheet():
+    """Return the ActivityLog worksheet, creating it if needed."""
+    try:
+        _gc = _get_gspread_client()
+        if not _gc:
+            return None
+        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _wb = _gc.open_by_key(_sheet_id)
+        try:
+            _ws = _wb.worksheet("ActivityLog")
+        except Exception:
+            _ws = _wb.add_worksheet("ActivityLog", rows=5000, cols=5)
+            _ws.append_row(["Timestamp", "Event", "User", "Detail", "Session"])
+        return _ws
+    except Exception:
+        return None
+
+def _log_event(event_type, detail="", user=""):
+    """Append one row to the ActivityLog sheet. Silently fails if unavailable."""
+    try:
+        _ws = _get_log_sheet()
+        if _ws is None:
+            return
+        _session_id = st.session_state.get("_session_id", "unknown")
+        _ws.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            event_type,
+            user,
+            detail,
+            _session_id,
+        ], value_input_option="USER_ENTERED")
+    except Exception:
+        pass
+
+@st.cache_data(ttl=60, show_spinner=False)
+def _read_log():
+    """Read all rows from ActivityLog sheet, return as list of dicts."""
+    try:
+        _gc = _get_gspread_client()
+        if not _gc:
+            return []
+        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _wb = _gc.open_by_key(_sheet_id)
+        _ws = _wb.worksheet("ActivityLog")
+        _rows = _ws.get_all_values()
+        if len(_rows) < 2:
+            return []
+        _headers = _rows[0]
+        return [dict(zip(_headers, r)) for r in _rows[1:] if any(r)]
+    except Exception:
+        return []
+
+def _clear_log():
+    """Delete all data rows from ActivityLog, keeping the header."""
+    try:
+        _gc = _get_gspread_client()
+        if not _gc:
+            return
+        _sheet_id = SHEET_URL.split("/d/")[1].split("/")[0]
+        _wb = _gc.open_by_key(_sheet_id)
+        _ws = _wb.worksheet("ActivityLog")
+        _ws.resize(rows=1)
+        _ws.resize(rows=5000)
+    except Exception:
+        pass
+
+# Assign a stable session ID so we can group events per visit
+import uuid
+if "_session_id" not in st.session_state:
+    st.session_state["_session_id"] = str(uuid.uuid4())[:8]
+
 
 # Initialise cookie manager (requires: pip install streamlit-cookies-manager)
 _cookies = None
@@ -1578,6 +1678,9 @@ try:
             st.session_state["user_name"] = cookie_user
             st.session_state["modal_done"] = True
             user_name = cookie_user
+            if not st.session_state.get("activity_session_logged"):
+                _log_event("login", "via cookie", cookie_user)
+                st.session_state["activity_session_logged"] = True
     # Fallback: try URL query params if cookies unavailable
     if not user_name:
         try:
@@ -1586,6 +1689,9 @@ try:
                 st.session_state["user_name"] = q_user
                 st.session_state["modal_done"] = True
                 user_name = q_user
+                if not st.session_state.get("activity_session_logged"):
+                    _log_event("login", "via URL param", q_user)
+                    st.session_state["activity_session_logged"] = True
         except Exception:
             pass
 
@@ -1617,6 +1723,8 @@ try:
                 if picked != "— select —":
                     st.session_state["user_name"] = picked
                     st.session_state["modal_done"] = True
+                    _log_event("login", "via welcome modal", picked)
+                    st.session_state["activity_session_logged"] = True
                     # Save to cookie so it's remembered on future visits
                     if _cookies is not None:
                         _cookies["user_name"] = picked
@@ -1692,6 +1800,18 @@ try:
                 st.query_params.pop("p2", None)
     except Exception:
         pass
+
+    # ── Page navigation tracking ──────────────────────────────────────────────
+    _current_nav = st.session_state.get("nav_group", "recap")
+    _prev_nav = st.session_state.get("_last_logged_nav", "")
+    if _current_nav != _prev_nav and st.session_state.get("modal_done"):
+        _tab_labels = {
+            "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+            "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+            "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats", "scores": "📺 Schedule/Scores",
+        }
+        _log_event("navigate", _tab_labels.get(_current_nav, _current_nav), user_name or "anonymous")
+        st.session_state["_last_logged_nav"] = _current_nav
 
     # ── Admin Panel ──────────────────────────────────────────────────────────
     _admin_param = st.query_params.get("admin", "")
@@ -1806,28 +1926,125 @@ try:
 
                 # ── Usage ─────────────────────────────────────────────────────
                 with _adm_tabs[4]:
-                    st.markdown("**Session stats**")
+                    st.markdown("**📈 Activity Log**")
+
+                    _rc_btn, _rr_btn = st.columns([3,1])
+                    with _rr_btn:
+                        if st.button("🔄 Refresh", key="adm_refresh_log"):
+                            _read_log.clear()
+                            st.rerun()
+
+                    _log_raw = _read_log()
+
+                    if not _log_raw:
+                        _gc_check = _get_gspread_client()
+                        if _gc_check is None:
+                            st.warning("⚠️ Google Sheets logging not configured. Add `gcp_service_account` to your Streamlit secrets to enable cross-user activity tracking. See setup instructions below.")
+                            with st.expander("📋 Setup Instructions"):
+                                st.markdown("""
+**1. Create a Google Service Account:**
+- Go to [console.cloud.google.com](https://console.cloud.google.com)
+- Create a project → APIs & Services → Enable **Google Sheets API** and **Google Drive API**
+- Credentials → Create Credentials → Service Account
+- Download the JSON key file
+
+**2. Share your Google Sheet with the service account:**
+- Copy the service account email (ends in `@...iam.gserviceaccount.com`)
+- Open your Google Sheet → Share → paste email → Editor access
+
+**3. Add to Streamlit Cloud secrets:**
+- Go to your app on share.streamlit.io → Settings → Secrets
+- Add the contents of the JSON key file like this:
+
+```toml
+[gcp_service_account]
+type = "service_account"
+project_id = "your-project-id"
+private_key_id = "..."
+private_key = "-----BEGIN RSA PRIVATE KEY-----\\n...\\n-----END RSA PRIVATE KEY-----\\n"
+client_email = "your-sa@your-project.iam.gserviceaccount.com"
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+```
+
+**4. For local development**, add the same block to `.streamlit/secrets.toml`
+                                """)
+                        else:
+                            st.info("No activity logged yet.")
+                    else:
+                        _log_df = pd.DataFrame(_log_raw)
+                        # Normalise column names (sheet uses "Timestamp", local used "ts")
+                        if "Timestamp" in _log_df.columns:
+                            _log_df = _log_df.rename(columns={"Timestamp":"ts","Event":"event","User":"user","Detail":"detail","Session":"session"})
+                        _log_df["ts"] = pd.to_datetime(_log_df["ts"], errors="coerce")
+                        _log_df = _log_df.dropna(subset=["ts"]).sort_values("ts", ascending=False).reset_index(drop=True)
+
+                        # ── Summary metrics ───────────────────────────────
+                        _mc1, _mc2, _mc3, _mc4 = st.columns(4)
+                        _logins = _log_df[_log_df["event"] == "login"]
+                        _navs   = _log_df[_log_df["event"] == "navigate"]
+                        _mc1.metric("Total Sessions", len(_logins))
+                        _mc2.metric("Unique Users", _logins["user"].nunique())
+                        _mc3.metric("Page Views", len(_navs))
+                        _mc4.metric("Total Events", len(_log_df))
+
+                        st.markdown("---")
+
+                        _col_a, _col_b = st.columns(2)
+                        with _col_a:
+                            st.markdown("**👤 Sessions by User**")
+                            _user_counts = _logins["user"].value_counts().reset_index()
+                            _user_counts.columns = ["User", "Sessions"]
+                            st.dataframe(_user_counts, use_container_width=True, hide_index=True)
+                        with _col_b:
+                            st.markdown("**📄 Most Visited Tabs**")
+                            _tab_counts = _navs["detail"].value_counts().reset_index()
+                            _tab_counts.columns = ["Tab", "Visits"]
+                            st.dataframe(_tab_counts, use_container_width=True, hide_index=True)
+
+                        st.markdown("---")
+                        st.markdown("**🕒 Recent Activity** (last 50 events)")
+                        _icons = {"login": "🔑", "navigate": "📄"}
+                        for _, _row in _log_df.head(50).iterrows():
+                            _icon = _icons.get(_row["event"], "•")
+                            _user_str = f"**{_row['user']}**" if _row.get("user") else "*anonymous*"
+                            _ts_str = _row["ts"].strftime("%b %d %H:%M")
+                            _sess = f" `{_row.get('session','')}`" if _row.get("session") else ""
+                            if _row["event"] == "login":
+                                st.markdown(f"`{_ts_str}`{_sess} {_icon} {_user_str} logged in ({_row.get('detail','')})")
+                            elif _row["event"] == "navigate":
+                                st.markdown(f"`{_ts_str}`{_sess} {_icon} {_user_str} → {_row.get('detail','')}")
+                            else:
+                                st.markdown(f"`{_ts_str}`{_sess} {_icon} {_user_str} — {_row.get('detail','')}")
+
+                        st.markdown("---")
+                        st.markdown("**🔎 Drill Down by User**")
+                        _all_users = sorted(_log_df[_log_df["user"].str.strip() != ""]["user"].unique().tolist())
+                        _sel_user = st.selectbox("Select user", ["— all —"] + _all_users, key="adm_usage_user")
+                        _filtered = _log_df if _sel_user == "— all —" else _log_df[_log_df["user"] == _sel_user]
+                        _disp = _filtered[["ts","event","user","detail"]].copy()
+                        _disp["ts"] = _disp["ts"].dt.strftime("%Y-%m-%d %H:%M:%S")
+                        _disp.columns = ["Time","Event","User","Detail"]
+                        st.dataframe(_disp, use_container_width=True, hide_index=True)
+
+                        st.markdown("---")
+                        if st.button("🗑️ Clear All Logs", key="adm_clear_logs"):
+                            _clear_log()
+                            _read_log.clear()
+                            st.success("Logs cleared.")
+                            st.rerun()
+
+                    st.markdown("---")
+                    st.markdown("**⚙️ Session Info**")
                     st.metric("Page loads this session", st.session_state.get("admin_page_loads", 0))
-                    st.markdown("**Current session state**")
+                    st.caption(f"Session ID: `{st.session_state.get('_session_id','')}`")
                     st.json({
                         "user_name": st.session_state.get("user_name", ""),
-                        "modal_done": st.session_state.get("modal_done", False),
                         "nav_group": st.session_state.get("nav_group", ""),
-                        "nav_sub_recap": st.session_state.get("nav_sub_recap", ""),
-                        "nav_sub_standings": st.session_state.get("nav_sub_standings", ""),
-                        "nav_sub_bonus": st.session_state.get("nav_sub_bonus", ""),
                         "final_score": final_score,
                         "total_participants": len(results),
-                        "tiebreaker_count": len(tiebreaker_guesses) if tiebreaker_guesses else 0,
                         "last_sync": last_update,
-                        "feature_flags": {
-                            "pool_recap": st.session_state.get("ff_show_pool_recap", True),
-                            "win_conditions": st.session_state.get("ff_show_win_conditions", True),
-                            "lucky_team": st.session_state.get("ff_show_lucky_team", True),
-                            "bonus_pool": st.session_state.get("ff_show_bonus_pool", True),
-                            "standings_progress": st.session_state.get("ff_show_standings_progress", True),
-                            "hoops_pool": st.session_state.get("ff_show_hoops_pool", True),
-                        }
                     })
                     if st.button("🚪 Log out of admin", key="adm_logout"):
                         st.session_state["admin_authenticated"] = False
