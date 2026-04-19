@@ -5,3 +5,5 @@ matplotlib
 streamlit-cookies-manager
 streamlit-aggrid
 requests
+gspread
+google-auth
