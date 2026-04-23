@@ -664,13 +664,52 @@ def load_all_data():
     except Exception:
         pass  # Lucky Team tab is optional; silently skip if unavailable
 
-    # defeated_map: winner -> the team they beat in their most recent played game
-    # slot_loser_map: slot -> loser (for per-game upset detection)
-    # Built by scanning each played slot and finding which teams were picked there
-    # but didn't win — those are the losers.
+    # slot_loser_map: slot -> actual loser for that game
+    # Source: Teams sheet — col offset maps game 1-63 → Picks slot 3-65 (add 2)
+    # Row 0 = headers (ID, 1, 2, ..., 63, Points...)
+    # Row 1 = points per game
+    # Row 2 = Team 1
+    # Row 3 = Team 2
+    # Row 4 = Winner (formula result)
     defeated_map: dict[str, str] = {}
     slot_loser_map: dict[int, str] = {}
+
+    _teams_loaded = False
+    try:
+        teams_url2 = get_csv_url(SHEET_URL, "Teams")
+        if teams_url2:
+            df_tm = pd.read_csv(teams_url2, header=None)
+            df_tm = df_tm.replace(TEAM_ABBREVS)
+            # Find which column index corresponds to game 1
+            # Row 0 has headers: first col is "ID", then "1","2",...,"63"
+            # So game N is at column index N (0-indexed: col 0=ID, col 1=game1, col 2=game2...)
+            for game_num in range(1, 64):  # games 1-63
+                col_idx = game_num  # col 0 = ID header, col 1 = game 1
+                picks_slot = game_num + 2  # Teams game 1 → Picks slot 3
+                if picks_slot > 65:
+                    break
+                if col_idx >= df_tm.shape[1]:
+                    break
+                w = winners_row[picks_slot] if picks_slot < len(winners_row) else ""
+                if is_unplayed(w):
+                    continue
+                team1 = str(df_tm.iloc[2, col_idx]).strip()
+                team2 = str(df_tm.iloc[3, col_idx]).strip()
+                team1 = TEAM_ABBREVS.get(team1, team1)
+                team2 = TEAM_ABBREVS.get(team2, team2)
+                if team1 and team2 and not is_unplayed(team1) and not is_unplayed(team2):
+                    loser = team2 if team1 == w else team1
+                    if not is_unplayed(loser):
+                        slot_loser_map[picks_slot] = loser
+                        defeated_map[w] = loser
+            _teams_loaded = len(slot_loser_map) > 0
+    except Exception:
+        pass
+
+    # Fallback: derive from participant picks for any slots not covered
     for c in range(3, 66):
+        if c in slot_loser_map:
+            continue
         w = winners_row[c]
         if is_unplayed(w):
             continue
@@ -680,7 +719,6 @@ def load_all_data():
             if val and val not in UNPLAYED and val != w and val in all_starting:
                 losers.add(val)
         if losers:
-            # Pick the loser with the most picks (most commonly the actual opponent)
             loser = max(losers, key=lambda t: sum(
                 1 for i in range(3, len(df_p)) if str(df_p.iloc[i][c]).strip() == t
             ))
@@ -1904,7 +1942,7 @@ try:
 
                 # ── Raw Data ─────────────────────────────────────────────────
                 with _adm_tabs[1]:
-                    _rd_choice = st.selectbox("View", ["Standings", "All Picks", "Tiebreaker Guesses", "Lucky Team", "Seeds"], key="adm_rd")
+                    _rd_choice = st.selectbox("View", ["Standings", "All Picks", "Tiebreaker Guesses", "Lucky Team", "Seeds", "Teams Sheet (raw)"], key="adm_rd")
                     if _rd_choice == "Standings":
                         st.dataframe(final_df, use_container_width=True)
                     elif _rd_choice == "All Picks":
@@ -1933,6 +1971,21 @@ try:
                     elif _rd_choice == "Seeds":
                         _seed_rows = sorted([{"Team": t, "Seed": s} for t, s in seed_map.items() if s > 0], key=lambda x: x["Seed"])
                         st.dataframe(pd.DataFrame(_seed_rows), use_container_width=True)
+                    elif _rd_choice == "Teams Sheet (raw)":
+                        try:
+                            _gc_raw = _get_gspread_client()
+                            if _gc_raw:
+                                _sheet_id_raw = SHEET_URL.split("/d/")[1].split("/")[0]
+                                _wb_raw = _gc_raw.open_by_key(_sheet_id_raw)
+                                _ws_teams = _wb_raw.worksheet("Teams")
+                                _teams_rows = _ws_teams.get_all_values()
+                                st.write(f"Total rows: {len(_teams_rows)}, Total cols: {max(len(r) for r in _teams_rows) if _teams_rows else 0}")
+                                for i, row in enumerate(_teams_rows[:20]):
+                                    st.write(f"Row {i}: {row[:15]}")
+                            else:
+                                st.warning("gspread not configured")
+                        except Exception as _e:
+                            st.error(f"Error reading Teams sheet: {_e}")
 
                 # ── Announcement ─────────────────────────────────────────────
                 with _adm_tabs[2]:
@@ -3986,7 +4039,7 @@ token_uri = "https://oauth2.googleapis.com/token"
 
                     _rnd = _rshort.get(get_round_name(_c), get_round_name(_c))
                     _snap_rnd_counts[_rnd] = _snap_rnd_counts.get(_rnd, 0) + 1
-                    _loser = defeated_map.get(_winner, "")
+                    _loser = slot_loser_map.get(_c, "")
                     _ws = seed_map.get(_winner, 0)
                     _ls = seed_map.get(_loser, 0)
                     if _loser:
@@ -5258,7 +5311,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     for _c in _played_slots:
                         _winner = actual_winners[_c]
                         _ws = seed_map.get(_winner, 0)
-                        _loser = defeated_map.get(_winner, "")
+                        _loser = slot_loser_map.get(_c, "")
                         _ls = seed_map.get(_loser, 0)
                         if _loser:
                             _game_descs.append(f"({_ws}) {_winner} def. ({_ls}) {_loser}" if _ws and _ls else f"{_winner} def. {_loser}")
@@ -6247,9 +6300,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                         for n in notes
                     )
                     if not is_tourney:
-                        has_seeds = any(c.get("rank") or c.get("seed") for c in competitors)
+                        # Tighter fallback: must have seeds AND be neutral site
+                        # (avoids Women's FF, NIT, etc. which are also seeded/neutral)
+                        has_seeds = all(c.get("rank") or c.get("seed") for c in competitors)
                         is_neutral = comp.get("neutralSite", False)
-                        if not has_seeds and not is_neutral:
+                        if not (has_seeds and is_neutral):
                             continue
                     status_type = ev.get("status", {}).get("type", {})
                     state = status_type.get("state", "pre")
@@ -6416,6 +6471,11 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     _p2w = actual_winners[_p2] if _p2 < len(actual_winners) and not is_unplayed(actual_winners[_p2]) else ""
                     if _p1w and _p2w:
                         _slot_matchup[_sc] = (_p1w, _p2w)
+            # Championship slot 65: fed by FF winners at slots 63 and 64
+            _ff1w = actual_winners[63] if 63 < len(actual_winners) and not is_unplayed(actual_winners[63]) else ""
+            _ff2w = actual_winners[64] if 64 < len(actual_winners) and not is_unplayed(actual_winners[64]) else ""
+            if _ff1w and _ff2w:
+                _slot_matchup[65] = (_ff1w, _ff2w)
 
             # Build picker lists per team per slot (for expanded view)
             def _pickers_for_team(team_name, slot):
@@ -6442,6 +6502,29 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                     if {ta, tb} == _game_set:
                         _match_slot = _sc
                         break
+
+                # Fallback for FF/Championship: match by ESPN logo URL ID if set-match failed
+                if _match_slot < 0:
+                    import re as _re
+                    _away_eid = None
+                    _home_eid = None
+                    try:
+                        _m = _re.search(r'/(\d+)\.png', away.get("logo",""))
+                        if _m: _away_eid = int(_m.group(1))
+                        _m = _re.search(r'/(\d+)\.png', home.get("logo",""))
+                        if _m: _home_eid = int(_m.group(1))
+                    except Exception:
+                        pass
+                    if _away_eid and _home_eid:
+                        _away_resolved = _espn_id_to_pool.get(_away_eid, away_pool)
+                        _home_resolved = _espn_id_to_pool.get(_home_eid, home_pool)
+                        _resolved_set = {_away_resolved, _home_resolved}
+                        for _sc, (ta, tb) in _slot_matchup.items():
+                            if {ta, tb} == _resolved_set:
+                                _match_slot = _sc
+                                away_pool = _away_resolved
+                                home_pool = _home_resolved
+                                break
 
                 # Pick counts from the exact slot
                 _away_ct = 0
