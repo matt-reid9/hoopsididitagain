@@ -2306,18 +2306,10 @@ token_uri = "https://oauth2.googleapis.com/token"
     # tab switches directly. Instead we log on the next rerun that happens
     # inside a tab (sub-nav click, selectbox, button, etc.) using a helper
     # that fires whenever the active tab/sub-page combination changes.
-    _TAB_LABELS = {
-        "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-        "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-        "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
-        "scores": "📺 Schedule/Scores",
-    }
-
     def _track_nav(tab_name, sub_name=""):
-        """Log navigation only when the user actively navigates.
-        On first session load, logs the initial landing page once.
-        On sub-nav clicks (_pending_nav_log set), logs the action.
-        Also detects main tab switches by comparing the tab portion of the last logged key."""
+        """Log navigation only when the user actively navigates to a new tab/sub-page.
+        Uses a two-key system: _pending_nav signals intent, _last_logged_nav prevents duplicates.
+        On first session load, logs the initial landing page once."""
         if not st.session_state.get("modal_done"):
             return
         _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
@@ -2325,29 +2317,27 @@ token_uri = "https://oauth2.googleapis.com/token"
 
         # First ever navigation this session — log the landing page
         if _last is None:
-            _log_event("navigate", _TAB_LABELS.get(tab_name, tab_name), user_name or "anonymous")
+            _label = {
+                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
+                "scores": "📺 Schedule/Scores",
+            }.get(tab_name, tab_name)
+            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             return
 
-        # Detect main tab switch: last logged tab != current tab
-        _last_tab = _last.split("/")[0] if _last else ""
-        _tab_switched = (_last_tab != tab_name)
-
-        # Check if a sub-nav button was clicked (pending flag set)
+        # Only log if this tab was explicitly navigated to via a button
+        # (signalled by _pending_nav_log being set by a nav button click)
         _pending = st.session_state.get("_pending_nav_log", "")
-        _sub_clicked = (_pending == _nav_key and _nav_key != _last)
-
-        if _tab_switched:
-            # Log the tab switch (whether via sub-nav click or any interaction in the new tab)
-            _label = _TAB_LABELS.get(tab_name, tab_name)
-            _detail = f"{_label} › {sub_name}" if sub_name and _sub_clicked else _label
-            _log_event("navigate", _detail, user_name or "anonymous")
-            st.session_state["_last_logged_nav"] = _nav_key
-            st.session_state["_pending_nav_log"] = ""
-        elif _sub_clicked:
-            # Same tab, different sub-page
-            _label = _TAB_LABELS.get(tab_name, tab_name)
-            _log_event("navigate", f"{_label} › {sub_name}", user_name or "anonymous")
+        if _pending == _nav_key and _nav_key != _last:
+            _label = {
+                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
+                "scores": "📺 Schedule/Scores",
+            }.get(tab_name, tab_name)
+            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
 
