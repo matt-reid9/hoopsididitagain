@@ -674,20 +674,30 @@ def load_all_data():
     defeated_map: dict[str, str] = {}
     slot_loser_map: dict[int, str] = {}
 
+    # Seed R1 slots from r1_matchups (always authoritative — built from TeamsKey)
+    for _c, (_t1, _t2) in r1_matchups.items():
+        _w = winners_row[_c] if _c < len(winners_row) else ""
+        if not is_unplayed(_w):
+            _loser = _t2 if _t1 == _w else _t1
+            if _loser and not is_unplayed(_loser):
+                slot_loser_map[_c] = _loser
+                defeated_map[_w] = _loser
+
     _teams_loaded = False
     try:
         teams_url2 = get_csv_url(SHEET_URL, "Teams")
         if teams_url2:
             df_tm = pd.read_csv(teams_url2, header=None)
             df_tm = df_tm.replace(TEAM_ABBREVS)
-            # Find which column index corresponds to game 1
-            # Row 0 has headers: first col is "ID", then "1","2",...,"63"
-            # So game N is at column index N (0-indexed: col 0=ID, col 1=game1, col 2=game2...)
-            for game_num in range(1, 64):  # games 1-63
-                col_idx = game_num  # col 0 = ID header, col 1 = game 1
-                picks_slot = game_num + 2  # Teams game 1 → Picks slot 3
-                if picks_slot > 65:
-                    break
+            # Actual Teams sheet layout (confirmed from raw data):
+            # Col 0 = row labels (ID/Points/Team 1/Team 2/Formulas)
+            # Col 1 = empty / "Upsets"
+            # Col 2 = empty / "Rank"
+            # Col 3 = slot 3 (game 1), col 4 = slot 4 (game 2), ... col 65 = slot 65
+            # i.e. column index == Picks sheet slot number directly
+            # Row 2 (index 2) = Team 1, Row 3 (index 3) = Team 2, Row 4 (index 4) = Winner
+            for picks_slot in range(3, 66):
+                col_idx = picks_slot  # column index equals slot number directly
                 if col_idx >= df_tm.shape[1]:
                     break
                 w = winners_row[picks_slot] if picks_slot < len(winners_row) else ""
@@ -2297,11 +2307,16 @@ token_uri = "https://oauth2.googleapis.com/token"
     # inside a tab (sub-nav click, selectbox, button, etc.) using a helper
     # that fires whenever the active tab/sub-page combination changes.
     def _track_nav(tab_name, sub_name=""):
-        """Call at the top of each tab block and on every sub-nav button click."""
+        """Log navigation only when the user actively navigates to a new tab/sub-page.
+        Uses a two-key system: _pending_nav signals intent, _last_logged_nav prevents duplicates.
+        On first session load, logs the initial landing page once."""
         if not st.session_state.get("modal_done"):
             return
         _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
-        if _nav_key != st.session_state.get("_last_logged_nav", ""):
+        _last    = st.session_state.get("_last_logged_nav", None)
+
+        # First ever navigation this session — log the landing page
+        if _last is None:
             _label = {
                 "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
                 "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
@@ -2310,6 +2325,21 @@ token_uri = "https://oauth2.googleapis.com/token"
             }.get(tab_name, tab_name)
             _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
+            return
+
+        # Only log if this tab was explicitly navigated to via a button
+        # (signalled by _pending_nav_log being set by a nav button click)
+        _pending = st.session_state.get("_pending_nav_log", "")
+        if _pending == _nav_key and _nav_key != _last:
+            _label = {
+                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
+                "scores": "📺 Schedule/Scores",
+            }.get(tab_name, tab_name)
+            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
+            st.session_state["_last_logged_nav"] = _nav_key
+            st.session_state["_pending_nav_log"] = ""
 
     # Apply deep-link on initial page load — keyed to the slug so each unique
     # link works even if the app is already open.
@@ -2327,6 +2357,7 @@ token_uri = "https://oauth2.googleapis.com/token"
     if _effective_slug and _effective_slug != "standings" and _effective_slug != _applied_slug and _modal_done:
         _eff_group, _eff_subpage = SLUG_TO_GROUP.get(_effective_slug, ("standings", None))
         st.session_state["nav_group"] = _eff_group
+        st.session_state["_pending_nav_log"] = _eff_group
         if _eff_subpage:
             st.session_state[f"nav_sub_{_eff_group}"] = _eff_subpage
         st.session_state["jump_to_tab_index"] = GROUP_TAB_INDEX.get(_eff_group, 0)
@@ -2938,13 +2969,30 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 and not is_unplayed(actual_winners[c])]
                         _rarest2 = min(_cpl, key=lambda x: x["count"]) if _cpl else None
 
-                        # Biggest upset (with round)
+                        # Biggest upset — largest seed differential among all correct picks
+                        # No minimum threshold — everyone gets a result
                         _upl = []
-                        for c in range(3,66):
-                            if c<len(_mr_picks) and _mr_picks[c]==actual_winners[c] and not is_unplayed(actual_winners[c]):
-                                _w2=_mr_picks[c]; _ws2=seed_map.get(_w2,0); _lo2=slot_loser_map.get(c,""); _ls2=seed_map.get(_lo2,0)
-                                if _ws2>0 and _ls2>0 and (_ws2-_ls2)>=3:
-                                    _upl.append({"team":_w2,"seed":_ws2,"loser":_lo2,"loser_seed":_ls2,"diff":_ws2-_ls2,"round":_slot_to_round.get(c,"")})
+                        for c in range(3, 66):
+                            if is_unplayed(actual_winners[c]):
+                                continue
+                            if c >= len(_mr_picks) or _mr_picks[c] != actual_winners[c]:
+                                continue
+                            _w2  = actual_winners[c]
+                            _ws2 = seed_map.get(_w2, 0)
+                            if c in r1_matchups:
+                                _t1, _t2 = r1_matchups[c]
+                                _lo2 = _t2 if _t1 == _w2 else _t1
+                            else:
+                                _lo2 = slot_loser_map.get(c, "")
+                            _ls2 = seed_map.get(_lo2, 0)
+                            if _ws2 > 0 and _ls2 > 0:
+                                _upl.append({
+                                    "team": _w2, "seed": _ws2,
+                                    "loser": _lo2, "loser_seed": _ls2,
+                                    "diff": _ws2 - _ls2,
+                                    "round": _slot_to_round.get(c, ""),
+                                    "slot": c,
+                                })
                         _bu2 = max(_upl, key=lambda x: x["diff"]) if _upl else None
 
                         # Tiebreaker
@@ -3018,7 +3066,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                             f'</div>'
                         ))
 
-                        # Slide 2: Journey Through the Standings + Points by Round
+                        # Journey Through the Standings slide — built here, inserted after Tiebreaker
                         _rnd_cells = ""
                         for _rn, _, _ in _round_defs:
                             _rv = _rpts[_rn]; _rr = _rrank[_rn]
@@ -3031,13 +3079,13 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 f'<div style="font-size:10px;color:{_rank_col};">#{_rr}</div>'
                                 f'</div>'
                             )
-                        _my_slides.append(("📈 Journey Through the Standings",
+                        _journey_slide = ("📈 Journey Through the Standings",
                             f'<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:18px;">'
                             f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;margin-bottom:10px;text-align:center;">📊 Points by Round <span style="font-size:10px;">(rank among {_ps})</span></div>'
                             f'<div style="display:flex;flex-wrap:wrap;gap:5px;">{_rnd_cells}</div>'
                             f'<div style="font-size:11px;color:#6b7280;text-align:center;margin-top:10px;">📈 Rank chart shown below ↓</div>'
                             f'</div>'
-                        ))
+                        )
 
                         # Slide 3: Rarest Pick + Biggest Upset (combined)
                         if _rarest2 or _bu2:
@@ -3058,12 +3106,14 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 _bu2u = espn_logo_url(_bu2["team"]) or ""
                                 _bu2i = f'<img src="{_bu2u}" style="width:32px;height:32px;object-fit:contain;" onerror="this.style.display:none">' if _bu2u else ""
                                 _upset_rnd = _rnd_display.get(_bu2["round"], _bu2["round"])
+                                _bu2_label = "😤 Biggest Upset Called" if _bu2["diff"] >= 3 else "🏀 Biggest Seed Differential"
+                                _bu2_diff_str = f'{_bu2["diff"]}-seed upset' if _bu2["diff"] >= 3 else (f'same seed' if _bu2["diff"] == 0 else f'#{_bu2["seed"]} over #{_bu2["loser_seed"]}')
                                 _slide3_parts += (
                                     f'<div style="background:linear-gradient(135deg,#4a1942,#7c3aed);border-radius:16px;padding:16px;text-align:center;">'
-                                    f'<div style="font-size:11px;color:#d8b4fe;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">😤 Biggest Upset Called</div>'
+                                    f'<div style="font-size:11px;color:#d8b4fe;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">{_bu2_label}</div>'
                                     f'<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:4px;">{_bu2i}'
                                     f'<span style="font-size:18px;font-weight:800;color:#fff;">({_bu2["seed"]}) {_bu2["team"]}</span></div>'
-                                    f'<div style="font-size:11px;color:#d8b4fe;">{_upset_rnd} · def. ({_bu2["loser_seed"]}) {_bu2["loser"]} · {_bu2["diff"]}-seed upset</div>'
+                                    f'<div style="font-size:11px;color:#d8b4fe;">{_upset_rnd} · def. ({_bu2["loser_seed"]}) {_bu2["loser"]} · {_bu2_diff_str}</div>'
                                     f'</div>'
                                 )
                             _slide3_parts += '</div>'
@@ -3127,10 +3177,12 @@ token_uri = "https://oauth2.googleapis.com/token"
                             _tb_msg = "Exactly Correct! 🎯" if _mtbd == 0 else f"{_ts2}{_mtbd} off"
                             if _mtbd == 0:
                                 _tb_flavor = ""
-                            elif _mtbd > 0:
-                                _tb_flavor = '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">Too much offense in the Championship game for you 🏀</div>'
-                            else:
+                            elif _mtbd < 0:
+                                # They guessed over — actual score was lower — too much defense
                                 _tb_flavor = '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">Too much defense in the Championship game for you 🛡️</div>'
+                            else:
+                                # They guessed under — actual score was higher — too much offense
+                                _tb_flavor = '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">Too much offense in the Championship game for you 🏀</div>'
                             # Compute tiebreaker rank
                             _tb_rank = None
                             if tiebreaker_guesses and final_score:
@@ -3151,6 +3203,8 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 f'{_tb_flavor}'
                                 f'</div>'
                             ))
+                        # Journey slide always follows tiebreaker (or appears here if no tiebreaker)
+                        _my_slides.append(_journey_slide)
 
                         # Hoops, She Did It Again slide (if they participated)
                         _wsbb_row = next((r for r in WSBB_STANDINGS if r["Name"] == _mn), None)
@@ -3542,6 +3596,7 @@ token_uri = "https://oauth2.googleapis.com/token"
         if _std_cols[_std_col_idx].button("📊 Current", key="std_current", use_container_width=True,
                            type="primary" if _std_sub == "current" else "secondary"):
             st.session_state["nav_sub_standings"] = "current"
+            st.session_state["_pending_nav_log"] = "standings/current"
             st.rerun()
         _std_col_idx += 1
         if _ff_potential:
@@ -3559,6 +3614,7 @@ token_uri = "https://oauth2.googleapis.com/token"
         if _std_cols[_std_col_idx].button("📸 Snapshot", key="std_snapshot", use_container_width=True,
                            type="primary" if _std_sub == "snapshot" else "secondary"):
             st.session_state["nav_sub_standings"] = "snapshot"
+            st.session_state["_pending_nav_log"] = "standings/snapshot"
             st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
@@ -3821,6 +3877,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                             st.session_state["_h2h_show_banner"] = False
                             st.session_state["nav_group"] = "your-bracket"
                             st.session_state["nav_sub_your-bracket"] = "head-to-head"
+                            st.session_state["_pending_nav_log"] = "your-bracket/head-to-head"
                             st.session_state["jump_to_tab_index"] = 1
                             st.rerun()
                 else:
@@ -4120,6 +4177,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                               use_container_width=True,
                               type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_your-bracket"] = _slug
+                st.session_state["_pending_nav_log"] = f"your-bracket/{_slug}"
                 st.rerun()
         st.divider()
         _sub_yb = st.session_state.get("nav_sub_your-bracket", "bracket")
@@ -5797,6 +5855,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                               f"{twins[0]['Matches']} shared picks")
                     if c1.button("⚔️ Compare", key="dna_compare"):
                         st.session_state["nav_sub_your-bracket"] = "head-to-head"
+                        st.session_state["_pending_nav_log"] = "your-bracket/head-to-head"
                         st.query_params["p1"]  = dna_select
                         st.query_params["p2"]  = twin_name
                         st.session_state.pop("h2h_params_applied", None)
@@ -6108,6 +6167,63 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                                 f'<span style="font-size:13px;color:#e5e7eb;">🏆 Champion: {_lhtml(_sc["champ"])}{_slabel(_sc["champ"])}</span>'
                                 f'<span style="font-size:18px;font-weight:800;color:{_rc};">#{_sc["rank"]}</span>'
                                 f'</div>{_tie_html}</div>', unsafe_allow_html=True)
+
+                # ── Top 10 Scoring Picks ──────────────────────────────────
+                st.markdown("---")
+                st.markdown("#### 🏅 Top Scoring Picks")
+                _rnd_name = {
+                    "R1": "First Round", "R2": "Second Round",
+                    "S16": "Sweet 16",   "E8": "Elite Eight",
+                    "FF": "Final Four",  "🏆": "Championship",
+                }
+                _top_picks = []
+                for c in range(3, 66):
+                    if is_unplayed(actual_winners[c]):
+                        continue
+                    if dna_picks[c] != actual_winners[c]:
+                        continue
+                    _w   = actual_winners[c]
+                    _l   = slot_loser_map.get(c, "—")
+                    _bp  = points_per_game[c]
+                    _sv  = seed_map.get(_w, 0)
+                    _tot = _bp + _sv
+                    _rn  = get_round_name(c)
+                    _rnd_display_map = {
+                        "R64":   "First Round",
+                        "R32":   "Second Round",
+                        "S16":   "Sweet 16",
+                        "E8":    "Elite Eight",
+                        "F4":    "Final Four",
+                        "Champ": "Championship",
+                    }
+                    _rnd_label = _rnd_display_map.get(_rn, _rn)
+                    _top_picks.append({
+                        "Round":  _rnd_label,
+                        "Winner": _w,
+                        "Loser":  _l,
+                        "Base Pts": _bp,
+                        "Seed Bonus": _sv,
+                        "Total Pts": _tot,
+                    })
+                _top_picks.sort(key=lambda x: x["Total Pts"], reverse=True)
+                if _top_picks:
+                    _tp_df = pd.DataFrame(_top_picks[:10])
+                    _tp_df = _tp_df[["Round", "Winner", "Loser", "Base Pts", "Seed Bonus", "Total Pts"]]
+                    st.dataframe(
+                        _tp_df,
+                        use_container_width=True,
+                        hide_index=True,
+                        column_config={
+                            "Round":       st.column_config.TextColumn("Round"),
+                            "Winner":      st.column_config.TextColumn("Winner ✅"),
+                            "Loser":       st.column_config.TextColumn("Loser"),
+                            "Base Pts":    st.column_config.NumberColumn("Base Pts",    format="%d"),
+                            "Seed Bonus":  st.column_config.NumberColumn("Seed Bonus",  format="+%d"),
+                            "Total Pts":   st.column_config.NumberColumn("Total Pts",   format="%d"),
+                        }
+                    )
+                else:
+                    st.info("No correct picks yet.")
 
 
 
@@ -6765,6 +6881,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                             use_container_width=True,
                             type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_fun-stats"] = _slug
+                st.session_state["_pending_nav_log"] = f"fun-stats/{_slug}"
                 st.rerun()
         st.divider()
         _sub_fun = st.session_state.get("nav_sub_fun-stats", "bracket-busters")
@@ -7140,6 +7257,7 @@ padding:clamp(10px,2.5vw,16px);width:100%;box-sizing:border-box;margin-bottom:12
                            use_container_width=True,
                            type="primary" if _active else "secondary"):
                 st.session_state["nav_sub_bonus"] = _slug
+                st.session_state["_pending_nav_log"] = f"bonus/{_slug}"
                 st.rerun()
         st.divider()
         _sub_bon = st.session_state.get("nav_sub_bonus", "regional")
