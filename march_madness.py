@@ -355,6 +355,116 @@ WSBB_STANDINGS = [
 ]
 WSBB_CHAMP = "UCLA"
 
+# ── Historical standings from every pool year (2016–2026, no 2020) ─────────────
+# Each entry: {year, rank, points, picks, pool_size}
+# Names are normalized to their canonical spelling (title-case, single space).
+HISTORICAL_STANDINGS = {
+    'Alan Bischoff': [{"year": 2019, "rank": 29, "points": 190, "picks": 41, "pool_size": 40}],
+    'Alana Davis': [{"year": 2016, "rank": 1, "points": 265, "picks": 42, "pool_size": 18}, {"year": 2017, "rank": 4, "points": 246, "picks": 44, "pool_size": 28}, {"year": 2018, "rank": 6, "points": 209, "picks": 37, "pool_size": 30}, {"year": 2019, "rank": 25, "points": 198, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 24, "points": 225, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 12, "points": 243, "picks": 38, "pool_size": 54}, {"year": 2023, "rank": 28, "points": 212, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 33, "points": 255, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 1, "points": 389, "picks": 52, "pool_size": 65}, {"year": 2026, "rank": 53, "points": 230, "picks": 38, "pool_size": 70}],
+    'Alex Bahre': [{"year": 2017, "rank": 15, "points": 211, "picks": 39, "pool_size": 28}, {"year": 2018, "rank": 24, "points": 167, "picks": 32, "pool_size": 30}],
+    'Alex Szyjkowski': [{"year": 2021, "rank": 4, "points": 264, "picks": 37, "pool_size": 55}],
+    'Annie Coleman': [{"year": 2022, "rank": 18, "points": 223, "picks": 34, "pool_size": 54}],
+    'Ashley Windrow': [{"year": 2017, "rank": 20, "points": 199, "picks": 37, "pool_size": 28}],
+    'Amanda Gallegos': [{"year": 2024, "rank": 13, "points": 283, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 13, "points": 306, "picks": 42, "pool_size": 65}],
+    'Amanda Kosack': [{"year": 2017, "rank": 21, "points": 197, "picks": 37, "pool_size": 28}, {"year": 2021, "rank": 50, "points": 182, "picks": 29, "pool_size": 55}, {"year": 2022, "rank": 35, "points": 200, "picks": 32, "pool_size": 54}, {"year": 2023, "rank": 50, "points": 186, "picks": 30, "pool_size": 64}, {"year": 2024, "rank": 27, "points": 263, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 8, "points": 318, "picks": 47, "pool_size": 65}, {"year": 2026, "rank": 12, "points": 293, "picks": 45, "pool_size": 70}],
+    'Ana Psoncak': [{"year": 2021, "rank": 48, "points": 185, "picks": 28, "pool_size": 55}],
+    'Andrea Racine': [{"year": 2017, "rank": 28, "points": 138, "picks": 27, "pool_size": 28}, {"year": 2018, "rank": 12, "points": 192, "picks": 32, "pool_size": 30}, {"year": 2019, "rank": 21, "points": 209, "picks": 39, "pool_size": 40}, {"year": 2021, "rank": 22, "points": 227, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 23, "points": 218, "picks": 29, "pool_size": 54}, {"year": 2023, "rank": 62, "points": 144, "picks": 19, "pool_size": 64}, {"year": 2024, "rank": 62, "points": 185, "picks": 27, "pool_size": 65}, {"year": 2025, "rank": 61, "points": 195, "picks": 30, "pool_size": 65}, {"year": 2026, "rank": 70, "points": 165, "picks": 23, "pool_size": 70}],
+    'Andrew Reynolds': [{"year": 2019, "rank": 32, "points": 181, "picks": 34, "pool_size": 40}, {"year": 2021, "rank": 45, "points": 194, "picks": 30, "pool_size": 55}, {"year": 2022, "rank": 28, "points": 213, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 53, "points": 178, "picks": 29, "pool_size": 64}, {"year": 2025, "rank": 28, "points": 276, "picks": 42, "pool_size": 65}, {"year": 2026, "rank": 55, "points": 225, "picks": 36, "pool_size": 70}],
+    'Andy Yardley': [{"year": 2018, "rank": 14, "points": 189, "picks": 35, "pool_size": 30}, {"year": 2019, "rank": 9, "points": 230, "picks": 42, "pool_size": 40}, {"year": 2021, "rank": 13, "points": 239, "picks": 36, "pool_size": 55}, {"year": 2022, "rank": 34, "points": 204, "picks": 33, "pool_size": 54}, {"year": 2023, "rank": 35, "points": 206, "picks": 31, "pool_size": 64}, {"year": 2024, "rank": 12, "points": 286, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 32, "points": 265, "picks": 40, "pool_size": 65}, {"year": 2026, "rank": 64, "points": 211, "picks": 34, "pool_size": 70}],
+    'Tony Astacio': [{"year": 2017, "rank": 6, "points": 243, "picks": 39, "pool_size": 28}, {"year": 2019, "rank": 6, "points": 238, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 42, "points": 201, "picks": 28, "pool_size": 55}, {"year": 2022, "rank": 50, "points": 162, "picks": 23, "pool_size": 54}, {"year": 2023, "rank": 14, "points": 235, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 56, "points": 205, "picks": 28, "pool_size": 65}, {"year": 2025, "rank": 41, "points": 244, "picks": 36, "pool_size": 65}, {"year": 2026, "rank": 46, "points": 246, "picks": 37, "pool_size": 70}],
+    'Anthony Snelling': [{"year": 2018, "rank": 22, "points": 178, "picks": 32, "pool_size": 30}, {"year": 2021, "rank": 9, "points": 245, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 29, "points": 211, "picks": 32, "pool_size": 54}, {"year": 2023, "rank": 7, "points": 258, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 59, "points": 196, "picks": 29, "pool_size": 65}, {"year": 2025, "rank": 57, "points": 221, "picks": 35, "pool_size": 65}, {"year": 2026, "rank": 17, "points": 289, "picks": 44, "pool_size": 70}],
+    'Armando Zamudio': [{"year": 2019, "rank": 1, "points": 268, "picks": 47, "pool_size": 40}, {"year": 2021, "rank": 47, "points": 187, "picks": 30, "pool_size": 55}, {"year": 2023, "rank": 26, "points": 215, "picks": 34, "pool_size": 64}, {"year": 2026, "rank": 7, "points": 300, "picks": 46, "pool_size": 70}],
+    'Benjamin Friedlander': [{"year": 2023, "rank": 32, "points": 210, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 63, "points": 185, "picks": 31, "pool_size": 65}, {"year": 2026, "rank": 65, "points": 206, "picks": 34, "pool_size": 70}],
+    'Billy Gordon': [{"year": 2019, "rank": 40, "points": 108, "picks": 22, "pool_size": 40}, {"year": 2021, "rank": 52, "points": 179, "picks": 28, "pool_size": 55}, {"year": 2022, "rank": 52, "points": 145, "picks": 23, "pool_size": 54}, {"year": 2023, "rank": 17, "points": 229, "picks": 35, "pool_size": 64}, {"year": 2024, "rank": 34, "points": 255, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 7, "points": 319, "picks": 50, "pool_size": 65}, {"year": 2026, "rank": 47, "points": 244, "picks": 42, "pool_size": 70}],
+    'Brace Snelling': [{"year": 2021, "rank": 5, "points": 258, "picks": 37, "pool_size": 55}, {"year": 2022, "rank": 22, "points": 218, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 12, "points": 238, "picks": 36, "pool_size": 64}, {"year": 2024, "rank": 45, "points": 231, "picks": 33, "pool_size": 65}, {"year": 2025, "rank": 59, "points": 213, "picks": 35, "pool_size": 65}, {"year": 2026, "rank": 44, "points": 247, "picks": 36, "pool_size": 70}],
+    'Brendan Tierney': [{"year": 2022, "rank": 48, "points": 167, "picks": 27, "pool_size": 54}, {"year": 2023, "rank": 61, "points": 149, "picks": 26, "pool_size": 64}, {"year": 2024, "rank": 8, "points": 295, "picks": 41, "pool_size": 65}, {"year": 2025, "rank": 9, "points": 312, "picks": 46, "pool_size": 65}, {"year": 2026, "rank": 25, "points": 280, "picks": 43, "pool_size": 70}],
+    'Brian Moske': [{"year": 2021, "rank": 15, "points": 236, "picks": 37, "pool_size": 55}, {"year": 2024, "rank": 57, "points": 203, "picks": 35, "pool_size": 65}, {"year": 2025, "rank": 22, "points": 289, "picks": 47, "pool_size": 65}, {"year": 2026, "rank": 10, "points": 295, "picks": 46, "pool_size": 70}],
+    'Bryce Carlson': [{"year": 2021, "rank": 38, "points": 210, "picks": 29, "pool_size": 55}, {"year": 2022, "rank": 2, "points": 296, "picks": 40, "pool_size": 54}, {"year": 2023, "rank": 55, "points": 174, "picks": 29, "pool_size": 64}, {"year": 2024, "rank": 47, "points": 223, "picks": 35, "pool_size": 65}, {"year": 2025, "rank": 2, "points": 356, "picks": 48, "pool_size": 65}, {"year": 2026, "rank": 32, "points": 258, "picks": 41, "pool_size": 70}],
+    'Caleb Bond': [{"year": 2023, "rank": 39, "points": 200, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 35, "points": 254, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 4, "points": 343, "picks": 51, "pool_size": 65}],
+    'Chris Harmantzis': [{"year": 2023, "rank": 38, "points": 200, "picks": 31, "pool_size": 64}, {"year": 2026, "rank": 1, "points": 312, "picks": 46, "pool_size": 70}],
+    'Christian Palacios': [{"year": 2016, "rank": 17, "points": 160, "picks": 26, "pool_size": 18}, {"year": 2017, "rank": 18, "points": 203, "picks": 37, "pool_size": 28}, {"year": 2018, "rank": 13, "points": 189, "picks": 31, "pool_size": 30}, {"year": 2021, "rank": 6, "points": 252, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 40, "points": 181, "picks": 30, "pool_size": 54}, {"year": 2023, "rank": 33, "points": 206, "picks": 34, "pool_size": 64}],
+    'Cole Rapso': [{"year": 2017, "rank": 24, "points": 196, "picks": 38, "pool_size": 28}],
+    'Corey Buckley': [{"year": 2016, "rank": 18, "points": 156, "picks": 32, "pool_size": 18}, {"year": 2017, "rank": 11, "points": 224, "picks": 43, "pool_size": 28}, {"year": 2018, "rank": 23, "points": 168, "picks": 33, "pool_size": 30}],
+    'Daniel Wright': [{"year": 2024, "rank": 4, "points": 304, "picks": 43, "pool_size": 65}, {"year": 2025, "rank": 29, "points": 268, "picks": 43, "pool_size": 65}, {"year": 2026, "rank": 6, "points": 301, "picks": 45, "pool_size": 70}],
+    'Dave Sabour': [{"year": 2018, "rank": 15, "points": 188, "picks": 32, "pool_size": 30}, {"year": 2019, "rank": 18, "points": 216, "picks": 39, "pool_size": 40}, {"year": 2021, "rank": 11, "points": 242, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 4, "points": 273, "picks": 38, "pool_size": 54}, {"year": 2023, "rank": 58, "points": 166, "picks": 28, "pool_size": 64}, {"year": 2024, "rank": 65, "points": 172, "picks": 28, "pool_size": 65}, {"year": 2025, "rank": 47, "points": 238, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 11, "points": 294, "picks": 43, "pool_size": 70}],
+    'Diana Lower': [{"year": 2026, "rank": 23, "points": 282, "picks": 40, "pool_size": 70}],
+    'Doug Flint': [{"year": 2019, "rank": 34, "points": 176, "picks": 33, "pool_size": 40}],
+    'David Potterton': [{"year": 2023, "rank": 5, "points": 263, "picks": 35, "pool_size": 64}, {"year": 2024, "rank": 15, "points": 276, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 53, "points": 227, "picks": 35, "pool_size": 65}, {"year": 2026, "rank": 8, "points": 300, "picks": 45, "pool_size": 70}],
+    'Debbie Reid': [{"year": 2023, "rank": 21, "points": 224, "picks": 36, "pool_size": 64}, {"year": 2024, "rank": 40, "points": 247, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 49, "points": 237, "picks": 38, "pool_size": 65}, {"year": 2026, "rank": 27, "points": 272, "picks": 42, "pool_size": 70}],
+    'Dylan Driver': [{"year": 2018, "rank": 2, "points": 240, "picks": 41, "pool_size": 30}, {"year": 2019, "rank": 33, "points": 178, "picks": 37, "pool_size": 40}, {"year": 2021, "rank": 12, "points": 240, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 20, "points": 220, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 27, "points": 212, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 26, "points": 263, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 20, "points": 295, "picks": 47, "pool_size": 65}, {"year": 2026, "rank": 4, "points": 305, "picks": 46, "pool_size": 70}],
+    'Dylan Grassl': [{"year": 2016, "rank": 11, "points": 216, "picks": 36, "pool_size": 18}, {"year": 2017, "rank": 12, "points": 218, "picks": 36, "pool_size": 28}, {"year": 2018, "rank": 19, "points": 185, "picks": 32, "pool_size": 30}, {"year": 2019, "rank": 2, "points": 251, "picks": 44, "pool_size": 40}, {"year": 2021, "rank": 14, "points": 237, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 53, "points": 130, "picks": 23, "pool_size": 54}, {"year": 2023, "rank": 64, "points": 133, "picks": 24, "pool_size": 64}, {"year": 2024, "rank": 58, "points": 199, "picks": 32, "pool_size": 65}, {"year": 2025, "rank": 10, "points": 310, "picks": 43, "pool_size": 65}, {"year": 2026, "rank": 3, "points": 306, "picks": 44, "pool_size": 70}],
+    'Dylan Levy': [{"year": 2019, "rank": 13, "points": 220, "picks": 40, "pool_size": 40}, {"year": 2021, "rank": 23, "points": 227, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 19, "points": 222, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 18, "points": 229, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 38, "points": 249, "picks": 34, "pool_size": 65}, {"year": 2025, "rank": 62, "points": 188, "picks": 30, "pool_size": 65}, {"year": 2026, "rank": 24, "points": 280, "picks": 44, "pool_size": 70}],
+    'Elias Luna': [{"year": 2016, "rank": 19, "points": 153, "picks": 28, "pool_size": 18}, {"year": 2022, "rank": 41, "points": 181, "picks": 30, "pool_size": 54}, {"year": 2023, "rank": 42, "points": 195, "picks": 31, "pool_size": 64}, {"year": 2025, "rank": 48, "points": 238, "picks": 36, "pool_size": 65}, {"year": 2026, "rank": 40, "points": 253, "picks": 41, "pool_size": 70}],
+    'Elizabeth Hartmann': [{"year": 2023, "rank": 31, "points": 211, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 37, "points": 251, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 26, "points": 277, "picks": 41, "pool_size": 65}, {"year": 2026, "rank": 59, "points": 220, "picks": 35, "pool_size": 70}],
+    'Eric Rosano': [{"year": 2019, "rank": 5, "points": 243, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 44, "points": 195, "picks": 29, "pool_size": 55}, {"year": 2022, "rank": 45, "points": 173, "picks": 29, "pool_size": 54}, {"year": 2023, "rank": 41, "points": 199, "picks": 31, "pool_size": 64}, {"year": 2024, "rank": 22, "points": 270, "picks": 37, "pool_size": 65}, {"year": 2025, "rank": 56, "points": 221, "picks": 36, "pool_size": 65}, {"year": 2026, "rank": 60, "points": 220, "picks": 37, "pool_size": 70}],
+    'Glenn Isaacs': [{"year": 2019, "rank": 28, "points": 190, "picks": 39, "pool_size": 40}, {"year": 2021, "rank": 53, "points": 168, "picks": 28, "pool_size": 55}, {"year": 2022, "rank": 8, "points": 254, "picks": 37, "pool_size": 54}, {"year": 2023, "rank": 22, "points": 221, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 5, "points": 304, "picks": 43, "pool_size": 65}, {"year": 2025, "rank": 23, "points": 286, "picks": 44, "pool_size": 65}, {"year": 2026, "rank": 5, "points": 303, "picks": 44, "pool_size": 70}],
+    'Greg Murphy': [{"year": 2016, "rank": 8, "points": 224, "picks": 40, "pool_size": 18}, {"year": 2017, "rank": 5, "points": 243, "picks": 41, "pool_size": 28}, {"year": 2018, "rank": 21, "points": 180, "picks": 33, "pool_size": 30}, {"year": 2019, "rank": 26, "points": 194, "picks": 39, "pool_size": 40}, {"year": 2021, "rank": 27, "points": 224, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 10, "points": 252, "picks": 38, "pool_size": 54}, {"year": 2023, "rank": 37, "points": 205, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 9, "points": 292, "picks": 42, "pool_size": 65}, {"year": 2025, "rank": 36, "points": 252, "picks": 42, "pool_size": 65}, {"year": 2026, "rank": 36, "points": 257, "picks": 42, "pool_size": 70}],
+    'Griffin Reid': [{"year": 2016, "rank": 15, "points": 165, "picks": 31, "pool_size": 18}, {"year": 2017, "rank": 22, "points": 197, "picks": 33, "pool_size": 28}, {"year": 2018, "rank": 30, "points": 135, "picks": 26, "pool_size": 30}, {"year": 2019, "rank": 39, "points": 147, "picks": 31, "pool_size": 40}, {"year": 2021, "rank": 28, "points": 224, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 5, "points": 269, "picks": 39, "pool_size": 54}, {"year": 2023, "rank": 4, "points": 264, "picks": 35, "pool_size": 64}, {"year": 2024, "rank": 61, "points": 194, "picks": 29, "pool_size": 65}, {"year": 2025, "rank": 44, "points": 242, "picks": 38, "pool_size": 65}, {"year": 2026, "rank": 33, "points": 258, "picks": 42, "pool_size": 70}],
+    'Heidi Bruce': [{"year": 2018, "rank": 20, "points": 183, "picks": 32, "pool_size": 30}, {"year": 2019, "rank": 16, "points": 218, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 37, "points": 210, "picks": 30, "pool_size": 55}, {"year": 2022, "rank": 47, "points": 168, "picks": 28, "pool_size": 54}, {"year": 2023, "rank": 49, "points": 187, "picks": 31, "pool_size": 64}, {"year": 2024, "rank": 14, "points": 282, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 27, "points": 276, "picks": 42, "pool_size": 65}, {"year": 2026, "rank": 49, "points": 233, "picks": 36, "pool_size": 70}],
+    'Hunter Phillips': [{"year": 2025, "rank": 33, "points": 265, "picks": 42, "pool_size": 65}, {"year": 2026, "rank": 15, "points": 291, "picks": 45, "pool_size": 70}],
+    'Isaiah Erichsen': [{"year": 2021, "rank": 19, "points": 228, "picks": 32, "pool_size": 55}, {"year": 2022, "rank": 37, "points": 195, "picks": 30, "pool_size": 54}, {"year": 2023, "rank": 44, "points": 193, "picks": 30, "pool_size": 64}, {"year": 2024, "rank": 52, "points": 211, "picks": 30, "pool_size": 65}, {"year": 2025, "rank": 30, "points": 267, "picks": 41, "pool_size": 65}, {"year": 2026, "rank": 37, "points": 257, "picks": 41, "pool_size": 70}],
+    'Izzy Randall': [{"year": 2022, "rank": 11, "points": 249, "picks": 36, "pool_size": 54}, {"year": 2023, "rank": 57, "points": 168, "picks": 27, "pool_size": 64}, {"year": 2024, "rank": 17, "points": 273, "picks": 41, "pool_size": 65}, {"year": 2025, "rank": 39, "points": 248, "picks": 40, "pool_size": 65}, {"year": 2026, "rank": 19, "points": 286, "picks": 41, "pool_size": 70}],
+    'Jack Reid': [{"year": 2023, "rank": 43, "points": 193, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 18, "points": 273, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 37, "points": 251, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 45, "points": 246, "picks": 41, "pool_size": 70}],
+    'Joseph Harper': [{"year": 2025, "rank": 35, "points": 256, "picks": 41, "pool_size": 65}],
+    'Josh Wright': [{"year": 2023, "rank": 15, "points": 234, "picks": 34, "pool_size": 64}],
+    'Juan Gil': [{"year": 2017, "rank": 17, "points": 204, "picks": 40, "pool_size": 28}, {"year": 2018, "rank": 16, "points": 187, "picks": 35, "pool_size": 30}],
+    'Jacqueline Miller': [{"year": 2021, "rank": 54, "points": 147, "picks": 18, "pool_size": 55}, {"year": 2022, "rank": 54, "points": 114, "picks": 19, "pool_size": 54}, {"year": 2023, "rank": 59, "points": 166, "picks": 23, "pool_size": 64}, {"year": 2024, "rank": 50, "points": 216, "picks": 36, "pool_size": 65}, {"year": 2025, "rank": 40, "points": 246, "picks": 40, "pool_size": 65}],
+    'Jacqueline Robbins': [{"year": 2018, "rank": 11, "points": 194, "picks": 35, "pool_size": 30}, {"year": 2021, "rank": 33, "points": 218, "picks": 33, "pool_size": 55}],
+    'James Sawaya': [{"year": 2016, "rank": 9, "points": 223, "picks": 41, "pool_size": 18}, {"year": 2018, "rank": 10, "points": 195, "picks": 35, "pool_size": 30}, {"year": 2019, "rank": 23, "points": 205, "picks": 38, "pool_size": 40}, {"year": 2021, "rank": 8, "points": 246, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 1, "points": 308, "picks": 40, "pool_size": 54}, {"year": 2023, "rank": 25, "points": 215, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 29, "points": 258, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 14, "points": 305, "picks": 49, "pool_size": 65}, {"year": 2026, "rank": 20, "points": 285, "picks": 40, "pool_size": 70}],
+    'Jared Goldstein': [{"year": 2016, "rank": 4, "points": 240, "picks": 37, "pool_size": 18}, {"year": 2017, "rank": 3, "points": 255, "picks": 42, "pool_size": 28}, {"year": 2018, "rank": 25, "points": 160, "picks": 28, "pool_size": 30}, {"year": 2019, "rank": 11, "points": 227, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 36, "points": 211, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 25, "points": 216, "picks": 33, "pool_size": 54}, {"year": 2023, "rank": 60, "points": 152, "picks": 25, "pool_size": 64}, {"year": 2024, "rank": 48, "points": 217, "picks": 32, "pool_size": 65}, {"year": 2025, "rank": 17, "points": 302, "picks": 42, "pool_size": 65}, {"year": 2026, "rank": 69, "points": 177, "picks": 30, "pool_size": 70}],
+    'Jared Hurst': [{"year": 2019, "rank": 4, "points": 244, "picks": 38, "pool_size": 40}, {"year": 2022, "rank": 46, "points": 171, "picks": 30, "pool_size": 54}],
+    'Jaymi Lynne': [{"year": 2016, "rank": 7, "points": 225, "picks": 38, "pool_size": 18}, {"year": 2017, "rank": 14, "points": 212, "picks": 37, "pool_size": 28}, {"year": 2018, "rank": 1, "points": 260, "picks": 33, "pool_size": 30}, {"year": 2019, "rank": 35, "points": 165, "picks": 30, "pool_size": 40}, {"year": 2021, "rank": 26, "points": 225, "picks": 32, "pool_size": 55}, {"year": 2022, "rank": 38, "points": 194, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 2, "points": 281, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 49, "points": 216, "picks": 30, "pool_size": 65}, {"year": 2025, "rank": 65, "points": 164, "picks": 27, "pool_size": 65}, {"year": 2026, "rank": 29, "points": 265, "picks": 41, "pool_size": 70}],
+    'Jeff Kooring': [{"year": 2019, "rank": 10, "points": 228, "picks": 43, "pool_size": 40}, {"year": 2021, "rank": 35, "points": 213, "picks": 32, "pool_size": 55}, {"year": 2022, "rank": 17, "points": 229, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 24, "points": 220, "picks": 35, "pool_size": 64}, {"year": 2024, "rank": 16, "points": 274, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 11, "points": 309, "picks": 45, "pool_size": 65}, {"year": 2026, "rank": 50, "points": 232, "picks": 40, "pool_size": 70}],
+    'Karen Tierney': [{"year": 2025, "rank": 12, "points": 307, "picks": 46, "pool_size": 65}, {"year": 2026, "rank": 16, "points": 289, "picks": 45, "pool_size": 70}],
+    'Kathy Klemens': [{"year": 2019, "rank": 30, "points": 189, "picks": 38, "pool_size": 40}, {"year": 2023, "rank": 19, "points": 227, "picks": 36, "pool_size": 64}, {"year": 2024, "rank": 51, "points": 213, "picks": 34, "pool_size": 65}],
+    'Katie Mae': [{"year": 2016, "rank": 16, "points": 162, "picks": 27, "pool_size": 18}],
+    'Kelyn Ikegami': [{"year": 2021, "rank": 2, "points": 266, "picks": 37, "pool_size": 55}, {"year": 2022, "rank": 6, "points": 261, "picks": 38, "pool_size": 54}, {"year": 2023, "rank": 9, "points": 243, "picks": 36, "pool_size": 64}, {"year": 2024, "rank": 54, "points": 208, "picks": 33, "pool_size": 65}, {"year": 2025, "rank": 6, "points": 322, "picks": 46, "pool_size": 65}, {"year": 2026, "rank": 28, "points": 271, "picks": 44, "pool_size": 70}],
+    'Kellie Knight': [{"year": 2026, "rank": 41, "points": 249, "picks": 42, "pool_size": 70}],
+    'Kelly Moske': [{"year": 2025, "rank": 43, "points": 242, "picks": 38, "pool_size": 65}],
+    'Kyle Gammage': [{"year": 2024, "rank": 24, "points": 266, "picks": 39, "pool_size": 65}],
+    'Laura Rubin': [{"year": 2016, "rank": 3, "points": 244, "picks": 42, "pool_size": 18}, {"year": 2017, "rank": 27, "points": 186, "picks": 38, "pool_size": 28}, {"year": 2019, "rank": 12, "points": 220, "picks": 42, "pool_size": 40}, {"year": 2021, "rank": 16, "points": 231, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 15, "points": 232, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 46, "points": 191, "picks": 32, "pool_size": 64}, {"year": 2024, "rank": 60, "points": 196, "picks": 32, "pool_size": 65}, {"year": 2025, "rank": 64, "points": 177, "picks": 30, "pool_size": 65}, {"year": 2026, "rank": 34, "points": 258, "picks": 43, "pool_size": 70}],
+    'Lauren Froman': [{"year": 2021, "rank": 32, "points": 219, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 7, "points": 261, "picks": 40, "pool_size": 54}, {"year": 2023, "rank": 1, "points": 295, "picks": 40, "pool_size": 64}, {"year": 2024, "rank": 41, "points": 241, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 50, "points": 234, "picks": 38, "pool_size": 65}, {"year": 2026, "rank": 38, "points": 254, "picks": 42, "pool_size": 70}],
+    'Mac Kahn': [{"year": 2024, "rank": 53, "points": 208, "picks": 34, "pool_size": 65}, {"year": 2025, "rank": 15, "points": 305, "picks": 47, "pool_size": 65}, {"year": 2026, "rank": 51, "points": 231, "picks": 38, "pool_size": 70}],
+    'Marise Gaughan': [{"year": 2026, "rank": 52, "points": 231, "picks": 35, "pool_size": 70}],
+    'Matt Berendes': [{"year": 2022, "rank": 13, "points": 240, "picks": 37, "pool_size": 54}, {"year": 2023, "rank": 23, "points": 220, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 46, "points": 229, "picks": 37, "pool_size": 65}, {"year": 2025, "rank": 55, "points": 225, "picks": 39, "pool_size": 65}, {"year": 2026, "rank": 42, "points": 248, "picks": 40, "pool_size": 70}],
+    'Matt Reid': [{"year": 2016, "rank": 10, "points": 220, "picks": 37, "pool_size": 18}, {"year": 2017, "rank": 10, "points": 224, "picks": 38, "pool_size": 28}, {"year": 2018, "rank": 5, "points": 220, "picks": 36, "pool_size": 30}, {"year": 2019, "rank": 31, "points": 188, "picks": 35, "pool_size": 40}, {"year": 2021, "rank": 51, "points": 179, "picks": 28, "pool_size": 55}, {"year": 2022, "rank": 33, "points": 204, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 3, "points": 268, "picks": 37, "pool_size": 64}, {"year": 2024, "rank": 31, "points": 256, "picks": 37, "pool_size": 65}, {"year": 2025, "rank": 5, "points": 326, "picks": 45, "pool_size": 65}, {"year": 2026, "rank": 2, "points": 307, "picks": 46, "pool_size": 70}],
+    'McKinley Hancock': [{"year": 2018, "rank": 25, "points": 160, "picks": 29, "pool_size": 30}, {"year": 2019, "rank": 22, "points": 209, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 43, "points": 201, "picks": 32, "pool_size": 55}, {"year": 2024, "rank": 10, "points": 291, "picks": 42, "pool_size": 65}, {"year": 2025, "rank": 25, "points": 283, "picks": 43, "pool_size": 65}, {"year": 2026, "rank": 18, "points": 286, "picks": 45, "pool_size": 70}],
+    'Megan Gorman': [{"year": 2016, "rank": 14, "points": 185, "picks": 33, "pool_size": 18}, {"year": 2017, "rank": 9, "points": 234, "picks": 39, "pool_size": 28}, {"year": 2018, "rank": 9, "points": 198, "picks": 34, "pool_size": 30}, {"year": 2021, "rank": 20, "points": 228, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 43, "points": 179, "picks": 29, "pool_size": 54}, {"year": 2023, "rank": 36, "points": 206, "picks": 31, "pool_size": 64}],
+    'Mike Plante': [{"year": 2021, "rank": 3, "points": 264, "picks": 36, "pool_size": 55}, {"year": 2022, "rank": 51, "points": 156, "picks": 26, "pool_size": 54}, {"year": 2023, "rank": 51, "points": 186, "picks": 30, "pool_size": 64}, {"year": 2024, "rank": 36, "points": 254, "picks": 36, "pool_size": 65}, {"year": 2025, "rank": 18, "points": 299, "picks": 44, "pool_size": 65}, {"year": 2026, "rank": 35, "points": 257, "picks": 41, "pool_size": 70}],
+    'Molly Murphy': [{"year": 2016, "rank": 5, "points": 237, "picks": 40, "pool_size": 18}, {"year": 2017, "rank": 2, "points": 256, "picks": 44, "pool_size": 28}, {"year": 2021, "rank": 17, "points": 230, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 21, "points": 218, "picks": 34, "pool_size": 54}, {"year": 2023, "rank": 34, "points": 206, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 32, "points": 256, "picks": 36, "pool_size": 65}, {"year": 2025, "rank": 63, "points": 181, "picks": 26, "pool_size": 65}, {"year": 2026, "rank": 48, "points": 241, "picks": 37, "pool_size": 70}],
+    'Nicki Doyamis': [{"year": 2016, "rank": 12, "points": 210, "picks": 39, "pool_size": 18}],
+    'Olivia Rosano': [{"year": 2019, "rank": 24, "points": 200, "picks": 38, "pool_size": 40}, {"year": 2021, "rank": 55, "points": 140, "picks": 23, "pool_size": 55}, {"year": 2022, "rank": 32, "points": 207, "picks": 32, "pool_size": 54}, {"year": 2023, "rank": 20, "points": 226, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 44, "points": 231, "picks": 37, "pool_size": 65}, {"year": 2025, "rank": 45, "points": 241, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 61, "points": 213, "picks": 33, "pool_size": 70}],
+    'Pete Mullin': [{"year": 2016, "rank": 2, "points": 248, "picks": 42, "pool_size": 18}],
+    'Priya Gupta': [{"year": 2017, "rank": 25, "points": 196, "picks": 39, "pool_size": 28}, {"year": 2018, "rank": 4, "points": 220, "picks": 40, "pool_size": 30}, {"year": 2019, "rank": 37, "points": 163, "picks": 36, "pool_size": 40}, {"year": 2021, "rank": 1, "points": 279, "picks": 36, "pool_size": 55}, {"year": 2022, "rank": 26, "points": 215, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 56, "points": 174, "picks": 30, "pool_size": 64}, {"year": 2024, "rank": 25, "points": 266, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 31, "points": 267, "picks": 39, "pool_size": 65}, {"year": 2026, "rank": 63, "points": 212, "picks": 31, "pool_size": 70}],
+    'Ralph Rivera': [{"year": 2021, "rank": 25, "points": 225, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 9, "points": 252, "picks": 38, "pool_size": 54}],
+    'Robert Dick': [{"year": 2018, "rank": 3, "points": 226, "picks": 39, "pool_size": 30}, {"year": 2019, "rank": 36, "points": 164, "picks": 36, "pool_size": 40}, {"year": 2021, "rank": 39, "points": 209, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 27, "points": 214, "picks": 35, "pool_size": 54}, {"year": 2023, "rank": 11, "points": 239, "picks": 37, "pool_size": 64}, {"year": 2024, "rank": 39, "points": 247, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 34, "points": 259, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 56, "points": 223, "picks": 37, "pool_size": 70}],
+    'Romana Guillotte': [{"year": 2017, "rank": 29, "points": 135, "picks": 22, "pool_size": 28}, {"year": 2018, "rank": 29, "points": 141, "picks": 25, "pool_size": 30}, {"year": 2019, "rank": 14, "points": 220, "picks": 42, "pool_size": 40}, {"year": 2021, "rank": 31, "points": 223, "picks": 33, "pool_size": 55}, {"year": 2022, "rank": 16, "points": 231, "picks": 37, "pool_size": 54}, {"year": 2023, "rank": 30, "points": 211, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 28, "points": 263, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 19, "points": 299, "picks": 45, "pool_size": 65}, {"year": 2026, "rank": 30, "points": 264, "picks": 40, "pool_size": 70}],
+    'Rosie Wong': [{"year": 2019, "rank": 38, "points": 161, "picks": 34, "pool_size": 40}],
+    'Ryan Nelson': [{"year": 2023, "rank": 63, "points": 136, "picks": 23, "pool_size": 64}, {"year": 2024, "rank": 11, "points": 291, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 51, "points": 233, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 39, "points": 253, "picks": 38, "pool_size": 70}],
+    'Ryan Reyes': [{"year": 2024, "rank": 3, "points": 309, "picks": 42, "pool_size": 65}],
+    'Ryan Sargent': [{"year": 2024, "rank": 2, "points": 321, "picks": 44, "pool_size": 65}],
+    'Sam Bahre': [{"year": 2016, "rank": 13, "points": 193, "picks": 24, "pool_size": 18}, {"year": 2017, "rank": 13, "points": 214, "picks": 39, "pool_size": 28}, {"year": 2024, "rank": 43, "points": 233, "picks": 34, "pool_size": 65}, {"year": 2025, "rank": 24, "points": 284, "picks": 44, "pool_size": 65}, {"year": 2026, "rank": 58, "points": 220, "picks": 34, "pool_size": 70}],
+    'Samantha Duckworth': [{"year": 2021, "rank": 34, "points": 216, "picks": 32, "pool_size": 55}, {"year": 2022, "rank": 42, "points": 180, "picks": 30, "pool_size": 54}, {"year": 2023, "rank": 48, "points": 188, "picks": 31, "pool_size": 64}],
+    'Sara Goldstein': [{"year": 2017, "rank": 18, "points": 203, "picks": 37, "pool_size": 28}, {"year": 2018, "rank": 8, "points": 203, "picks": 32, "pool_size": 30}, {"year": 2019, "rank": 7, "points": 232, "picks": 41, "pool_size": 40}, {"year": 2021, "rank": 40, "points": 206, "picks": 33, "pool_size": 55}, {"year": 2023, "rank": 54, "points": 175, "picks": 28, "pool_size": 64}],
+    'Saoirse Johnston-Dick': [{"year": 2026, "rank": 21, "points": 284, "picks": 44, "pool_size": 70}],
+    'Seann Archibald': [{"year": 2024, "rank": 64, "points": 173, "picks": 28, "pool_size": 65}],
+    'Skye Orchard': [{"year": 2019, "rank": 15, "points": 219, "picks": 43, "pool_size": 40}],
+    'Sonia Raposo': [{"year": 2026, "rank": 54, "points": 230, "picks": 38, "pool_size": 70}],
+    'Sarah Keo': [{"year": 2017, "rank": 1, "points": 267, "picks": 40, "pool_size": 28}, {"year": 2018, "rank": 7, "points": 208, "picks": 35, "pool_size": 30}, {"year": 2019, "rank": 8, "points": 230, "picks": 43, "pool_size": 40}, {"year": 2021, "rank": 30, "points": 224, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 39, "points": 188, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 10, "points": 241, "picks": 37, "pool_size": 64}, {"year": 2024, "rank": 20, "points": 270, "picks": 41, "pool_size": 65}, {"year": 2025, "rank": 3, "points": 351, "picks": 52, "pool_size": 65}, {"year": 2026, "rank": 22, "points": 283, "picks": 45, "pool_size": 70}],
+    'Sarah Simonds': [{"year": 2018, "rank": 27, "points": 155, "picks": 29, "pool_size": 30}, {"year": 2019, "rank": 19, "points": 215, "picks": 43, "pool_size": 40}, {"year": 2021, "rank": 7, "points": 251, "picks": 34, "pool_size": 55}, {"year": 2022, "rank": 14, "points": 233, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 13, "points": 237, "picks": 34, "pool_size": 64}, {"year": 2024, "rank": 55, "points": 205, "picks": 33, "pool_size": 65}, {"year": 2025, "rank": 46, "points": 240, "picks": 37, "pool_size": 65}, {"year": 2026, "rank": 62, "points": 212, "picks": 33, "pool_size": 70}],
+    'Scott Russell': [{"year": 2018, "rank": 18, "points": 186, "picks": 33, "pool_size": 30}, {"year": 2019, "rank": 17, "points": 216, "picks": 35, "pool_size": 40}, {"year": 2021, "rank": 41, "points": 206, "picks": 31, "pool_size": 55}, {"year": 2022, "rank": 24, "points": 217, "picks": 33, "pool_size": 54}, {"year": 2023, "rank": 16, "points": 229, "picks": 34, "pool_size": 64}, {"year": 2026, "rank": 68, "points": 193, "picks": 31, "pool_size": 70}],
+    'Sean McCoy': [{"year": 2017, "rank": 26, "points": 195, "picks": 34, "pool_size": 28}, {"year": 2023, "rank": 52, "points": 182, "picks": 23, "pool_size": 64}, {"year": 2024, "rank": 23, "points": 268, "picks": 39, "pool_size": 65}, {"year": 2025, "rank": 52, "points": 231, "picks": 32, "pool_size": 65}, {"year": 2026, "rank": 66, "points": 202, "picks": 30, "pool_size": 70}],
+    'Shayna Weingast': [{"year": 2024, "rank": 6, "points": 300, "picks": 41, "pool_size": 65}, {"year": 2025, "rank": 60, "points": 211, "picks": 29, "pool_size": 65}, {"year": 2026, "rank": 26, "points": 279, "picks": 44, "pool_size": 70}],
+    'Siobhan Sargent': [{"year": 2017, "rank": 23, "points": 197, "picks": 37, "pool_size": 28}, {"year": 2018, "rank": 28, "points": 142, "picks": 28, "pool_size": 30}, {"year": 2019, "rank": 27, "points": 193, "picks": 36, "pool_size": 40}, {"year": 2021, "rank": 49, "points": 184, "picks": 29, "pool_size": 55}, {"year": 2022, "rank": 3, "points": 282, "picks": 37, "pool_size": 54}, {"year": 2023, "rank": 40, "points": 200, "picks": 31, "pool_size": 64}, {"year": 2024, "rank": 7, "points": 297, "picks": 43, "pool_size": 65}, {"year": 2025, "rank": 16, "points": 305, "picks": 49, "pool_size": 65}, {"year": 2026, "rank": 57, "points": 220, "picks": 38, "pool_size": 70}],
+    'Tawnie Hespeler': [{"year": 2023, "rank": 45, "points": 192, "picks": 30, "pool_size": 64}, {"year": 2024, "rank": 21, "points": 270, "picks": 37, "pool_size": 65}, {"year": 2025, "rank": 54, "points": 226, "picks": 35, "pool_size": 65}, {"year": 2026, "rank": 14, "points": 291, "picks": 41, "pool_size": 70}],
+    'Taylor Chacon': [{"year": 2021, "rank": 10, "points": 242, "picks": 37, "pool_size": 55}, {"year": 2022, "rank": 30, "points": 211, "picks": 36, "pool_size": 54}, {"year": 2023, "rank": 8, "points": 258, "picks": 36, "pool_size": 64}, {"year": 2024, "rank": 30, "points": 258, "picks": 40, "pool_size": 65}, {"year": 2025, "rank": 58, "points": 214, "picks": 36, "pool_size": 65}, {"year": 2026, "rank": 31, "points": 263, "picks": 44, "pool_size": 70}],
+    'Tenley McCladdie': [{"year": 2019, "rank": 3, "points": 251, "picks": 43, "pool_size": 40}, {"year": 2021, "rank": 21, "points": 227, "picks": 35, "pool_size": 55}, {"year": 2022, "rank": 44, "points": 174, "picks": 30, "pool_size": 54}, {"year": 2023, "rank": 29, "points": 211, "picks": 33, "pool_size": 64}, {"year": 2024, "rank": 1, "points": 329, "picks": 46, "pool_size": 65}, {"year": 2025, "rank": 21, "points": 290, "picks": 47, "pool_size": 65}, {"year": 2026, "rank": 13, "points": 292, "picks": 44, "pool_size": 70}],
+    'Tilson Allen-Merry': [{"year": 2017, "rank": 8, "points": 234, "picks": 42, "pool_size": 28}],
+    'Walter Czaya': [{"year": 2026, "rank": 43, "points": 248, "picks": 38, "pool_size": 70}],
+    'Will Hillebrand': [{"year": 2017, "rank": 16, "points": 204, "picks": 38, "pool_size": 28}, {"year": 2018, "rank": 17, "points": 186, "picks": 33, "pool_size": 30}, {"year": 2019, "rank": 20, "points": 212, "picks": 40, "pool_size": 40}, {"year": 2021, "rank": 18, "points": 229, "picks": 32, "pool_size": 55}, {"year": 2022, "rank": 36, "points": 200, "picks": 32, "pool_size": 54}, {"year": 2023, "rank": 6, "points": 261, "picks": 35, "pool_size": 64}, {"year": 2024, "rank": 42, "points": 239, "picks": 35, "pool_size": 65}, {"year": 2025, "rank": 38, "points": 250, "picks": 40, "pool_size": 65}, {"year": 2026, "rank": 9, "points": 297, "picks": 45, "pool_size": 70}],
+    'Winnie Lee': [{"year": 2021, "rank": 46, "points": 189, "picks": 28, "pool_size": 55}, {"year": 2022, "rank": 31, "points": 210, "picks": 31, "pool_size": 54}, {"year": 2023, "rank": 47, "points": 190, "picks": 29, "pool_size": 64}, {"year": 2024, "rank": 19, "points": 273, "picks": 38, "pool_size": 65}, {"year": 2025, "rank": 42, "points": 244, "picks": 38, "pool_size": 65}, {"year": 2026, "rank": 67, "points": 200, "picks": 33, "pool_size": 70}],
+}
+
 def get_csv_url(base_url: str, sheet_name: str) -> str | None:
     try:
         sheet_id = base_url.split("/d/")[1].split("/")[0]
@@ -2225,9 +2335,21 @@ token_uri = "https://oauth2.googleapis.com/token"
             if st.button("Switch name", key="switch_name_btn", help="Change your selected name"):
                 st.session_state["user_name"] = None
                 st.session_state["modal_done"] = False
+                st.session_state["activity_session_logged"] = False
+                # Clear dependent selectbox keys so they don't re-lock to the old name
+                for _clr_key in ("path", "dna", "bracket_name", "_h2h_sel_p1"):
+                    st.session_state.pop(_clr_key, None)
                 if _cookies is not None:
                     _cookies["user_name"] = ""
                     _cookies.save()
+                # Clear URL param so the query-param fallback doesn't immediately re-login
+                try:
+                    st.query_params.clear()
+                except Exception:
+                    try:
+                        st.query_params["user"] = ""
+                    except Exception:
+                        pass
                 st.rerun()
     st.caption(f"Last synced: {last_update} · Monte Carlo: 1,000 runs")
 
@@ -2268,6 +2390,7 @@ token_uri = "https://oauth2.googleapis.com/token"
         "potential-standings":  ("standings", "potential"),
         "snapshot-standings":   ("standings", "snapshot"),
         "still-alive":          ("standings", "alive"),
+        "all-time-standings":   ("standings", "alltime"),
     }
 
     try:
@@ -2306,10 +2429,18 @@ token_uri = "https://oauth2.googleapis.com/token"
     # tab switches directly. Instead we log on the next rerun that happens
     # inside a tab (sub-nav click, selectbox, button, etc.) using a helper
     # that fires whenever the active tab/sub-page combination changes.
+    _TAB_LABELS = {
+        "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
+        "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
+        "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
+        "scores": "📺 Schedule/Scores",
+    }
+
     def _track_nav(tab_name, sub_name=""):
-        """Log navigation only when the user actively navigates to a new tab/sub-page.
-        Uses a two-key system: _pending_nav signals intent, _last_logged_nav prevents duplicates.
-        On first session load, logs the initial landing page once."""
+        """Log navigation only when the user actively navigates.
+        On first session load, logs the initial landing page once.
+        On sub-nav clicks (_pending_nav_log set), logs the action.
+        Also detects main tab switches by comparing the tab portion of the last logged key."""
         if not st.session_state.get("modal_done"):
             return
         _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
@@ -2317,27 +2448,29 @@ token_uri = "https://oauth2.googleapis.com/token"
 
         # First ever navigation this session — log the landing page
         if _last is None:
-            _label = {
-                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
-                "scores": "📺 Schedule/Scores",
-            }.get(tab_name, tab_name)
-            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
+            _log_event("navigate", _TAB_LABELS.get(tab_name, tab_name), user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             return
 
-        # Only log if this tab was explicitly navigated to via a button
-        # (signalled by _pending_nav_log being set by a nav button click)
+        # Detect main tab switch: last logged tab != current tab
+        _last_tab = _last.split("/")[0] if _last else ""
+        _tab_switched = (_last_tab != tab_name)
+
+        # Check if a sub-nav button was clicked (pending flag set)
         _pending = st.session_state.get("_pending_nav_log", "")
-        if _pending == _nav_key and _nav_key != _last:
-            _label = {
-                "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-                "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-                "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
-                "scores": "📺 Schedule/Scores",
-            }.get(tab_name, tab_name)
-            _log_event("navigate", f"{_label}{' › ' + sub_name if sub_name else ''}", user_name or "anonymous")
+        _sub_clicked = (_pending == _nav_key and _nav_key != _last)
+
+        if _tab_switched:
+            # Log the tab switch (whether via sub-nav click or any interaction in the new tab)
+            _label = _TAB_LABELS.get(tab_name, tab_name)
+            _detail = f"{_label} › {sub_name}" if sub_name and _sub_clicked else _label
+            _log_event("navigate", _detail, user_name or "anonymous")
+            st.session_state["_last_logged_nav"] = _nav_key
+            st.session_state["_pending_nav_log"] = ""
+        elif _sub_clicked:
+            # Same tab, different sub-page
+            _label = _TAB_LABELS.get(tab_name, tab_name)
+            _log_event("navigate", f"{_label} › {sub_name}", user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
 
@@ -2351,6 +2484,8 @@ token_uri = "https://oauth2.googleapis.com/token"
         st.session_state["nav_sub_standings"] = "current"
     elif _effective_slug == "potential-standings":
         st.session_state["nav_sub_standings"] = "potential"
+    elif _effective_slug == "all-time-standings":
+        st.session_state["nav_sub_standings"] = "alltime"
     _applied_slug = st.session_state.get("_deeplink_applied_slug", "")
     _modal_done = st.session_state.get("modal_done", False)
     # Only apply deep-link if modal is done — otherwise save for after dialog
@@ -2759,7 +2894,121 @@ token_uri = "https://oauth2.googleapis.com/token"
                 _reg_html += '</div>'
                 _slides.append(("🗺️ Regional Champions", _reg_html))
 
-                # Slide 9: Hoops, She Did It Again
+                # Slide 9: All-Time Historical Rankings
+                _hist_min_years = 5
+                _hist_stats = []
+                for _hn, _hentries in HISTORICAL_STANDINGS.items():
+                    if len(_hentries) < _hist_min_years:
+                        continue
+                    _hn_yrs = len(_hentries)
+                    _hn_avg_pct   = sum(e["rank"] / e["pool_size"] * 100 for e in _hentries) / _hn_yrs
+                    _hn_avg_pts   = sum(e["points"] for e in _hentries) / _hn_yrs
+                    _hn_avg_picks = sum(e["picks"]  for e in _hentries) / _hn_yrs
+                    _hist_stats.append({
+                        "name": _hn, "years": _hn_yrs,
+                        "avg_pct": _hn_avg_pct,
+                        "avg_pts": _hn_avg_pts,
+                        "avg_picks": _hn_avg_picks,
+                    })
+
+                # Sort by avg percentile (lower = better), top 10
+                _hist_top10 = sorted(_hist_stats, key=lambda x: x["avg_pct"])[:15]
+                _hist_top10_names = [_hs["name"] for _hs in _hist_top10]
+
+                _hist_rows_html = ""
+                _medals = {1: "🏆", 2: "🥈", 3: "🥉"}
+                for _hi, _hs in enumerate(_hist_top10, 1):
+                    _hname      = _hs["name"]
+                    _hpct       = _hs["avg_pct"]
+                    _hpts       = _hs["avg_pts"]
+                    _hpicks     = _hs["avg_picks"]
+                    _hyrs       = _hs["years"]
+                    _hmedal     = _medals.get(_hi, "")
+                    _hrank_cell = _hmedal if _hmedal else f'<span style="color:#6b7280;font-size:12px;">#{_hi}</span>'
+                    _his_me     = (user_name and _hname == user_name)
+                    _hrow_bg    = "background:#1a2744;" if _his_me else ("background:#2d1f00;" if _hi == 1 else "background:#1e1e2e;")
+                    _hrow_bdr   = "border:1px solid #3b82f6;" if _his_me else ("border:1px solid #f5c518;" if _hi == 1 else "border:1px solid #374151;")
+                    _hname_col  = "#60a5fa" if _his_me else ("#f5c518" if _hi == 1 else "#e5e7eb")
+                    _top_pct_display = max(1, round(_hpct))
+                    _hist_rows_html += (
+                        f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                        f'align-items:center;gap:4px;{_hrow_bg}{_hrow_bdr}border-radius:8px;'
+                        f'padding:8px 10px;margin-bottom:4px;">'
+                        f'<div style="font-size:13px;text-align:center;">{_hrank_cell}</div>'
+                        f'<div style="font-size:13px;font-weight:700;color:{_hname_col};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_hname}</div>'
+                        f'<div style="text-align:center;font-size:13px;color:#a78bfa;font-weight:600;">{_hyrs}</div>'
+                        f'<div style="text-align:center;font-size:12px;color:#9ca3af;">Top {_top_pct_display}%</div>'
+                        f'<div style="text-align:center;font-size:13px;color:#f5c518;font-weight:600;">{_hpts:.0f}</div>'
+                        f'<div style="text-align:center;font-size:13px;color:#4fc3f7;font-weight:600;">{_hpicks:.1f}</div>'
+                        f'</div>'
+                    )
+
+                # Append current user row if they're not already in the top 15
+                _viewer_row_html = ""
+                if user_name and user_name not in _hist_top10_names:
+                    _viewer_entries = HISTORICAL_STANDINGS.get(user_name, [])
+                    if _viewer_entries:
+                        _v_yrs    = len(_viewer_entries)
+                        _v_pct    = sum(e["rank"] / e["pool_size"] * 100 for e in _viewer_entries) / _v_yrs
+                        _v_pts    = sum(e["points"] for e in _viewer_entries) / _v_yrs
+                        _v_picks  = sum(e["picks"]  for e in _viewer_entries) / _v_yrs
+                        # Find their overall rank among all participants (not just top 15)
+                        _all_sorted = sorted(
+                            [s for s in _hist_stats] +
+                            ([{"name": user_name, "avg_pct": _v_pct}]
+                             if user_name not in [s["name"] for s in _hist_stats] else []),
+                            key=lambda x: x["avg_pct"]
+                        )
+                        _v_overall_rank = next(
+                            (i+1 for i, s in enumerate(_all_sorted) if s["name"] == user_name), None
+                        )
+                        _v_needs_asterisk = _v_yrs < _hist_min_years
+                        _v_display_name   = user_name + (" *" if _v_needs_asterisk else "")
+                        _v_rank_cell      = f'<span style="color:#6b7280;font-size:12px;">#{_v_overall_rank}</span>' if _v_overall_rank else "—"
+                        _v_top_pct        = max(1, round(_v_pct))
+                        _viewer_row_html  = (
+                            f'<div style="margin-top:6px;border-top:1px dashed #374151;padding-top:6px;">'
+                            f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                            f'align-items:center;gap:4px;background:#1a2744;border:1px solid #3b82f6;'
+                            f'border-radius:8px;padding:8px 10px;">'
+                            f'<div style="font-size:13px;text-align:center;">{_v_rank_cell}</div>'
+                            f'<div style="font-size:13px;font-weight:700;color:#60a5fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_v_display_name}</div>'
+                            f'<div style="text-align:center;font-size:13px;color:#a78bfa;font-weight:600;">{_v_yrs}</div>'
+                            f'<div style="text-align:center;font-size:12px;color:#9ca3af;">Top {_v_top_pct}%</div>'
+                            f'<div style="text-align:center;font-size:13px;color:#f5c518;font-weight:600;">{_v_pts:.0f}</div>'
+                            f'<div style="text-align:center;font-size:13px;color:#4fc3f7;font-weight:600;">{_v_picks:.1f}</div>'
+                            f'</div>'
+                            f'</div>'
+                        )
+
+                _s_hist = (
+                    f'<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:16px;">'
+                    f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:center;margin-bottom:6px;">'
+                    f'🏛️ All-Time Rankings · Top 15 · Min {_hist_min_years} Years'
+                    f'</div>'
+                    f'<div style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:10px;">'
+                    f'{len(HISTORICAL_STANDINGS)} unique participants since 2016'
+                    f'</div>'
+                    f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                    f'gap:4px;padding:0 10px;margin-bottom:5px;">'
+                    f'<div style="font-size:10px;color:#6b7280;"></div>'
+                    f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;">Name</div>'
+                    f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;text-align:center;">Yrs</div>'
+                    f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;text-align:center;">Avg %</div>'
+                    f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;text-align:center;">Avg Pts</div>'
+                    f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;text-align:center;">Picks</div>'
+                    f'</div>'
+                    + _hist_rows_html
+                    + _viewer_row_html +
+                    f'<div style="font-size:10px;color:#6b7280;text-align:center;margin-top:8px;">'
+                    f'Ranked by avg finishing percentile · Minimum 5 years of participation required'
+                    + (f' · * fewer than {_hist_min_years} years' if _viewer_row_html and (_viewer_row_html.find(" *") != -1) else "") +
+                    f'</div>'
+                    f'</div>'
+                )
+                _slides.append(("🏛️ All-Time Rankings", _s_hist))
+
+                # Slide 10: Hoops, She Did It Again
                 _wsbb_1st = WSBB_STANDINGS[0]
                 _wsbb_2nd = next((r for r in WSBB_STANDINGS if r["Rank"] == 2), None)
                 _wsbb_3rd = next((r for r in WSBB_STANDINGS if r["Rank"] == 3), None)
@@ -2995,6 +3244,24 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 })
                         _bu2 = max(_upl, key=lambda x: x["diff"]) if _upl else None
 
+                        # My correct upset picks (seed diff >= 3) — one entry per slot,
+                        # so a team that upset in multiple rounds appears multiple times
+                        # (matches the Pool Highlights Upset Picks slide logic exactly)
+                        _my_upset_teams = []
+                        for c in range(3, 66):
+                            if is_unplayed(actual_winners[c]):
+                                continue
+                            if c >= len(_mr_picks) or _mr_picks[c] != actual_winners[c]:
+                                continue
+                            _uw = actual_winners[c]
+                            _uws = seed_map.get(_uw, 0)
+                            _ulo = slot_loser_map.get(c, "")
+                            _uls = seed_map.get(_ulo, 0)
+                            if _uws > 0 and _uls > 0 and (_uws - _uls) >= 3:
+                                _my_upset_teams.append(_uw)
+                        # No deduplication — each correctly-picked upset slot counts once
+                        _my_upset_pick_count = len(_my_upset_teams)
+
                         # Tiebreaker
                         _mtb  = tiebreaker_guesses.get(_mn)
                         _mtbd = (_mtb - final_score) if _mtb and final_score else None
@@ -3116,10 +3383,191 @@ token_uri = "https://oauth2.googleapis.com/token"
                                     f'<div style="font-size:11px;color:#d8b4fe;">{_upset_rnd} · def. ({_bu2["loser_seed"]}) {_bu2["loser"]} · {_bu2_diff_str}</div>'
                                     f'</div>'
                                 )
+                            # Upset picks pill — always shown (0 if none)
+                            _up_logos_html = ""
+                            for _upt in _my_upset_teams:
+                                _upt_url = espn_logo_url(_upt) or ""
+                                if _upt_url:
+                                    _up_logos_html += (
+                                        f'<div style="display:flex;flex-direction:column;align-items:center;gap:3px;">'
+                                        f'<img src="{_upt_url}" title="{_upt}" style="width:28px;height:28px;object-fit:contain;" onerror="this.style.display:none">'
+                                        f'<span style="font-size:9px;color:#d8b4fe;max-width:40px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_upt}</span>'
+                                        f'</div>'
+                                    )
+                            _up_logos_row = (
+                                f'<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:8px;">{_up_logos_html}</div>'
+                                if _up_logos_html else
+                                f'<div style="font-size:11px;color:#9ca3af;margin-top:8px;">No upsets picked correctly yet</div>'
+                            )
+                            _slide3_parts += (
+                                f'<div style="background:linear-gradient(135deg,#3b0764,#6b21a8);border-radius:16px;padding:16px;text-align:center;">'
+                                f'<div style="font-size:11px;color:#d8b4fe;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">😤 Correct Upset Picks</div>'
+                                f'<div style="font-size:28px;font-weight:900;color:#fff;">{_my_upset_pick_count}</div>'
+                                f'<div style="font-size:11px;color:#d8b4fe;margin-top:2px;">upset{"s" if _my_upset_pick_count != 1 else ""} correctly predicted</div>'
+                                + _up_logos_row +
+                                f'</div>'
+                            )
                             _slide3_parts += '</div>'
                             _my_slides.append(("🤫😤 Picks & Upsets", _slide3_parts))
 
-                        # Slide 4: Regional Breakdown with rank + FF pick logo
+                        # Slide 4: Historical Rankings (multi-year participants only)
+                        _hist_entries = HISTORICAL_STANDINGS.get(_mn, [])
+                        # Only show for players with history beyond 2026
+                        _hist_prev = [e for e in _hist_entries if e["year"] != 2026]
+                        if len(_hist_prev) >= 1:
+                            # NCAA Men's Basketball Tournament champions by year
+                            _ncaa_champs = {
+                                2016: "Villanova", 2017: "North Carolina", 2018: "Villanova",
+                                2019: "Virginia",  2021: "Baylor",         2022: "Kansas",
+                                2023: "UConn",     2024: "UConn",          2025: "Florida",
+                                2026: "Michigan",
+                            }
+                            # All years including 2026, sorted chronologically
+                            _hist_all = sorted(_hist_entries, key=lambda x: x["year"])
+                            # Previous-years averages (exclude 2026)
+                            _hist_avg_rank   = round(sum(e["rank"]   for e in _hist_prev) / len(_hist_prev), 1)
+                            _hist_avg_pts    = round(sum(e["points"] for e in _hist_prev) / len(_hist_prev), 1)
+                            _hist_avg_picks  = round(sum(e["picks"]  for e in _hist_prev) / len(_hist_prev), 1)
+                            # Average percentile (lower rank number = better, so pct = rank/pool_size)
+                            _hist_avg_pct    = round(sum(e["rank"] / e["pool_size"] * 100 for e in _hist_prev) / len(_hist_prev), 1)
+                            # 2026 actuals
+                            _h26 = next((e for e in _hist_entries if e["year"] == 2026), None)
+                            _h26_rank  = _h26["rank"]   if _h26 else _mr_rank
+                            _h26_pts   = _h26["points"] if _h26 else _mr_score
+                            _h26_picks = _h26["picks"]  if _h26 else _mr_correct
+                            _h26_ps    = _h26["pool_size"] if _h26 else _ps
+                            _h26_pct   = round(_h26_rank / _h26_ps * 100, 1)
+                            # Deltas (positive = better than avg for rank means lower number)
+                            _delta_rank  = _hist_avg_rank  - _h26_rank   # positive = improved
+                            _delta_pts   = _h26_pts   - _hist_avg_pts    # positive = improved
+                            _delta_picks = _h26_picks - _hist_avg_picks  # positive = improved
+
+                            def _delta_str(val, invert=False):
+                                """Format a delta with arrow and color."""
+                                if abs(val) < 0.05:
+                                    return '<span style="color:#9ca3af;">—</span>'
+                                better = val > 0 if not invert else val < 0
+                                arrow  = "▲" if val > 0 else "▼"
+                                color  = "#4ade80" if better else "#f87171"
+                                return f'<span style="color:{color};font-size:12px;">{arrow} {abs(val):.1f}</span>'
+
+                            def _top_pct_str(rank, pool_size):
+                                """Return 'Top X%' label for a given rank/pool_size."""
+                                display_pct = max(1, round(rank / pool_size * 100))
+                                return f"Top {display_pct}%"
+
+                            # Year rows — one per year the player participated
+                            _year_rows = ""
+                            for _he in _hist_all:
+                                _hy    = _he["year"]
+                                _hr    = _he["rank"]
+                                _hps   = _he["pool_size"]
+                                _hpts  = _he["points"]
+                                _hpk   = _he["picks"]
+                                _is26  = _hy == 2026
+                                _yr_bg = "background:#1a2744;" if _is26 else "background:#1e1e2e;"
+                                _yr_border = "border:1px solid #3b82f6;" if _is26 else "border:1px solid #374151;"
+                                _rank_col = "#4ade80" if _hr == 1 else ("#f5c518" if _hr <= 3 else ("#60a5fa" if _hr <= round(_hps * 0.15) else "#9ca3af"))
+                                _yr_label = (
+                                    f'<span style="color:#60a5fa;font-size:11px;font-weight:700;'
+                                    f'text-transform:uppercase;letter-spacing:1px;">2026 ★</span>'
+                                    if _is26 else
+                                    f'<span style="color:#9ca3af;font-size:13px;">{_hy}</span>'
+                                )
+                                # Champion logo for this year
+                                _champ_team = _ncaa_champs.get(_hy, "")
+                                _champ_logo_url = espn_logo_url(_champ_team) or "" if _champ_team else ""
+                                _champ_logo_html = (
+                                    f'<img src="{_champ_logo_url}" title="{_champ_team}" '
+                                    f'style="width:22px;height:22px;object-fit:contain;vertical-align:middle;" '
+                                    f'onerror="this.style.display=\'none\'">'
+                                    if _champ_logo_url else ""
+                                )
+                                _top_pct = _top_pct_str(_hr, _hps)
+                                _year_rows += (
+                                    f'<div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr;'
+                                    f'align-items:center;gap:6px;{_yr_bg}{_yr_border}border-radius:8px;'
+                                    f'padding:8px 10px;margin-bottom:4px;">'
+                                    # Year + champion logo
+                                    f'<div style="display:flex;align-items:center;gap:5px;white-space:nowrap;">'
+                                    f'{_yr_label}{_champ_logo_html}'
+                                    f'</div>'
+                                    # Rank
+                                    f'<div style="text-align:center;">'
+                                    f'<span style="font-size:14px;font-weight:800;color:{_rank_col};">#{_hr}</span>'
+                                    f'<span style="font-size:14px;color:#6b7280;font-weight:400;">/{_hps}</span>'
+                                    f'</div>'
+                                    # Percentile
+                                    f'<div style="text-align:center;font-size:13px;color:#9ca3af;">{_top_pct}</div>'
+                                    # Points
+                                    f'<div style="text-align:center;font-size:14px;color:#f5c518;font-weight:600;">{_hpts}</div>'
+                                    # Picks
+                                    f'<div style="text-align:center;font-size:14px;color:#4fc3f7;font-weight:600;">{_hpk}</div>'
+                                    f'</div>'
+                                )
+
+                            # Avg vs 2026 comparison row
+                            _avg_rank_col  = "#4ade80" if _delta_rank  >  0.4 else ("#f87171" if _delta_rank  < -0.4 else "#9ca3af")
+                            _avg_pts_col   = "#4ade80" if _delta_pts   >  0.4 else ("#f87171" if _delta_pts   < -0.4 else "#9ca3af")
+                            _avg_picks_col = "#4ade80" if _delta_picks >  0.4 else ("#f87171" if _delta_picks < -0.4 else "#9ca3af")
+                            # Percentile delta: lower avg_pct = better historically, lower h26_pct = better in 2026
+                            _delta_pct     = _hist_avg_pct - _h26_pct   # positive = 2026 pct is better (lower)
+                            _avg_pct_col   = "#4ade80" if _delta_pct > 0.4 else ("#f87171" if _delta_pct < -0.4 else "#9ca3af")
+                            _h26_top_pct   = _top_pct_str(_h26_rank, _h26_ps)
+                            _avg_top_pct_raw = max(1, round(_hist_avg_pct))
+                            _avg_top_pct_raw = max(5, min(_avg_top_pct_raw, 100))
+                            _avg_top_pct   = f"Top {_avg_top_pct_raw}%"
+
+                            _compare_cells = (
+                                f'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">'
+                                # Rank cell
+                                f'<div style="background:#1e1e2e;border:1px solid #374151;border-radius:10px;padding:10px 6px;text-align:center;">'
+                                f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Avg Rank</div>'
+                                f'<div style="font-size:16px;font-weight:800;color:#e5e7eb;">#{_hist_avg_rank:.1f}</div>'
+                                f'<div style="font-size:12px;color:#6b7280;margin-top:1px;">{_avg_top_pct}</div>'
+                                f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">2026: <span style="color:{_avg_rank_col};font-weight:700;">#{_h26_rank}</span></div>'
+                                f'<div style="font-size:12px;color:{_avg_pct_col};margin-top:1px;">{_h26_top_pct}</div>'
+                                f'<div style="margin-top:3px;">{_delta_str(_delta_rank)}</div>'
+                                f'</div>'
+                                # Points cell
+                                f'<div style="background:#1e1e2e;border:1px solid #374151;border-radius:10px;padding:10px 6px;text-align:center;">'
+                                f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Avg Pts</div>'
+                                f'<div style="font-size:16px;font-weight:800;color:#f5c518;">{_hist_avg_pts:.1f}</div>'
+                                f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">2026: <span style="color:{_avg_pts_col};font-weight:700;">{_h26_pts}</span></div>'
+                                f'<div style="margin-top:3px;">{_delta_str(_delta_pts)}</div>'
+                                f'</div>'
+                                # Picks cell
+                                f'<div style="background:#1e1e2e;border:1px solid #374151;border-radius:10px;padding:10px 6px;text-align:center;">'
+                                f'<div style="font-size:11px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Avg Picks</div>'
+                                f'<div style="font-size:16px;font-weight:800;color:#4fc3f7;">{_hist_avg_picks:.1f}</div>'
+                                f'<div style="font-size:12px;color:#9ca3af;margin-top:4px;">2026: <span style="color:{_avg_picks_col};font-weight:700;">{_h26_picks}</span></div>'
+                                f'<div style="margin-top:3px;">{_delta_str(_delta_picks)}</div>'
+                                f'</div>'
+                                f'</div>'
+                            )
+
+                            _years_played = len(_hist_all)
+                            _hist_slide_html = (
+                                f'<div style="background:linear-gradient(135deg,#1e1e2e,#2d2d44);border-radius:16px;padding:16px;">'
+                                f'<div style="font-size:13px;color:#9ca3af;text-transform:uppercase;letter-spacing:1px;text-align:center;margin-bottom:10px;">'
+                                f'📅 Pool History · {_years_played} year{"s" if _years_played != 1 else ""}'
+                                f'</div>'
+                                # Column headers
+                                f'<div style="display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr;'
+                                f'gap:6px;padding:0 10px;margin-bottom:4px;">'
+                                f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;">Year</div>'
+                                f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;text-align:center;">Rank</div>'
+                                f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;text-align:center;">%</div>'
+                                f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;text-align:center;">Pts</div>'
+                                f'<div style="font-size:11px;color:#6b7280;text-transform:uppercase;text-align:center;">Picks</div>'
+                                f'</div>'
+                                + _year_rows
+                                + _compare_cells
+                                + f'</div>'
+                            )
+                            _my_slides.append(("📅 Pool History", _hist_slide_html))
+
+                        # Slide 5: Regional Breakdown with rank + FF pick logo
                         _reg_cells = ""
                         for _reg in ["East","West","South","Midwest"]:
                             _rv = int(_mr.get(f"{_reg} Score",0))
@@ -3171,13 +3619,14 @@ token_uri = "https://oauth2.googleapis.com/token"
                         ))
 
                         # Tiebreaker slide with rank, offense/defense flavor text
+                        _tb_rank = None
                         if _mtb and final_score:
                             _ts2    = "+" if _mtbd >= 0 else ""
                             _tb_bg2 = "linear-gradient(135deg,#14532d,#166534)" if abs(_mtbd) <= 3 else "linear-gradient(135deg,#1e1e2e,#374151)"
                             _tb_msg = "Exactly Correct! 🎯" if _mtbd == 0 else f"{_ts2}{_mtbd} off"
                             if _mtbd == 0:
                                 _tb_flavor = ""
-                            elif _mtbd < 0:
+                            elif _mtbd > 0:
                                 # They guessed over — actual score was lower — too much defense
                                 _tb_flavor = '<div style="font-size:12px;color:#9ca3af;margin-top:4px;">Too much defense in the Championship game for you 🛡️</div>'
                             else:
@@ -3590,7 +4039,7 @@ token_uri = "https://oauth2.googleapis.com/token"
         if _std_sub == "alive" and not _ff_still_alive:
             st.session_state["nav_sub_standings"] = "current"
             _std_sub = "current"
-        _std_btn_count = 2 + (1 if _ff_potential else 0) + (1 if _ff_still_alive else 0)
+        _std_btn_count = 2 + (1 if _ff_potential else 0) + (1 if _ff_still_alive else 0) + 1
         _std_cols = st.columns(_std_btn_count)
         _std_col_idx = 0
         if _std_cols[_std_col_idx].button("📊 Current", key="std_current", use_container_width=True,
@@ -3616,6 +4065,11 @@ token_uri = "https://oauth2.googleapis.com/token"
             st.session_state["nav_sub_standings"] = "snapshot"
             st.session_state["_pending_nav_log"] = "standings/snapshot"
             st.rerun()
+        _std_col_idx += 1
+        if _std_cols[_std_col_idx].button("🏛️ All-Time", key="std_alltime", use_container_width=True,
+                           type="primary" if _std_sub == "alltime" else "secondary"):
+            st.session_state["nav_sub_standings"] = "alltime"
+            st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
 
@@ -3623,7 +4077,11 @@ token_uri = "https://oauth2.googleapis.com/token"
             _SNAPSHOT_SECTION = True
         else:
             _SNAPSHOT_SECTION = False
-        col_left, col_right = st.columns([3, 2], gap="medium")
+
+        if _std_sub != "alltime":
+            col_left, col_right = st.columns([3, 2], gap="medium")
+        else:
+            col_left = col_right = st.container()
 
         # Detect mobile via user agent header (no JS needed, works reliably)
         try:
@@ -3799,7 +4257,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                 )
                 st.caption("💡 Tap a row in Potential view to open a Head-to-Head comparison")
 
-            elif not _SNAPSHOT_SECTION and _std_sub != "alive":
+            elif not _SNAPSHOT_SECTION and _std_sub not in ("alive", "alltime"):
                 # ── Potential standings: existing AgGrid table ───────────────────
                 display_cols = ["Current Rank", "Name", "Current Score",
                                 "Potential Score", "Win %", "Top 3 %", "Potential Status"]
@@ -3884,7 +4342,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                     st.caption("💡 Tap any row to open a Head-to-Head comparison")
 
         with col_right:
-            if not _SNAPSHOT_SECTION and _std_sub != "alive":
+            if not _SNAPSHOT_SECTION and _std_sub not in ("alive", "alltime"):
                 top10 = final_df.head(10).sort_values("Current Score")
 
                 fig = px.bar(
@@ -4151,6 +4609,113 @@ token_uri = "https://oauth2.googleapis.com/token"
                     '</table></div>',
                     unsafe_allow_html=True
                 )
+
+
+        # ── All-Time Leaders sub-page ─────────────────────────────────────────
+        if _std_sub == "alltime":
+            st.subheader("🏛️ All-Time Leaders")
+
+            # Toggle: 5+ years only vs all participants
+            _at_min_yrs = 5
+            st.divider()
+            _at_show_all = st.toggle(
+                "Show all participants (including fewer than 5 years)",
+                value=st.session_state.get("at_show_all_toggle", False),
+                key="at_show_all_toggle",
+            )
+            st.divider()
+
+            _at_total = len(HISTORICAL_STANDINGS)
+            _at_qualified = sum(1 for e in HISTORICAL_STANDINGS.values() if len(e) >= _at_min_yrs)
+            if _at_show_all:
+                st.caption(f"All {_at_total} participants since 2016 · Ranked by average finishing percentile · Bold = 5+ years")
+                st.caption(r"\* Fewer than 5 years of participation")
+                st.caption("† Did not participate in 2026")
+                st.caption("Bold names = 5+ years")
+            else:
+                st.caption(f"{_at_qualified} participants with 5+ years · Ranked by average finishing percentile")
+
+            # Build stats for all participants
+            _at_stats = []
+            for _atn, _atentries in HISTORICAL_STANDINGS.items():
+                _at_yrs   = len(_atentries)
+                _at_pct   = sum(e["rank"] / e["pool_size"] * 100 for e in _atentries) / _at_yrs
+                _at_pts   = sum(e["points"] for e in _atentries) / _at_yrs
+                _at_picks = sum(e["picks"]  for e in _atentries) / _at_yrs
+                _at_stats.append({
+                    "name": _atn, "years": _at_yrs,
+                    "avg_pct": _at_pct, "avg_pts": _at_pts, "avg_picks": _at_picks,
+                })
+
+            # Filter based on toggle, then sort
+            _at_filtered = _at_stats if _at_show_all else [s for s in _at_stats if s["years"] >= _at_min_yrs]
+            _at_stats_sorted = sorted(_at_filtered, key=lambda x: x["avg_pct"])
+
+            # Build HTML table
+            _at_medals = {1: "🏆", 2: "🥈", 3: "🥉"}
+            _at_rows = ""
+            for _ati, _ats in enumerate(_at_stats_sorted, 1):
+                _atn      = _ats["name"]
+                _atpct    = _ats["avg_pct"]
+                _atpts    = _ats["avg_pts"]
+                _atpicks  = _ats["avg_picks"]
+                _atyrs    = _ats["years"]
+                _at_qualified_row = _atyrs >= _at_min_yrs
+                _at_medal = _at_medals.get(_ati, "") if not _at_show_all or _at_qualified_row else ""
+                _at_rank_cell = _at_medal if _at_medal else str(_ati)
+                _at_is_me = (user_name and _atn == user_name)
+                _at_under5 = not _at_qualified_row
+                _at_in_2026 = any(e["year"] == 2026 for e in HISTORICAL_STANDINGS.get(_atn, []))
+                _at_display_name = _atn + (" *" if _at_under5 else "") + (" †" if _at_show_all and not _at_in_2026 else "")
+
+                # Row background
+                if _at_is_me:
+                    _at_row_bg = "background:#1a2744;border-left:3px solid #3b82f6;"
+                elif _ati == 1 and not _at_show_all:
+                    _at_row_bg = "background:#2d1f00;"
+                elif _at_show_all and _at_qualified_row:
+                    _at_row_bg = "background:#1a2a1a;" if _ati % 2 == 0 else "background:#152015;"
+                else:
+                    _at_row_bg = "" if _ati % 2 == 0 else "background:#161622;"
+                _at_row_style = f' style="{_at_row_bg}"' if _at_row_bg else ""
+
+                # Name styling: bold for 5+ years, normal weight for under 5
+                if _at_is_me:
+                    _at_name_style = "color:#60a5fa;font-weight:700;"
+                elif _at_under5:
+                    _at_name_style = "color:#9ca3af;font-weight:400;"
+                elif _ati <= 3 and not _at_show_all:
+                    _at_name_style = "color:#f5c518;font-weight:700;"
+                else:
+                    _at_name_style = "font-weight:700;"
+
+                _at_top_pct = max(1, round(_atpct))
+                _at_rows += (
+                    f'<tr{_at_row_style}>'
+                    f'<td style="text-align:center;padding:6px 8px;color:#9ca3af;">{_at_rank_cell}</td>'
+                    f'<td style="padding:6px 10px;{_at_name_style}">{_at_display_name}</td>'
+                    f'<td style="text-align:center;padding:6px 8px;color:#a78bfa;font-weight:600;">{_atyrs}</td>'
+                    f'<td style="text-align:center;padding:6px 8px;color:#9ca3af;">Top {_at_top_pct}%</td>'
+                    f'<td style="text-align:center;padding:6px 8px;color:#f5c518;font-weight:600;">{_atpts:.0f}</td>'
+                    f'<td style="text-align:center;padding:6px 8px;color:#4fc3f7;font-weight:600;">{_atpicks:.1f}</td>'
+                    f'</tr>'
+                )
+
+            st.markdown(
+                '<div style="overflow-x:auto;">'
+                '<table style="border-collapse:collapse;width:100%;font-size:13px;">'
+                '<thead><tr style="background:#1e1e2e;color:#9ca3af;">'
+                '<th style="padding:7px 8px;text-align:center;border-bottom:1px solid #313244;">#</th>'
+                '<th style="padding:7px 10px;text-align:left;border-bottom:1px solid #313244;">Name</th>'
+                '<th style="padding:7px 8px;text-align:center;border-bottom:1px solid #313244;">Yrs</th>'
+                '<th style="padding:7px 8px;text-align:center;border-bottom:1px solid #313244;">Avg %</th>'
+                '<th style="padding:7px 8px;text-align:center;border-bottom:1px solid #313244;">Avg Pts</th>'
+                '<th style="padding:7px 8px;text-align:center;border-bottom:1px solid #313244;">Avg Picks</th>'
+                '</tr></thead>'
+                f'<tbody style="color:#e5e7eb;">{_at_rows}</tbody>'
+                '</table></div>',
+                unsafe_allow_html=True
+            )
 
 
     # ── Tab 2: Your Bracket (group) ───────────────────────────────────────────
