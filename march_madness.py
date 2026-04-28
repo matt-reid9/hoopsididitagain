@@ -2430,10 +2430,25 @@ token_uri = "https://oauth2.googleapis.com/token"
     # inside a tab (sub-nav click, selectbox, button, etc.) using a helper
     # that fires whenever the active tab/sub-page combination changes.
     _TAB_LABELS = {
-        "recap": "🎊 Pool Recap", "hall-of-champs": "👑 Hall of Champions",
-        "standings": "🏆 Standings", "your-bracket": "🗂️ Your Bracket",
-        "bonus": "🎲 Bonus Games", "fun-stats": "🎉 Fun Stats",
-        "scores": "📺 Schedule/Scores",
+        "recap":             "🎊 Pool Recap",
+        "recap/highlights":  "🎊 Pool Recap › Pool Highlights",
+        "recap/mine":        "🎊 Pool Recap › My Recap",
+        "hall-of-champs":    "👑 Hall of Champions",
+        "standings":         "🏆 Standings",
+        "standings/current":   "🏆 Standings › Current",
+        "standings/potential": "🏆 Standings › Potential",
+        "standings/alive":     "🏆 Standings › Still Alive",
+        "standings/snapshot":  "🏆 Standings › Snapshot",
+        "standings/alltime":   "🏆 Standings › All-Time",
+        "your-bracket":                    "🗂️ Your Bracket",
+        "your-bracket/bracket":            "🗂️ Your Bracket › Bracket",
+        "your-bracket/win-conditions":     "🗂️ Your Bracket › Win Conditions",
+        "your-bracket/head-to-head":       "🗂️ Your Bracket › Head-to-Head",
+        "your-bracket/standings-progress": "🗂️ Your Bracket › Standings Progress",
+        "your-bracket/bracket-dna":        "🗂️ Your Bracket › Bracket DNA",
+        "bonus":        "🎲 Bonus Games",
+        "fun-stats":    "🎉 Fun Stats",
+        "scores":       "📺 Schedule/Scores",
     }
 
     def _track_nav(tab_name, sub_name=""):
@@ -2461,16 +2476,13 @@ token_uri = "https://oauth2.googleapis.com/token"
         _sub_clicked = (_pending == _nav_key and _nav_key != _last)
 
         if _tab_switched:
-            # Log the tab switch (whether via sub-nav click or any interaction in the new tab)
-            _label = _TAB_LABELS.get(tab_name, tab_name)
-            _detail = f"{_label} › {sub_name}" if sub_name and _sub_clicked else _label
-            _log_event("navigate", _detail, user_name or "anonymous")
+            _label = _TAB_LABELS.get(_nav_key, _TAB_LABELS.get(tab_name, tab_name))
+            _log_event("navigate", _label, user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
         elif _sub_clicked:
-            # Same tab, different sub-page
-            _label = _TAB_LABELS.get(tab_name, tab_name)
-            _log_event("navigate", f"{_label} › {sub_name}", user_name or "anonymous")
+            _label = _TAB_LABELS.get(_nav_key, f"{_TAB_LABELS.get(tab_name, tab_name)} › {sub_name}")
+            _log_event("navigate", _label, user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
 
@@ -2543,10 +2555,12 @@ token_uri = "https://oauth2.googleapis.com/token"
             if _rc1.button("🏆 Pool Highlights", key="recap_highlights", use_container_width=True,
                             type="primary" if _recap_sub == "highlights" else "secondary"):
                 st.session_state["nav_sub_recap"] = "highlights"
+                st.session_state["_pending_nav_log"] = "recap/highlights"
                 st.rerun()
             if _rc2.button("🪞 My Recap", key="recap_mine", use_container_width=True,
                             type="primary" if _recap_sub == "mine" else "secondary"):
                 st.session_state["nav_sub_recap"] = "mine"
+                st.session_state["_pending_nav_log"] = "recap/mine"
                 st.rerun()
             st.divider()
             _recap_sub = st.session_state.get("nav_sub_recap", "highlights")
@@ -4052,12 +4066,14 @@ token_uri = "https://oauth2.googleapis.com/token"
             if _std_cols[_std_col_idx].button("🔮 Potential", key="std_potential", use_container_width=True,
                                type="primary" if _std_sub == "potential" else "secondary"):
                 st.session_state["nav_sub_standings"] = "potential"
+                st.session_state["_pending_nav_log"] = "standings/potential"
                 st.rerun()
             _std_col_idx += 1
         if _ff_still_alive:
             if _std_cols[_std_col_idx].button("💚 Still Alive", key="std_alive", use_container_width=True,
                                type="primary" if _std_sub == "alive" else "secondary"):
                 st.session_state["nav_sub_standings"] = "alive"
+                st.session_state["_pending_nav_log"] = "standings/alive"
                 st.rerun()
             _std_col_idx += 1
         if _std_cols[_std_col_idx].button("📸 Snapshot", key="std_snapshot", use_container_width=True,
@@ -4069,6 +4085,7 @@ token_uri = "https://oauth2.googleapis.com/token"
         if _std_cols[_std_col_idx].button("🏛️ All-Time", key="std_alltime", use_container_width=True,
                            type="primary" if _std_sub == "alltime" else "secondary"):
             st.session_state["nav_sub_standings"] = "alltime"
+            st.session_state["_pending_nav_log"] = "standings/alltime"
             st.rerun()
         st.divider()
         _std_sub = st.session_state.get("nav_sub_standings", "current")
