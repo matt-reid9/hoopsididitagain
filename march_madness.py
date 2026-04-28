@@ -2398,6 +2398,21 @@ token_uri = "https://oauth2.googleapis.com/token"
     except Exception:
         slug = "standings"
 
+    # Detect tab switches signalled by the JS tab-click observer via ?_nav=group
+    try:
+        _nav_signal = st.query_params.get("_nav", "")
+    except Exception:
+        _nav_signal = ""
+    if _nav_signal and st.session_state.get("modal_done"):
+        _last_nav = st.session_state.get("_last_logged_nav", "")
+        if _nav_signal != (_last_nav.split("/")[0] if _last_nav else ""):
+            st.session_state["_pending_nav_log"] = _nav_signal
+        # Clear the param so it doesn't re-trigger on subsequent reruns
+        try:
+            st.query_params.pop("_nav", None)
+        except Exception:
+            pass
+
     # Preserve the intended deep-link slug across dialog reruns
     if slug and slug != "standings" and not st.session_state.get("_pending_slug"):
         st.session_state["_pending_slug"] = slug
@@ -2474,11 +2489,19 @@ token_uri = "https://oauth2.googleapis.com/token"
 
         # Only log if _pending matches this tab or this tab/sub exactly
         _pending_tab = _pending.split("/")[0]
-        _is_target = (_pending == _nav_key) or (_pending == tab_name and not sub_name)
-        _is_tab_switch = (_pending_tab == tab_name and _nav_key != _last)
+        _is_exact    = (_pending == _nav_key) and _nav_key != _last
+        _is_tab_only = (_pending == tab_name) and not sub_name and _nav_key != _last
+        _is_tab_switch = (_pending_tab == tab_name and "/" not in _pending and _nav_key != _last)
 
-        if (_is_target or _is_tab_switch) and _nav_key != _last:
+        if _is_exact and _nav_key != _last:
+            # Exact match — sub-nav click
             _label = _TAB_LABELS.get(_nav_key, _TAB_LABELS.get(tab_name, tab_name))
+            _log_event("navigate", _label, user_name or "anonymous")
+            st.session_state["_last_logged_nav"] = _nav_key
+            st.session_state["_pending_nav_log"] = ""
+        elif _is_tab_switch and _nav_key != _last:
+            # Tab switch from JS observer — log just the tab name
+            _label = _TAB_LABELS.get(tab_name, tab_name)
             _log_event("navigate", _label, user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
@@ -2514,6 +2537,36 @@ token_uri = "https://oauth2.googleapis.com/token"
     ])
 
     import streamlit.components.v1 as _components
+
+    # Inject JS that intercepts top-level tab clicks and appends ?_nav=<group>
+    # to the URL, triggering a Streamlit rerun so _track_nav can log the switch.
+    _tab_group_map_js = """{
+        0: "recap", 1: "hall-of-champs", 2: "standings",
+        3: "your-bracket", 4: "bonus", 5: "fun-stats", 6: "scores"
+    }"""
+    _components.html(f"""<script>
+    (function() {{
+        var _map = {_tab_group_map_js};
+        function attachListeners() {{
+            var tabs = window.parent.document.querySelectorAll('button[data-baseweb="tab"]');
+            if (!tabs.length) {{ setTimeout(attachListeners, 200); return; }}
+            tabs.forEach(function(btn, idx) {{
+                if (btn._navListenerAttached) return;
+                btn._navListenerAttached = true;
+                btn.addEventListener('click', function() {{
+                    var group = _map[idx];
+                    if (!group) return;
+                    // Set query param to signal nav — Streamlit picks it up on next rerun
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.set('tab', url.searchParams.get('tab') || 'standings');
+                    url.searchParams.set('_nav', group);
+                    window.parent.history.replaceState(null, '', url.toString());
+                }});
+            }});
+        }}
+        attachListeners();
+    }})();
+    </script>""", height=0)
 
     # Fire JS tab click on every rerun to keep the correct tab visually active.
     # Uses nav_group session state so it always reflects the user's current location.
