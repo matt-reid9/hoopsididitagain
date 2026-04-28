@@ -2965,7 +2965,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                     if len(_hentries) < _hist_min_years:
                         continue
                     _hn_yrs = len(_hentries)
-                    _hn_avg_pct   = sum(e["rank"] / e["pool_size"] * 100 for e in _hentries) / _hn_yrs
+                    _hn_avg_pct   = sum((1 - e["rank"] / e["pool_size"]) * 100 for e in _hentries) / _hn_yrs
                     _hn_avg_pts   = sum(e["points"] for e in _hentries) / _hn_yrs
                     _hn_avg_picks = sum(e["picks"]  for e in _hentries) / _hn_yrs
                     _hist_stats.append({
@@ -2976,7 +2976,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                     })
 
                 # Sort by avg percentile (lower = better), top 10
-                _hist_top10 = sorted(_hist_stats, key=lambda x: x["avg_pct"])[:15]
+                _hist_top10 = sorted(_hist_stats, key=lambda x: x["avg_pct"], reverse=True)[:15]
                 _hist_top10_names = [_hs["name"] for _hs in _hist_top10]
 
                 _hist_rows_html = ""
@@ -3013,7 +3013,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                     _viewer_entries = HISTORICAL_STANDINGS.get(user_name, [])
                     if _viewer_entries:
                         _v_yrs    = len(_viewer_entries)
-                        _v_pct    = sum(e["rank"] / e["pool_size"] * 100 for e in _viewer_entries) / _v_yrs
+                        _v_pct    = sum((1 - e["rank"] / e["pool_size"]) * 100 for e in _viewer_entries) / _v_yrs
                         _v_pts    = sum(e["points"] for e in _viewer_entries) / _v_yrs
                         _v_picks  = sum(e["picks"]  for e in _viewer_entries) / _v_yrs
                         # Find their overall rank among all participants (not just top 15)
@@ -3021,7 +3021,7 @@ token_uri = "https://oauth2.googleapis.com/token"
                             [s for s in _hist_stats] +
                             ([{"name": user_name, "avg_pct": _v_pct}]
                              if user_name not in [s["name"] for s in _hist_stats] else []),
-                            key=lambda x: x["avg_pct"]
+                            key=lambda x: x["avg_pct"], reverse=True
                         )
                         _v_overall_rank = next(
                             (i+1 for i, s in enumerate(_all_sorted) if s["name"] == user_name), None
@@ -3493,14 +3493,14 @@ token_uri = "https://oauth2.googleapis.com/token"
                             _hist_avg_pts    = round(sum(e["points"] for e in _hist_prev) / len(_hist_prev), 1)
                             _hist_avg_picks  = round(sum(e["picks"]  for e in _hist_prev) / len(_hist_prev), 1)
                             # Average percentile (lower rank number = better, so pct = rank/pool_size)
-                            _hist_avg_pct    = round(sum(e["rank"] / e["pool_size"] * 100 for e in _hist_prev) / len(_hist_prev), 1)
+                            _hist_avg_pct    = round(sum((1 - e["rank"] / e["pool_size"]) * 100 for e in _hist_prev) / len(_hist_prev), 1)
                             # 2026 actuals
                             _h26 = next((e for e in _hist_entries if e["year"] == 2026), None)
                             _h26_rank  = _h26["rank"]   if _h26 else _mr_rank
                             _h26_pts   = _h26["points"] if _h26 else _mr_score
                             _h26_picks = _h26["picks"]  if _h26 else _mr_correct
                             _h26_ps    = _h26["pool_size"] if _h26 else _ps
-                            _h26_pct   = round(_h26_rank / _h26_ps * 100, 1)
+                            _h26_pct   = round((1 - _h26_rank / _h26_ps) * 100, 1)
                             # Deltas (positive = better than avg for rank means lower number)
                             _delta_rank  = _hist_avg_rank  - _h26_rank   # positive = improved
                             _delta_pts   = _h26_pts   - _hist_avg_pts    # positive = improved
@@ -3516,9 +3516,9 @@ token_uri = "https://oauth2.googleapis.com/token"
                                 return f'<span style="color:{color};font-size:12px;">{arrow} {abs(val):.1f}</span>'
 
                             def _top_pct_str(rank, pool_size):
-                                """Return 'Top X%' label for a given rank/pool_size."""
-                                display_pct = max(1, round(rank / pool_size * 100))
-                                return f"Top {display_pct}%"
+                                """Return percentile label — higher % = better (e.g. rank 1/70 ≈ 99%)."""
+                                display_pct = max(1, round((1 - rank / pool_size) * 100))
+                                return f"{display_pct}%"
 
                             # Year rows — one per year the player participated
                             _year_rows = ""
@@ -3574,13 +3574,11 @@ token_uri = "https://oauth2.googleapis.com/token"
                             _avg_rank_col  = "#4ade80" if _delta_rank  >  0.4 else ("#f87171" if _delta_rank  < -0.4 else "#9ca3af")
                             _avg_pts_col   = "#4ade80" if _delta_pts   >  0.4 else ("#f87171" if _delta_pts   < -0.4 else "#9ca3af")
                             _avg_picks_col = "#4ade80" if _delta_picks >  0.4 else ("#f87171" if _delta_picks < -0.4 else "#9ca3af")
-                            # Percentile delta: lower avg_pct = better historically, lower h26_pct = better in 2026
-                            _delta_pct     = _hist_avg_pct - _h26_pct   # positive = 2026 pct is better (lower)
+                            # Percentile delta: higher pct = better, so positive delta = 2026 was better
+                            _delta_pct     = _h26_pct - _hist_avg_pct   # positive = 2026 pct is better (higher)
                             _avg_pct_col   = "#4ade80" if _delta_pct > 0.4 else ("#f87171" if _delta_pct < -0.4 else "#9ca3af")
                             _h26_top_pct   = _top_pct_str(_h26_rank, _h26_ps)
-                            _avg_top_pct_raw = max(1, round(_hist_avg_pct))
-                            _avg_top_pct_raw = max(5, min(_avg_top_pct_raw, 100))
-                            _avg_top_pct   = f"Top {_avg_top_pct_raw}%"
+                            _avg_top_pct   = f"{max(1, round(_hist_avg_pct))}%"
 
                             _compare_cells = (
                                 f'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:10px;">'
@@ -4706,7 +4704,7 @@ token_uri = "https://oauth2.googleapis.com/token"
             _at_stats = []
             for _atn, _atentries in HISTORICAL_STANDINGS.items():
                 _at_yrs   = len(_atentries)
-                _at_pct   = sum(e["rank"] / e["pool_size"] * 100 for e in _atentries) / _at_yrs
+                _at_pct   = sum((1 - e["rank"] / e["pool_size"]) * 100 for e in _atentries) / _at_yrs
                 _at_pts   = sum(e["points"] for e in _atentries) / _at_yrs
                 _at_picks = sum(e["picks"]  for e in _atentries) / _at_yrs
                 _at_stats.append({
@@ -4716,7 +4714,7 @@ token_uri = "https://oauth2.googleapis.com/token"
 
             # Filter based on toggle, then sort
             _at_filtered = _at_stats if _at_show_all else [s for s in _at_stats if s["years"] >= _at_min_yrs]
-            _at_stats_sorted = sorted(_at_filtered, key=lambda x: x["avg_pct"])
+            _at_stats_sorted = sorted(_at_filtered, key=lambda x: x["avg_pct"], reverse=True)
 
             # Build HTML table
             _at_medals = {1: "🏆", 2: "🥈", 3: "🥉"}
