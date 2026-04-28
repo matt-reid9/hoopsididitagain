@@ -2942,15 +2942,15 @@ token_uri = "https://oauth2.googleapis.com/token"
                     _hname_col  = "#60a5fa" if _his_me else ("#f5c518" if _hi == 1 else "#e5e7eb")
                     _top_pct_display = max(1, round(_hpct))
                     _hist_rows_html += (
-                        f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
-                        f'align-items:center;gap:4px;{_hrow_bg}{_hrow_bdr}border-radius:8px;'
-                        f'padding:8px 10px;margin-bottom:4px;">'
-                        f'<div style="font-size:13px;text-align:center;">{_hrank_cell}</div>'
-                        f'<div style="font-size:13px;font-weight:700;color:{_hname_col};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_hname}</div>'
-                        f'<div style="text-align:center;font-size:13px;color:#a78bfa;font-weight:600;">{_hyrs}</div>'
-                        f'<div style="text-align:center;font-size:12px;color:#9ca3af;">Top {_top_pct_display}%</div>'
-                        f'<div style="text-align:center;font-size:13px;color:#f5c518;font-weight:600;">{_hpts:.0f}</div>'
-                        f'<div style="text-align:center;font-size:13px;color:#4fc3f7;font-weight:600;">{_hpicks:.1f}</div>'
+                        f'<div style="display:grid;grid-template-columns:22px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                        f'align-items:center;gap:3px;{_hrow_bg}{_hrow_bdr}border-radius:8px;'
+                        f'padding:6px 8px;margin-bottom:4px;">'
+                        f'<div style="font-size:12px;text-align:center;">{_hrank_cell}</div>'
+                        f'<div class="nm" style="font-size:12px;font-weight:700;color:{_hname_col};min-width:0;word-break:break-word;">{_hname}</div>'
+                        f'<div style="text-align:center;font-size:12px;color:#a78bfa;font-weight:600;">{_hyrs}</div>'
+                        f'<div style="text-align:center;font-size:11px;color:#9ca3af;">T{_top_pct_display}%</div>'
+                        f'<div style="text-align:center;font-size:12px;color:#f5c518;font-weight:600;">{_hpts:.0f}</div>'
+                        f'<div style="text-align:center;font-size:12px;color:#4fc3f7;font-weight:600;">{_hpicks:.1f}</div>'
                         f'</div>'
                     )
 
@@ -2979,15 +2979,15 @@ token_uri = "https://oauth2.googleapis.com/token"
                         _v_top_pct        = max(1, round(_v_pct))
                         _viewer_row_html  = (
                             f'<div style="margin-top:6px;border-top:1px dashed #374151;padding-top:6px;">'
-                            f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
-                            f'align-items:center;gap:4px;background:#1a2744;border:1px solid #3b82f6;'
-                            f'border-radius:8px;padding:8px 10px;">'
-                            f'<div style="font-size:13px;text-align:center;">{_v_rank_cell}</div>'
-                            f'<div style="font-size:13px;font-weight:700;color:#60a5fa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{_v_display_name}</div>'
-                            f'<div style="text-align:center;font-size:13px;color:#a78bfa;font-weight:600;">{_v_yrs}</div>'
-                            f'<div style="text-align:center;font-size:12px;color:#9ca3af;">Top {_v_top_pct}%</div>'
-                            f'<div style="text-align:center;font-size:13px;color:#f5c518;font-weight:600;">{_v_pts:.0f}</div>'
-                            f'<div style="text-align:center;font-size:13px;color:#4fc3f7;font-weight:600;">{_v_picks:.1f}</div>'
+                            f'<div style="display:grid;grid-template-columns:22px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                            f'align-items:center;gap:3px;background:#1a2744;border:1px solid #3b82f6;'
+                            f'border-radius:8px;padding:6px 8px;">'
+                            f'<div style="font-size:12px;text-align:center;">{_v_rank_cell}</div>'
+                            f'<div class="nm" style="font-size:12px;font-weight:700;color:#60a5fa;min-width:0;word-break:break-word;">{_v_display_name}</div>'
+                            f'<div style="text-align:center;font-size:12px;color:#a78bfa;font-weight:600;">{_v_yrs}</div>'
+                            f'<div style="text-align:center;font-size:11px;color:#9ca3af;">T{_v_top_pct}%</div>'
+                            f'<div style="text-align:center;font-size:12px;color:#f5c518;font-weight:600;">{_v_pts:.0f}</div>'
+                            f'<div style="text-align:center;font-size:12px;color:#4fc3f7;font-weight:600;">{_v_picks:.1f}</div>'
                             f'</div>'
                             f'</div>'
                         )
@@ -3000,8 +3000,8 @@ token_uri = "https://oauth2.googleapis.com/token"
                     f'<div style="font-size:12px;color:#6b7280;text-align:center;margin-bottom:10px;">'
                     f'{len(HISTORICAL_STANDINGS)} unique participants since 2016'
                     f'</div>'
-                    f'<div style="display:grid;grid-template-columns:28px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
-                    f'gap:4px;padding:0 10px;margin-bottom:5px;">'
+                    f'<div style="display:grid;grid-template-columns:22px minmax(0,1.8fr) 1fr 1fr 1fr 1fr;'
+                    f'gap:3px;padding:0 8px;margin-bottom:5px;">'
                     f'<div style="font-size:10px;color:#6b7280;"></div>'
                     f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;">Name</div>'
                     f'<div style="font-size:10px;color:#6b7280;text-transform:uppercase;text-align:center;">Yrs</div>'
@@ -3163,7 +3163,7 @@ token_uri = "https://oauth2.googleapis.com/token"
       var dx=e.changedTouches[0].clientX-sx;sx=null;sw=false;
       goTo(Math.abs(dx)>50?(dx<0?cur+1:cur-1):cur);
     }});
-    </script></body></html>""", height=900, scrolling=False)
+    </script></body></html>""", height=1100, scrolling=False)
 
 
             elif _recap_sub == "mine":
