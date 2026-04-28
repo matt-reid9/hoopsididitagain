@@ -2452,36 +2452,33 @@ token_uri = "https://oauth2.googleapis.com/token"
     }
 
     def _track_nav(tab_name, sub_name=""):
-        """Log navigation only when the user actively navigates.
-        On first session load, logs the initial landing page once.
-        On sub-nav clicks (_pending_nav_log set), logs the action.
-        Also detects main tab switches by comparing the tab portion of the last logged key."""
+        """Log navigation only when triggered by an explicit user action.
+        Requires _pending_nav_log to be set — passive renders are ignored entirely.
+        This prevents the cascade where every tab's _track_nav fires on each rerun."""
         if not st.session_state.get("modal_done"):
             return
-        _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
-        _last    = st.session_state.get("_last_logged_nav", None)
 
-        # First ever navigation this session — log the landing page
-        if _last is None:
-            _log_event("navigate", _TAB_LABELS.get(tab_name, tab_name), user_name or "anonymous")
-            st.session_state["_last_logged_nav"] = _nav_key
+        _pending = st.session_state.get("_pending_nav_log", "")
+        if not _pending:
+            # No pending action — this is a passive render, skip entirely
+            # (except for the very first landing page log)
+            if st.session_state.get("_last_logged_nav") is None:
+                _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
+                _label = _TAB_LABELS.get(_nav_key, _TAB_LABELS.get(tab_name, tab_name))
+                _log_event("navigate", _label, user_name or "anonymous")
+                st.session_state["_last_logged_nav"] = _nav_key
             return
 
-        # Detect main tab switch: last logged tab != current tab
-        _last_tab = _last.split("/")[0] if _last else ""
-        _tab_switched = (_last_tab != tab_name)
+        _nav_key = f"{tab_name}/{sub_name}" if sub_name else tab_name
+        _last    = st.session_state.get("_last_logged_nav", "")
 
-        # Check if a sub-nav button was clicked (pending flag set)
-        _pending = st.session_state.get("_pending_nav_log", "")
-        _sub_clicked = (_pending == _nav_key and _nav_key != _last)
+        # Only log if _pending matches this tab or this tab/sub exactly
+        _pending_tab = _pending.split("/")[0]
+        _is_target = (_pending == _nav_key) or (_pending == tab_name and not sub_name)
+        _is_tab_switch = (_pending_tab == tab_name and _nav_key != _last)
 
-        if _tab_switched:
+        if (_is_target or _is_tab_switch) and _nav_key != _last:
             _label = _TAB_LABELS.get(_nav_key, _TAB_LABELS.get(tab_name, tab_name))
-            _log_event("navigate", _label, user_name or "anonymous")
-            st.session_state["_last_logged_nav"] = _nav_key
-            st.session_state["_pending_nav_log"] = ""
-        elif _sub_clicked:
-            _label = _TAB_LABELS.get(_nav_key, f"{_TAB_LABELS.get(tab_name, tab_name)} › {sub_name}")
             _log_event("navigate", _label, user_name or "anonymous")
             st.session_state["_last_logged_nav"] = _nav_key
             st.session_state["_pending_nav_log"] = ""
